@@ -131,7 +131,7 @@ data class MultiTouchStep(
  * device. Serialised as:
  *
  * ```json
- * { "type": "gamepad", "button": "A", "action": "press", "delay": 100 }
+ * { "type": "gamepad", "button": "A", "action": "press", "delay": 300 }
  * ```
  */
 @Serializable
@@ -178,7 +178,7 @@ data class GamepadStep(
     override val typeName: String get() = "gamepad"
 
     companion object {
-        const val DEFAULT_DELAY = 100L
+        const val DEFAULT_DELAY = 300L
     }
 }
 

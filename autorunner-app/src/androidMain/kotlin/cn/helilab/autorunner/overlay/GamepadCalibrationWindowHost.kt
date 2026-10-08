@@ -2,6 +2,7 @@ package cn.helilab.autorunner.overlay
 
 import android.content.Context
 import android.graphics.PixelFormat
+import android.os.Build
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.runtime.Composable
@@ -19,10 +20,13 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
  * Compose content (see [com.autorunner.ui.overlay.GamepadCalibrationPanel]),
  * so this host never has to resize or move the window itself.
  *
- * The window keeps `FLAG_LAYOUT_IN_SCREEN`, so the Compose content origin is the
- * physical screen origin `(0, 0)`; the absolute pixel coordinates produced by
- * the calibration panel therefore match the coordinate system used by the
- * recorded scripts and the stored gamepad mappings.
+ * The window keeps `FLAG_LAYOUT_IN_SCREEN` and lays out inside the display
+ * cutout, so the Compose content origin is the physical screen origin `(0, 0)`;
+ * the absolute pixel coordinates produced by the calibration panel therefore
+ * match the coordinate system used by the recorded scripts and the stored
+ * gamepad mappings. Without the cutout mode the window is letterboxed on a
+ * landscape punch-hole display and the origin shifts by the cutout inset
+ * (e.g. 144px / 48dp), making every stored coordinate miss the real button.
  */
 class GamepadCalibrationWindowHost(
     private val context: Context,
@@ -90,5 +94,16 @@ class GamepadCalibrationWindowHost(
             gravity = Gravity.TOP or Gravity.START
             x = 0
             y = 0
+            // Lay out inside the cutout so the content origin stays at the
+            // physical (0, 0) even on a landscape punch-hole display. Otherwise
+            // the window is letterboxed by the cutout inset and every calibrated
+            // absolute coordinate shifts by that inset.
+            // ALWAYS (API 30+) is used when available; SHORT_EDGES is the
+            // equivalent fallback for API 28/29 (punch-holes sit on a short edge).
+            layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            } else {
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
         }
 }

@@ -89,7 +89,7 @@ jobs:
           path: autorunner-app/build/outputs/apk/release/*.apk
           retention-days: 7
 
-      # 把 APK 作为附件挂到对应 Release 上。
+      # 把 APK 作为附件挂到对应 Release 上，附件名带版本号（与 artifact 命名一致）。
       # 触发场景：release 事件（Release 已存在），或 push tag（tag 已存在但可能尚无 Release，
       # 此时先自动创建再上传）。workflow_dispatch 不带 tag，跳过该步骤避免误建 Release。
       # --clobber 允许重跑覆盖同名附件。
@@ -100,7 +100,12 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
-          APK=autorunner-app/build/outputs/apk/release/autorunner-app-release.apk
+          VERSION="${{ steps.version.outputs.version }}"
+          SRC=autorunner-app/build/outputs/apk/release/autorunner-app-release.apk
+          APK=autorunner-app/build/outputs/apk/release/autorunner-${VERSION}.apk
+          cp "$SRC" "$APK"
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" --title "$TAG" --generate-notes
+          # 清掉可能存在的无版本号旧附件，避免同一 Release 下重复。
+          gh release delete-asset "$TAG" autorunner-app-release.apk --yes >/dev/null 2>&1 || true
           gh release upload "$TAG" "$APK" --clobber

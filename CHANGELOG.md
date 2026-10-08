@@ -2,6 +2,41 @@
 
 本文件记录 AutoRunner 的所有重要变更。
 
+## v1.0.1 - 2026-10-08
+
+修复手势回放失败被吞、横屏打孔屏坐标偏移两处真机问题，并校正手柄标定默认键位。
+
+### Fixed
+
+- **手势构建失败不再被静默吞掉**：`buildGesture` 此前用 `runCatching{}.getOrNull()` 把所有异常
+  统一兜底成 `null`，坐标越界等真实失败会被误报成「不支持的动作」，真机难以排查；现在只有确实
+  没有手势形态的动作（delay / gamepad / key、并发笔画超限）才返回 `null`，其余异常抛出并写入
+  `WARN` 日志，向用户回报「手势构建失败：<原因>」。
+- **手势坐标夹取到屏幕范围**：点击 / 长按 / 滑动的起点终点、多点触控各点均按屏幕宽高夹取到
+  `[0, 屏幕尺寸]`，避免平台对负边界笔画的拒绝。
+- **横屏打孔屏下悬浮球 / 标定层坐标偏移**：给悬浮球窗口（`ComposeWindowHost`）与手柄标定窗口
+  （`GamepadCalibrationWindowHost`）补上 `layoutInDisplayCutoutMode`（API 30+ 用 `ALWAYS`，
+  API 28/29 回退 `SHORT_EDGES`），窗口铺满含 cutout 的物理屏，内容原点固定为物理 `(0, 0)`；
+  修掉此前窗口被 cutout letterbox、球的坐标与标定结果整体偏移一个 cutout inset（如 144px / 48dp）
+  的问题。
+
+### Changed
+
+- **手柄标定默认键位贴合 PS Remote Play 原生虚拟手柄（DualSense）真实布局**：以相对屏幕宽高的
+  比例铺开（取自 2608x1200 横屏全屏截图实测的按键中心），取代此前的顺序网格；左肩 L2/L1、
+  右肩 R2/R1、左十字键、右 △□○×、底部 BACK/GUIDE/START、摇杆 L3/R3 及摇杆中心各就各位。
+  三种手柄模式共用同一套物理落点，品牌差异只体现在标签上。
+- **手柄动作默认延迟由 `100ms` 调整为 `300ms`**（`GamepadStep.DEFAULT_DELAY`），README 与 `ActionStep`
+  文档示例同步更新，避免过快回放漏触发。
+- **debug 构建复用 release 签名**：设备上若装过 GitHub Release 包，签名一致的 debug 包才能原地
+  覆盖安装，避免跨签名报 `INSTALL_FAILED_DUPLICATE_PERMISSION`；未提供 `ANDROID_KEYSTORE_*`
+  变量时仍回退到项目内 `debug.keystore`，本地行为保持不变。
+
+### 构建 / CI
+
+- Release 附件 APK 更名为带版本号的 `autorunner-<version>.apk`，并清理同一 Release 下可能残留的
+  无版本号旧附件，避免重复；改动集中在 `.github/workflows/android-release.yml`。
+
 ## v1.0.0 - 2026-10-08
 
 首个正式版本：基于 Kotlin Multiplatform + Compose Multiplatform 的原生 Android

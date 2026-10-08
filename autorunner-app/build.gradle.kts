@@ -176,6 +176,13 @@ android {
     }
 
     buildTypes {
+        // debug 复用 release 签名：设备上若装过 GitHub Release 包，debug 包只有签名一致
+        // 才能原地覆盖安装，否则跨签名会报 INSTALL_FAILED_DUPLICATE_PERMISSION。
+        // 未提供 ANDROID_KEYSTORE_* 变量时 release signingConfig 会回退到项目内
+        // debug.keystore，因此本地无变量时的行为与以前完全一致。
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("release")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

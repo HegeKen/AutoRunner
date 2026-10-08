@@ -2,6 +2,7 @@ package cn.helilab.autorunner.overlay
 
 import android.content.Context
 import android.graphics.PixelFormat
+import android.os.Build
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -225,6 +226,14 @@ class ComposeWindowHost(
             gravity = Gravity.TOP or Gravity.START
             x = metrics.widthPixels - ballWindow - dp(8)
             y = dp(160)
+            // 与标定层同理：窗口需铺满含 cutout 的物理屏，否则横屏打孔屏下会被
+            // letterbox，球的绝对坐标随之整体偏移一个 cutout inset。
+            // ALWAYS（API 30+）优先，API 28/29 回退到 SHORT_EDGES（打孔屏在短边，等效）。
+            layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            } else {
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
         }
     }
 

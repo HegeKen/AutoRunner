@@ -189,7 +189,7 @@ adb -s <serial> install -r autorunner-app/build/outputs/apk/release/autorunner-a
     { "type": "swipe", "fromX": 540, "fromY": 1800, "toX": 540, "toY": 600, "duration": 300, "delay": 200 },
     { "type": "longPress", "x": 540, "y": 1200, "duration": 1500, "delay": 300 },
     { "type": "multiTouch", "points": [{"x": 400, "y": 1200}, {"x": 680, "y": 1200, "startOffset": 0}], "duration": 300, "delay": 300 },
-    { "type": "gamepad", "button": "A", "action": "press", "delay": 100 },
+    { "type": "gamepad", "button": "A", "action": "press", "delay": 300 },
     { "type": "delay", "duration": 1000, "delay": 0 }
   ]
 }

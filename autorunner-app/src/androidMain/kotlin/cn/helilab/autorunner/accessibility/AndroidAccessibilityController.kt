@@ -131,7 +131,12 @@ class AndroidAccessibilityController(
         val service = AccessibilityServiceHolder.current()
             ?: return ActionResult.Failure("无障碍服务未连接", recoverable = true)
 
-        val gesture = buildGesture(step)
+        val gesture = runCatching { buildGesture(step) }
+            .getOrElse { error ->
+                // 坐标越界等构建失败曾在这里被吞掉、误报成「不支持的动作」，导致真机排查困难。
+                Log.w(AutoRunnerApplication.TAG, "构建手势失败：${step.typeName}", error)
+                return ActionResult.Failure("手势构建失败：${error.message ?: "未知错误"}", recoverable = false)
+            }
             ?: return ActionResult.Unsupported("不支持的动作用于手势回放：${step.typeName}")
 
         return withContext(Dispatchers.Main) {
@@ -162,41 +167,56 @@ class AndroidAccessibilityController(
         }
     }
 
-    /** Translates an [ActionStep] into a [GestureDescription]. */
-    private fun buildGesture(step: ActionStep): GestureDescription? = runCatching {
+    /**
+     * Translates an [ActionStep] into a [GestureDescription].
+     *
+     * Returns `null` only when the step genuinely has no gesture form
+     * (delay/gamepad/key or too many simultaneous strokes). Coordinates are
+     * clamped into the screen because the platform rejects strokes with
+     * negative bounds; anything else is thrown to the caller so real failures
+     * surface instead of being mistaken for unsupported actions.
+     */
+    private fun buildGesture(step: ActionStep): GestureDescription? {
+        val metrics = measureScreen(context)
+        val maxX = metrics.widthPx.toFloat()
+        val maxY = metrics.heightPx.toFloat()
+
         val builder = GestureDescription.Builder()
         when (step) {
             is TapStep -> {
-                builder.addStroke(strokeOf(pointPath(step.x, step.y), 0L, step.duration))
+                builder.addStroke(strokeOf(pointPath(step.x.clampToScreen(maxX), step.y.clampToScreen(maxY)), 0L, step.duration))
             }
 
             is LongPressStep -> {
-                builder.addStroke(strokeOf(pointPath(step.x, step.y), 0L, step.duration))
+                builder.addStroke(strokeOf(pointPath(step.x.clampToScreen(maxX), step.y.clampToScreen(maxY)), 0L, step.duration))
             }
 
             is SwipeStep -> {
                 val path = Path().apply {
-                    moveTo(step.fromX, step.fromY)
-                    lineTo(step.toX, step.toY)
+                    moveTo(step.fromX.clampToScreen(maxX), step.fromY.clampToScreen(maxY))
+                    lineTo(step.toX.clampToScreen(maxX), step.toY.clampToScreen(maxY))
                 }
                 builder.addStroke(strokeOf(path, 0L, step.duration))
             }
 
             is MultiTouchStep -> {
-                if (step.points.size > MAX_STROKES) return@runCatching null
+                if (step.points.size > MAX_STROKES) return null
                 step.points.forEach { point ->
                     val start = point.startOffset.coerceIn(0L, (step.duration - 1).coerceAtLeast(0L))
                     val duration = (step.duration - start).coerceAtLeast(MIN_STROKE_DURATION_MS)
                     builder.addStroke(
-                        strokeOf(pointPath(point.x, point.y), start, duration),
+                        strokeOf(pointPath(point.x.clampToScreen(maxX), point.y.clampToScreen(maxY)), start, duration),
                     )
                 }
             }
 
-            is DelayStep, is GamepadStep, is KeyStep -> return@runCatching null
+            is DelayStep, is GamepadStep, is KeyStep -> return null
         }
-        builder.build()
-    }.getOrNull()
+        return builder.build()
+    }
+
+    /** Keeps a gesture coordinate inside the screen so the platform's non-negative bounds check passes. */
+    private fun Float.clampToScreen(max: Float): Float = coerceIn(0f, max)
 
     private fun pointPath(x: Float, y: Float): Path = Path().apply { moveTo(x, y) }
 
