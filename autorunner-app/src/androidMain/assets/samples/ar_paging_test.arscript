@@ -1,0 +1,34 @@
+{
+  "version": "1.0",
+  "info": {
+    "name": "桌面翻页测试",
+    "description": "横向左滑，验证桌面翻页",
+    "device": {
+      "width": 1200,
+      "height": 2608,
+      "density": 3.0
+    },
+    "createdAt": "2026-10-07T03:10:00Z",
+    "coordinateSpace": "absolute",
+    "tags": []
+  },
+  "execution": {
+    "mode": "repeat",
+    "repeatCount": 2,
+    "intervalMs": 1500,
+    "failureStrategy": "skip",
+    "reconnectTimeoutMs": 15000,
+    "restoreDelayMs": 0
+  },
+  "flow": [
+    {
+      "type": "swipe",
+      "fromX": 1000.0,
+      "fromY": 1300.0,
+      "toX": 200.0,
+      "toY": 1300.0,
+      "duration": 400,
+      "delay": 300
+    }
+  ]
+}

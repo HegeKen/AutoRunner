@@ -1,0 +1,6 @@
+id=autorunner_root
+name=AutoRunner Root Bridge
+version=v1.0.0
+versionCode=1
+author=HegeKen
+description=AutoRunner 的 Root 增强模块（作者 HegeKen）：① 开机自动启用 AutoRunner 无障碍服务，绕过 MIUI/HyperOS 的「受限设置」；② 默认授予通知、悬浮窗、忽略电池优化、后台运行、前台服务等运行所需权限；③ 提供 Root 输入注入桥（tap / swipe / long / key / text），在无障碍被限制或不可用时依然能回放脚本。

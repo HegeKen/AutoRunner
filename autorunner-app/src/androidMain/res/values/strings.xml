@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoRunner</string>
+
+    <string name="accessibility_service_label">AutoRunner 自动化服务</string>
+    <string name="accessibility_service_summary">录制并回放屏幕手势</string>
+    <string name="accessibility_service_description">开启后 AutoRunner 才能捕获你的点击、长按、滑动与多点触控，并通过系统手势 API 回放录制的脚本。服务不会收集或上传任何数据，所有脚本都保存在本机应用私有目录。</string>
+
+    <string name="notification_channel_execution">脚本执行</string>
+    <string name="notification_channel_execution_description">显示正在运行的脚本进度，并保持执行过程不被系统回收。</string>
+    <string name="notification_execution_title">AutoRunner 正在执行脚本</string>
+    <string name="notification_execution_idle">等待任务</string>
+    <string name="notification_recording_title">AutoRunner 正在录制操作</string>
+    <string name="notification_recording_text">点击悬浮球或下方按钮停止录制</string>
+    <string name="notification_action_stop">停止</string>
+    <string name="notification_action_pause">暂停</string>
+    <string name="notification_action_resume">继续</string>
+    <string name="notification_action_stop_recording">停止录制</string>
+
+    <string name="overlay_permission_hint">需要「显示在其他应用上层」权限才能显示悬浮控制面板。</string>
+    <string name="battery_hint">请在电池设置中允许 AutoRunner 后台运行，避免长时间循环被系统中断。</string>
+</resources>

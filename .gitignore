@@ -1,0 +1,15 @@
+*.iml
+.gradle/
+.kotlin/
+build/
+captures/
+local.properties
+.idea/
+.DS_Store
+build-logic/build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+graphify-out
+
+# root-module 打包产物（由 build.sh / :autorunner-app:buildRootModule 生成）
+root-module/*.zip
