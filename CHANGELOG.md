@@ -2,7 +2,7 @@
 
 本文件记录 AutoRunner 的所有重要变更。
 
-## [1.0.0] - 2026-10-08
+## v1.0.0 - 2026-10-08
 
 首个正式版本：基于 Kotlin Multiplatform + Compose Multiplatform 的原生 Android
 自动化录制与回放应用，UI 采用 MIUIX（HyperOS 设计语言）。
