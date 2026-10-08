@@ -5,12 +5,17 @@ on:
   push:
     tags:
       - "v*"
+  # 在 GitHub 上「创建/发布 Release」不会触发 push 的 tag 事件（UI 建 tag 不发 push，
+  # 且本项目 Release tag 为 1.0.0 并不匹配 v*），因此必须显式订阅 release 事件。
+  release:
+    types: [published]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
-  contents: read
+  # 需要 write 才能把 APK 作为附件上传到 Release。
+  contents: write
 
 jobs:
   build:
@@ -71,3 +76,13 @@ jobs:
           name: autorunner-release-apk
           path: autorunner-app/build/outputs/apk/release/*.apk
           retention-days: 7
+
+      # 由 Release 事件触发时，把 APK 作为附件挂到该 Release 上（--clobber 允许重跑覆盖）。
+      - name: Attach APK to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK=autorunner-app/build/outputs/apk/release/autorunner-app-release.apk
+          gh release upload "${GITHUB_REF_NAME}" "$APK" --clobber
