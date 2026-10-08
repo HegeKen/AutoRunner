@@ -16,11 +16,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * State holder that drives [ExecutionController] from the UI and the floating
- * panel (§6.3, §6.4.3).
+ * 从界面和悬浮面板驱动 [ExecutionController] 的状态持有者（§6.3、§6.4.3）。
  *
- * The overlay service creates its own instance from the same [AppContainer], so
- * the in-app screen and the floating panel always show identical state.
+ * 悬浮服务会用同一个 [AppContainer] 创建自己的实例，
+ * 因此应用内页面与悬浮面板展示的状态始终一致。
  */
 class ExecutionViewModel(
     private val container: AppContainer,
@@ -85,7 +84,7 @@ class ExecutionViewModel(
         scope.launch { repository.refresh() }
     }
 
-    /** Copies the user's preferred defaults into the panel controls. */
+    /** 把用户偏好的默认值复制到面板控件中。 */
     fun applySettingsDefaults() {
         val defaults = container.settingsRepository.current.defaultExecution
         _mode.value = defaults.mode
@@ -105,13 +104,11 @@ class ExecutionViewModel(
     }
 
     /**
-     * Copies the `execution` block stored inside the script into the panel controls
-     * (§6.2).
+     * 把脚本内部存储的 `execution` 块复制到面板控件（§6.2）。
      *
-     * Called whenever the *active script changes*, and notably from [start]: the
-     * library's ▶ button starts a script without going through the panel, so
-     * without this a script saved as "repeat 20×" would silently run once with the
-     * global defaults.
+     * 每当*当前脚本变化*时都会调用，尤其是来自 [start]：脚本库的 ▶ 按钮不经过
+     * 面板就直接启动脚本，若没有这一步，保存为「重复 20 次」的脚本会悄无声息地
+     * 按全局默认值只跑一次。
      */
     private fun adoptExecution(record: ScriptRecord) {
         _mode.value = record.script.execution.mode
@@ -134,7 +131,7 @@ class ExecutionViewModel(
         _intervalMs.value = intervalMs.coerceAtLeast(0)
     }
 
-    /** Builds the effective configuration from the panel controls. */
+    /** 根据面板控件构建生效的执行配置。 */
     fun buildConfig(): ExecutionConfig = ExecutionConfig(
         mode = _mode.value,
         repeatCount = _repeatCount.value,
@@ -142,7 +139,7 @@ class ExecutionViewModel(
         failureStrategy = container.settingsRepository.current.failureStrategy,
     ).sanitized()
 
-    /** Starts the selected script. */
+    /** 启动选中的脚本。 */
     /** 「已就绪待运行」：悬浮窗已显示，等用户在悬浮窗上点运行。 */
     private val _armed = kotlinx.coroutines.flow.MutableStateFlow(false)
     val armed: kotlinx.coroutines.flow.StateFlow<Boolean> = _armed.asStateFlow()
@@ -217,25 +214,23 @@ class ExecutionViewModel(
                 }
                 return@launch
             }
-            // Switching to another script adopts *its* stored execution block; a
-            // script that is already selected keeps whatever the panel shows, so an
-            // explicit tweak is never silently overwritten.
+            // 切换到另一个脚本时采用*它自己*存储的 execution 块；已选中的脚本
+            // 则保留面板上当前显示的值，避免用户手动调过的设置被悄悄覆盖。
             if (_selectedScriptId.value != id) {
                 _selectedScriptId.value = id
                 adoptExecution(record)
             }
             val config = buildConfig()
             val started = controller.start(record.script, config, scriptId = id)
-            // Deliberately silent on success: a run that starts must not interrupt
-            // the user with a dialog. The floating banner and the progress row show
-            // what is running; failures below still surface a message.
+            // 成功时特意保持安静：已经启动的运行不该用对话框打断用户。
+            // 悬浮横幅和进度行会显示正在跑什么；下面的失败仍会弹出消息。
             if (!started) {
                 _message.value = "启动失败：已有任务正在执行"
             }
         }
     }
 
-    /** Quick action used by the floating ball: run the first available script. */
+    /** 悬浮球使用的快捷操作：运行第一个可用脚本。 */
     fun startFirstAvailable() {
         val id = _selectedScriptId.value ?: scripts.value.firstOrNull()?.id
         start(id)
@@ -262,10 +257,10 @@ class ExecutionViewModel(
         _message.value = null
     }
 
-    /** `true` when the panel should offer a "start" affordance. */
+    /** 面板应提供「启动」入口时为 `true`。 */
     fun canStart(): Boolean = !isRunning && scripts.value.isNotEmpty()
 
-    /** Serialises the selected script for a share/export action. */
+    /** 为分享 / 导出操作序列化选中的脚本。 */
     fun selectedScript(): ScriptModel? = _selectedScriptId.value?.let { id ->
         scripts.value.firstOrNull { it.id == id }?.script
     }

@@ -83,18 +83,18 @@ import com.autorunner.ui.viewmodel.ScriptListViewModel
 import com.autorunner.ui.viewmodel.SettingsViewModel
 
 /**
- * Root composable of AutoRunner.
+ * AutoRunner 的根组合函数。
  *
- * Handles the three levels of adaptation required by §5:
+ * 处理 §5 要求的三个层次的适配：
  *
- * 1. **Window size class** ([WindowSizeClass] from Material 3 Adaptive) decides
- *    between the compact, medium and expanded layouts.
- * 2. **Navigation** switches between a MIUIX `NavigationBar` (phone) and a
- *    `NavigationRail` (tablet) — the most common MIUIX adaptive pattern.
- * 3. **Pane layout** switches between step-by-step navigation (phone) and the
- *    List-Detail / Supporting Pane patterns (tablet).
+ * 1. **窗口尺寸等级**（Material 3 Adaptive 的 [WindowSizeClass]）决定使用
+ *    compact、medium 还是 expanded 布局。
+ * 2. **导航**在 MIUIX `NavigationBar`（手机）与 `NavigationRail`（平板）之间
+ *    切换——最常见的 MIUIX 自适应模式。
+ * 3. **面板布局**在逐步导航（手机）与 List-Detail / Supporting Pane 模式（平板）
+ *    之间切换。
  *
- * Every screen is shared; only the shell changes shape.
+ * 每个页面都是同一套；只有外壳形态在变。
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -105,11 +105,11 @@ fun AutoRunnerApp(
     transferController: ScriptTransferController? = null,
     gamepadStatusProvider: GamepadStatusProvider? = null,
     windowSizeClass: WindowSizeClass = currentWindowAdaptiveInfo().windowSizeClass,
-    /** Lets an automated UI check (or a share intent) open a specific screen. */
+    /** 让自动化 UI 检查（或分享 Intent）能直接打开指定页面。 */
     initialDestination: Destination = Destination.Scripts,
 ) {
-    // Lifecycle aware collection: the shell stops observing while the
-    // activity is stopped, which matters for the long lived service flows.
+    // 生命周期感知的收集：activity 停止时外壳会停止观察，
+    // 这对长生命周期的服务流很重要。
     val settings by container.settings.collectAsStateWithLifecycle()
 
     // 每个手柄类型各自标定；编辑器据此判断脚本类型是否已标定。
@@ -135,7 +135,7 @@ fun AutoRunnerApp(
         val highlightedScriptId by scriptListViewModel.selectedId.collectAsStateWithLifecycle()
         val storedScripts by scriptListViewModel.scripts.collectAsStateWithLifecycle()
         var showClearAllDialog by remember { mutableStateOf(false) }
-        // Drives the collapsible large title of the library app bar.
+        // 驱动脚本库顶栏可折叠的大标题。
         val scrollBehavior = MiuixScrollBehavior()
 
         // 轻量"上一级"返回栈：不引入导航库，只记住上一页，供系统返回键回退。
@@ -166,8 +166,8 @@ fun AutoRunnerApp(
             open(if (backStack.isNotEmpty()) backStack.removeAt(backStack.lastIndex) else Destination.Scripts)
         }
 
-        // Honour a destination requested by an intent extra (used by the
-        // automated UI pass, since MIUI blocks `adb shell input tap`).
+        // 响应 intent extra 指定的目标页（自动化 UI 测试用，因为 MIUI 屏蔽了
+        // `adb shell input tap`）。
         androidx.compose.runtime.LaunchedEffect(initialDestination) {
             navigate(initialDestination)
         }
@@ -175,10 +175,10 @@ fun AutoRunnerApp(
 
         Scaffold(
             modifier = modifier.fillMaxSize(),
-            // Zero on purpose: MIUIX otherwise pads the *content* by the status bar.
-            // The library bar does not sit in that padded area, so every page's own
-            // bar would end up one status bar lower than it. Instead each bar applies
-            // the inset itself (defaultWindowInsetsPadding = true).
+            // 有意置零：否则 MIUIX 会按状态栏给*内容*加内边距。
+            // 顶栏并不位于那块内边距区域内，于是各页面自己的顶栏都会比
+            // 应在位置低一个状态栏。改为由每个顶栏自行应用该 inset
+            //（defaultWindowInsetsPadding = true）。
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
                 // 只有脚本库复用 Shell 顶栏；录制页与设置页各自持有带更丰富内容的
@@ -239,8 +239,8 @@ fun AutoRunnerApp(
                     )
                 }
                 when (destination) {
-                    // The library's creation / import / housekeeping actions live
-                    // here, as floating buttons in the bottom right corner.
+                    // 脚本库的新建 / 导入 / 整理类操作放在这里，
+                    // 作为右下角的悬浮按钮。
                     Destination.Scripts -> {
                         FloatingActionButton(
                             onClick = scriptListViewModel::launchImportPicker,
@@ -341,9 +341,8 @@ fun AutoRunnerApp(
                 }
 
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // Running a script from the list used to be invisible: the
-                    // progress lived in the floating panel only. The banner plus
-                    // dialog below give immediate feedback on every screen.
+                    // 从列表运行脚本过去是不可见的：进度只存在于悬浮面板。
+                    // 下面的横幅加对话框让每个页面都能立刻看到反馈。
                     if (destination == Destination.Scripts) {
                         RunStatusBanner(
                             executionViewModel = executionViewModel,
@@ -449,9 +448,8 @@ fun AutoRunnerApp(
 }
 
 /**
- * Compact run status shown above the script library: loop counter, current
- * action and the pause / stop transport, so starting a script from the list is
- * never a silent no-op.
+ * 显示在脚本库上方的紧凑运行状态：循环计数、当前动作以及暂停 / 停止控件，
+ * 让从列表启动脚本不再是一次悄无声息的空操作。
  */
 @Composable
 private fun RunStatusBanner(
@@ -544,7 +542,7 @@ private fun RunStatusBanner(
     )
 }
 
-/** MIUIX icon for each navigation entry. */
+/** 每个导航项对应的 MIUIX 图标。 */
 private fun Destination.icon() = when (this) {
     Destination.Scripts -> MiuixIcons.Tasks
     Destination.Record -> MiuixIcons.AppRecording
@@ -552,7 +550,7 @@ private fun Destination.icon() = when (this) {
     is Destination.Editor -> MiuixIcons.Play
 }
 
-/** Reminder shown while a mandatory permission is still missing (§9). */
+/** 仍缺少必要权限时显示的提醒（§9）。 */
 @Composable
 private fun PermissionFab(
     missingCount: Int,
@@ -570,7 +568,7 @@ private fun PermissionFab(
                 tint = MiuixTheme.colorScheme.onErrorContainer,
             )
         }
-        // Count badge, so the button states *how much* is missing at a glance.
+        // 数量角标，让按钮一眼就能看出还缺多少项权限。
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)

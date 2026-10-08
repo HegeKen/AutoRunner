@@ -1,26 +1,26 @@
 package com.autorunner.ui.platform
 
 /**
- * Read-only view of the optional gamepad module.
+ * 可选手柄模块的只读视图。
  *
- * `autorunner-ui` deliberately does not depend on `autorunner-gamepad`; the app
- * module adapts `LocalGamepadGateway` to this interface (and to
- * `com.autorunner.core.model.GamepadGateway`, which the executor uses).
+ * `autorunner-ui` 刻意不依赖 `autorunner-gamepad`；应用模块负责把
+ * `LocalGamepadGateway` 适配到本接口（以及执行器使用的
+ * `com.autorunner.core.model.GamepadGateway`）。
  */
 interface GamepadStatusProvider {
 
-    /** `true` when local gamepad injection is possible on this device. */
+    /** 本设备是否支持本地手柄注入。 */
     val supported: Boolean
 
-    /** `true` while a host is connected. */
+    /** 是否已有主机连接。 */
     val connected: Boolean
 
-    /** Last failure reported by the platform, if any. */
+    /** 平台最近一次上报的失败信息，没有则为 `null`。 */
     val lastError: String?
 
-    /** Advertises the HID profile in the background. */
+    /** 在后台广播 HID 配置。 */
     fun connect()
 
-    /** Stops advertising / disconnects. */
+    /** 停止广播 / 断开连接。 */
     fun disconnect()
 }

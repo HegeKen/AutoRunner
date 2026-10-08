@@ -4,9 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Buttons exposed by the simulated gamepads. The `serialName` values are the
- * neutral, cross-vendor identifiers stored inside `.arscript` files; each HID
- * profile maps them onto its own report descriptor bit.
+ * 模拟手柄暴露的按键。`serialName` 是存储在 `.arscript` 文件里的跨厂商中立
+ * 标识；每种 HID 配置把它映射到自己的报告描述符位。
  */
 @Serializable
 enum class GamepadButton(val serialName: String, val displayName: String) {
@@ -34,7 +33,7 @@ enum class GamepadButton(val serialName: String, val displayName: String) {
             entries.firstOrNull { it.serialName.equals(value, ignoreCase = true) }
     }
 
-    /** Brand specific caption shown on the on-screen pad when [mode] is selected. */
+    /** 选择 [mode] 后屏幕手柄上显示的品牌专属标注。 */
     fun labelFor(mode: GamepadMode): String = when (mode) {
         GamepadMode.XBOX -> when (this) {
             A -> "A"
@@ -98,7 +97,7 @@ enum class GamepadButton(val serialName: String, val displayName: String) {
     }
 }
 
-/** Analogue axes of the simulated gamepads. */
+/** 模拟手柄的模拟量轴。 */
 @Serializable
 enum class TriggerKey(val serialName: String) {
     @SerialName("LEFT_STICK_X") LEFT_STICK_X("LEFT_STICK_X"),
@@ -109,7 +108,7 @@ enum class TriggerKey(val serialName: String) {
     @SerialName("RIGHT_TRIGGER") RIGHT_TRIGGER("RIGHT_TRIGGER"),
 }
 
-/** Kind of gamepad interaction. */
+/** 手柄交互的类型。 */
 @Serializable
 enum class GamepadAction(val serialName: String) {
     @SerialName("press") PRESS("press"),
@@ -128,46 +127,44 @@ enum class GamepadAction(val serialName: String) {
 }
 
 /**
- * On-screen position of one gamepad button.
+ * 单个手柄按键在屏幕上的位置。
  *
- * Gamepad simulation injects the press **into this device** (a local touch on the
- * game's virtual pad), so every button needs to know where that button lives on
- * screen. Coordinates are absolute pixels of the current device, matching what
- * the recorder produces.
+ * 手柄模拟把按下动作**注入到本设备**（在游戏的虚拟手柄上本地触控），
+ * 因此每个按键都需要知道自己在屏幕上的位置。坐标为当前设备的绝对像素，
+ * 与录制器产出的坐标一致。
  */
 @Serializable
 data class GamepadButtonMapping(
     val button: GamepadButton,
     val x: Float = 0f,
     val y: Float = 0f,
-    /** How long the synthetic press is held. */
+    /** 合成按下动作保持的时长。 */
     val durationMs: Long = 60L,
-    /** `false` until the user picks a position for this button. */
+    /** 用户为该按键选定位置之前为 `false`。 */
     val configured: Boolean = false,
 )
 
-/** Complete local gamepad configuration. */
+/** 完整的本地手柄配置。 */
 @Serializable
 data class GamepadMappings(
     val buttons: List<GamepadButtonMapping> = emptyList(),
-    /** Centre of the virtual joystick, used by `stick` actions. */
+    /** 虚拟摇杆中心，供 `stick` 动作使用。 */
     val stickCenterX: Float = 0f,
     val stickCenterY: Float = 0f,
     val stickCenterConfigured: Boolean = false,
-    /** Travel in pixels for a full deflection (`x`/`y` = ±1). */
+    /** 满偏时的行程像素数（`x`/`y` = ±1）。 */
     val stickRadius: Float = 220f,
     /**
-     * `true` once the user has run the one-shot whole-pad calibration on this
-     * device. Button positions are a property of the device, so the script
-     * editor stops asking for calibration afterwards.
+     * 用户在本设备上完成过一次性整柄校准后为 `true`。按键位置是设备的
+     * 属性，之后脚本编辑器不再要求校准。
      */
     val calibrated: Boolean = false,
 ) {
-    /** The mapping of [button], or `null` when the user has not configured it. */
+    /** [button] 的映射；用户尚未配置时为 `null`。 */
     fun mappingFor(button: GamepadButton): GamepadButtonMapping? =
         buttons.firstOrNull { it.button == button && it.configured }
 
-    /** Replaces (or adds) one button mapping. */
+    /** 替换（或新增）一个按键映射。 */
     fun withMapping(mapping: GamepadButtonMapping): GamepadMappings =
         copy(buttons = buttons.filterNot { it.button == mapping.button } + mapping)
 
@@ -182,34 +179,32 @@ data class GamepadMappings(
 }
 
 /**
- * Platform-agnostic entry point used by the script executor to run `gamepad`
- * actions.
+ * 脚本执行器用来运行 `gamepad` 动作的平台无关入口。
  *
- * AutoRunner drives **this** device: a `gamepad` step is translated into a local
- * touch (or a stick drag) at the position the user mapped for that button, and
- * dispatched through the accessibility service like any other gesture. Nothing is
- * sent to an external host, so no Bluetooth permission is involved.
+ * AutoRunner 驱动的是**本设备**：`gamepad` 步骤会被转换成在用户为该按键
+ * 映射的位置上的本地触控（或摇杆拖动），并像其他手势一样经无障碍服务派发。
+ * 不会向外部主机发送任何内容，因此不涉及蓝牙权限。
  */
 interface GamepadGateway {
-    /** `true` when local gamepad injection is possible on this device. */
+    /** 本设备支持本地手柄注入时为 `true`。 */
     val isSupported: Boolean
 
-    /** `true` while the accessibility service needed for injection is connected. */
+    /** 注入所需的无障碍服务处于已连接状态时为 `true`。 */
     val isConnected: Boolean
 
-    /** Best effort preparation; returns `false` when injection is impossible. */
+    /** 尽力而为的准备；无法注入时返回 `false`。 */
     suspend fun connect(): Boolean
 
-    /** Releases any state held by the gateway. */
+    /** 释放网关持有的所有状态。 */
     fun disconnect()
 
     /**
-     * Executes a `gamepad` step from a script.
+     * 执行脚本中的一个 `gamepad` 步骤。
      *
-     * @param mode which per-mode calibration to use, taken from the script's
-     *   [com.autorunner.core.model.ScriptInfo.gamepadMode].
-     * @throws IllegalStateException when the button (or the stick centre) has not
-     *   been mapped yet, or when gamepad simulation is disabled in the settings.
+     * @param mode 使用哪一套按模式的校准，取自脚本的
+     *   [com.autorunner.core.model.ScriptInfo.gamepadMode]。
+     * @throws IllegalStateException 当按键（或摇杆中心）尚未映射，
+     *   或设置里禁用了手柄模拟时。
      */
     suspend fun execute(step: GamepadStep, mode: GamepadMode)
 }

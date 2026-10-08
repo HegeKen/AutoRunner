@@ -1,12 +1,11 @@
 package com.autorunner.core.platform
 
 /**
- * `actual` factories for Android.
+ * Android 平台的 `actual` 工厂。
  *
- * The concrete implementations are published by the platform services
- * (`AutoRunnerAccessibilityService`, `AutoRunnerOverlayService`); until they are
- * registered the no-op implementations are returned so that the shared UI can
- * render meaningful "service not enabled" states.
+ * 具体实现由平台服务（`AutoRunnerAccessibilityService`、`AutoRunnerOverlayService`）
+ * 发布；在它们注册之前返回空实现，以便共享 UI 能够渲染有意义的
+ * 「服务未启用」状态。
  */
 actual fun createAccessibilityController(): AccessibilityController =
     PlatformServices.accessibilityController ?: UnavailableAccessibilityController

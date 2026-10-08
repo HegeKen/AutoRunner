@@ -24,7 +24,7 @@ class ArScriptCodecTest {
 
     private val codec = ArScriptCodec()
 
-    /** The exact document shown in §6.2 of the design specification. */
+    /** 设计规格 §6.2 中展示的原始文档。 */
     private val specificationDocument = """
         {
           "version": "1.0",

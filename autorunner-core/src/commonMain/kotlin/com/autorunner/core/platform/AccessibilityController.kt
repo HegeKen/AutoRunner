@@ -6,52 +6,50 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Result of dispatching a single action. */
+/** 分发单个动作的结果。 */
 sealed interface ActionResult {
 
-    /** The gesture was handed to the system. */
+    /** 手势已交给系统。 */
     data object Success : ActionResult
 
-    /** The gesture could not be dispatched. */
+    /** 手势无法分发。 */
     data class Failure(val reason: String, val recoverable: Boolean = false) : ActionResult
 
-    /** The action type is not supported on this platform / configuration. */
+    /** 该平台／配置不支持此动作类型。 */
     data class Unsupported(val reason: String) : ActionResult
 
     val isSuccess: Boolean get() = this is Success
 }
 
 /**
- * Platform abstraction over `AccessibilityService`: it dispatches gestures and
- * reports the screen geometry the executor scales normalised coordinates
- * against.
+ * `AccessibilityService` 之上的平台抽象：它分发手势，并上报执行器
+ * 用于换算归一化坐标的屏幕几何信息。
  *
- * Android implementation lives in `autorunner-app` and is published through
- * `AndroidPlatformRegistry`; the remaining platforms fall back to
- * [UnavailableAccessibilityController].
+ * Android 实现位于 `autorunner-app`，通过 `AndroidPlatformRegistry` 发布；
+ * 其余平台退化为 [UnavailableAccessibilityController]。
  */
 interface AccessibilityController {
 
-    /** `true` while the accessibility service is bound. */
+    /** 无障碍服务已绑定时为 `true`。 */
     val isConnected: Boolean
 
-    /** `true` when `dispatchGesture` is available (API 24+, always true on our minSdk). */
+    /** `dispatchGesture` 可用时为 `true`（API 24+，在我们的 minSdk 上恒为 true）。 */
     val supportsGestures: Boolean
 
-    /** Screen the gestures are dispatched against. */
+    /** 手势分发所针对的屏幕。 */
     val screenMetrics: ScreenMetrics
 
-    /** Re-reads [screenMetrics] from the platform (rotation, resize, fold). */
+    /** 从平台重新读取 [screenMetrics]（旋转、尺寸变化、折叠）。 */
     fun refreshScreenMetrics(): ScreenMetrics
 
-    /** Dispatches one action and suspends until the gesture completed. */
+    /** 分发一个动作并挂起直到手势完成。 */
     suspend fun perform(step: ActionStep): ActionResult
 
-    /** Cancels any gesture currently in flight. */
+    /** 取消当前所有进行中的手势。 */
     fun cancelPendingGestures()
 }
 
-/** Fallback used when no platform implementation is registered. */
+/** 未注册任何平台实现时使用的兜底实现。 */
 object UnavailableAccessibilityController : AccessibilityController {
     override val isConnected: Boolean = false
     override val supportsGestures: Boolean = false
@@ -63,26 +61,26 @@ object UnavailableAccessibilityController : AccessibilityController {
     override fun cancelPendingGestures() = Unit
 }
 
-/** Observable state of the floating control panel. */
+/** 悬浮控制面板的可观察状态。 */
 data class OverlayState(
-    /** `SYSTEM_ALERT_WINDOW` granted. */
+    /** 已授予 `SYSTEM_ALERT_WINDOW`。 */
     val permissionGranted: Boolean = false,
-    /** The overlay is attached. */
+    /** 悬浮层已附加。 */
     val visible: Boolean = false,
-    /** The ball's long-press mini action menu is expanded. */
+    /** 悬浮球长按的迷你动作菜单已展开。 */
     val menuOpen: Boolean = false,
-    /** Half of the screen the ball currently sits on; decides the menu direction. */
+    /** 悬浮球当前所在的屏幕半边；决定菜单展开方向。 */
     val dockedEdge: DockEdge = DockEdge.RIGHT,
-    /** Last error surfaced by the window manager, if any. */
+    /** 窗口管理器上报的最近一次错误（若有）。 */
     val error: String? = null,
 )
 
-/** Half of the screen the floating ball sits on (no edge snapping). */
+/** 悬浮球停靠的屏幕半边（不做贴边吸附）。 */
 enum class DockEdge { LEFT, RIGHT }
 
 /**
- * Controls the lifecycle of the floating panel
- * (`AutoRunnerOverlayService` on Android).
+ * 控制悬浮面板的生命周期
+ * （Android 上即 `AutoRunnerOverlayService`）。
  */
 interface OverlayManager {
     /** 回到桌面：让用户先去打开需要操作的目标页面。 */
@@ -91,10 +89,10 @@ interface OverlayManager {
 
     val state: StateFlow<OverlayState>
 
-    /** `SYSTEM_ALERT_WINDOW` currently granted. */
+    /** 当前是否已授予 `SYSTEM_ALERT_WINDOW`。 */
     fun isPermissionGranted(): Boolean
 
-    /** Attaches the overlay; returns `false` when the permission is missing. */
+    /** 附加悬浮层；权限缺失时返回 `false`。 */
     fun show(): Boolean
 
     /**
@@ -111,11 +109,11 @@ interface OverlayManager {
 
     fun collapse()
 
-    /** Refreshes [state] after the user returns from the system settings page. */
+    /** 用户从系统设置页返回后刷新 [state]。 */
     fun refreshPermissionState()
 }
 
-/** Fallback overlay manager for platforms without a window manager overlay. */
+/** 没有窗口管理器悬浮层的平台所用的兜底实现。 */
 class UnavailableOverlayManager(
     private val permissionGranted: Boolean = false,
 ) : OverlayManager {

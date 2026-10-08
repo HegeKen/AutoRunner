@@ -8,7 +8,7 @@ import top.yukonga.miuix.kmp.icon.extended.Report
 import top.yukonga.miuix.kmp.icon.extended.Show
 
 /**
- * Permissions AutoRunner needs, in the order the onboarding flow asks for them.
+ * AutoRunner 需要的权限，按引导流程申请的先后顺序排列。
  *
  * 标题、用途说明与图标跟枚举一起定义，设置页各处直接读取，无需再各自维护一份 when 映射。
  */
@@ -17,21 +17,21 @@ enum class AutoRunnerPermission(
     val summary: String,
     val icon: ImageVector,
 ) {
-    /** `BIND_ACCESSIBILITY_SERVICE` — required for recording and replay. */
+    /** `BIND_ACCESSIBILITY_SERVICE`——录制与回放所必需。 */
     ACCESSIBILITY(
         title = "无障碍服务",
         summary = "BIND_ACCESSIBILITY_SERVICE：录制触摸与回放手势",
         icon = MiuixIcons.Lock,
     ),
 
-    /** `SYSTEM_ALERT_WINDOW` — required for the floating panel. */
+    /** `SYSTEM_ALERT_WINDOW`——悬浮面板所必需。 */
     OVERLAY(
         title = "悬浮窗权限",
         summary = "SYSTEM_ALERT_WINDOW：显示悬浮控制面板",
         icon = MiuixIcons.Show,
     ),
 
-    /** `POST_NOTIFICATIONS` (API 33+) — required for the foreground notification. */
+    /** `POST_NOTIFICATIONS`（API 33+）——前台通知所必需。 */
     NOTIFICATION(
         title = "通知权限",
         summary = "POST_NOTIFICATIONS：前台服务与执行进度通知",
@@ -39,19 +39,19 @@ enum class AutoRunnerPermission(
     ),
 }
 
-/** Snapshot of every special permission AutoRunner cares about. */
+/** AutoRunner 关心的所有特殊权限的快照。 */
 data class PermissionStatus(
     val accessibilityEnabled: Boolean = false,
     val overlayGranted: Boolean = false,
     val notificationGranted: Boolean = true,
-    /** `true` when the app is exempt from battery optimisation. */
+    /** 为 `true` 时应用已豁免电池优化。 */
     val batteryOptimisationIgnored: Boolean = false,
-    /** Manufacturer of the current device, used for ROM specific guidance. */
+    /** 当前设备厂商，用于厂商专属引导。 */
     val manufacturer: String = "",
-    /** `true` when the ROM is known to need extra steps (MIUI, ColorOS, …). */
+    /** 为 `true` 时表示已知该 ROM 需要额外步骤（MIUI、ColorOS 等）。 */
     val requiresOemGuidance: Boolean = false,
 ) {
-    /** Every permission that is mandatory for the core feature set. */
+    /** 核心功能集所需的全部权限是否都已授予。 */
     val corePermissionsGranted: Boolean
         get() = accessibilityEnabled && overlayGranted && notificationGranted
 
@@ -61,71 +61,70 @@ data class PermissionStatus(
         AutoRunnerPermission.NOTIFICATION -> notificationGranted
     }
 
-    /** Missing mandatory permissions, used to render the onboarding banner. */
+    /** 缺失的核心权限，用于渲染引导横幅。 */
     fun missingCore(): List<AutoRunnerPermission> = AutoRunnerPermission.entries.filterNot { isGranted(it) }
 }
 
-/** One step of the vendor specific setup wizard (see §6.4.2). */
+/** 厂商专属设置向导的一步（见 §6.4.2）。 */
 data class OemGuidanceStep(
     val title: String,
     val detail: String,
 )
 
 /**
- * Permission surface implemented by the Android layer.
+ * Android 层实现的权限接口。
  *
- * The shared UI never touches `Settings.canDrawOverlays` or
- * `Settings.ACTION_MANAGE_OVERLAY_PERMISSION` directly; it only asks this
- * controller, which keeps `commonMain` free of platform types (and makes the
- * screens previewable on the desktop target).
+ * 共享 UI 从不直接触碰 `Settings.canDrawOverlays` 或
+ * `Settings.ACTION_MANAGE_OVERLAY_PERMISSION`，只向本控制器发起请求；
+ * 这让 `commonMain` 不含平台类型（也让页面可在 desktop 目标上预览）。
  */
 interface PermissionController {
 
     val status: StateFlow<PermissionStatus>
 
-    /** Re-reads every permission flag (call after returning from settings). */
+    /** 重新读取所有权限标志（从设置页返回后调用）。 */
     fun refresh()
 
-    /** Opens the system accessibility service list. */
+    /** 打开系统无障碍服务列表。 */
     fun openAccessibilitySettings()
 
-    /** Requests `SYSTEM_ALERT_WINDOW` through the dedicated settings screen. */
+    /** 通过专用设置页申请 `SYSTEM_ALERT_WINDOW`。 */
     fun requestOverlayPermission()
 
-    /** Requests `POST_NOTIFICATIONS` (no-op below API 33). */
+    /** 申请 `POST_NOTIFICATIONS`（API 33 以下为空操作）。 */
     fun requestNotificationPermission()
 
-    /** Opens the battery optimisation exemption dialog. */
+    /** 打开电池优化豁免对话框。 */
     fun requestIgnoreBatteryOptimisations()
 
-    /** Opens this app's system details page (fallback for locked down ROMs). */
+    /** 打开本应用的系统详情页（受限 ROM 的兜底方案）。 */
     fun openAppDetailsSettings()
 
-    /** Vendor specific instructions for the current device. */
+    /** 针对当前设备的厂商专属指引。 */
     fun oemGuidance(): List<OemGuidanceStep>
 }
 
 /**
- * Import/export surface implemented by the Android layer with the Storage
- * Access Framework. The desktop default only supports the clipboard.
+ * Android 层通过存储访问框架（SAF）实现的导入/导出接口。
+ * desktop 默认实现仅支持剪贴板。
  */
 interface ScriptTransferController {
 
-    /** Launches the system picker; the payload is delivered to [onPicked]. */
+    /** 拉起系统选择器；载荷经 [onPicked] 回传。 */
     var onPicked: ((fileName: String?, content: String) -> Unit)?
 
-    /** Launches the system file picker; `false` when it could not be opened. */
+    /** 拉起系统文件选择器；无法打开时返回 `false`。 */
     fun pickScriptFile(): Boolean
 
-    /** Writes [content] as [fileName] through the system create-document flow. */
+    /** 通过系统创建文档流程将 [content] 写出为 [fileName]。 */
     fun exportScript(fileName: String, content: String)
 
-    /** Shares [content] as plain text (fallback when SAF is unavailable). */
+    /** 将 [content] 以纯文本形式分享（SAF 不可用时的兜底）。 */
     fun shareScript(fileName: String, content: String)
 
-    /** Copies text to the system clipboard. */
+    /** 将文本复制到系统剪贴板。 */
     fun copyToClipboard(label: String, text: String)
 
-    /** Shows a platform toast/snackbar style message. */
+    /** 显示平台风格的 toast/snackbar 消息。 */
     fun notify(message: String)
 }

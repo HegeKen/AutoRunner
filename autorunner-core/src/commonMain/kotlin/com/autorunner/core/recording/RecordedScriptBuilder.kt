@@ -13,10 +13,10 @@ import com.autorunner.core.util.currentIsoTimestamp
 import com.autorunner.core.util.isoDatePart
 
 /**
- * Assembles a [ScriptModel] from classified actions.
+ * 由分类后的动作组装出 [ScriptModel]。
  *
- * Used when a recording session stops and when the editor re-saves an edited
- * flow, so both paths produce byte-identical metadata.
+ * 录制会话停止时与编辑器重新保存已编辑流程时都会用到它，
+ * 因此两条路径产出的元数据完全一致。
  */
 object RecordedScriptBuilder {
 

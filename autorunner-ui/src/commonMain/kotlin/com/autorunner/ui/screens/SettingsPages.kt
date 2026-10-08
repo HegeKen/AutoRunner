@@ -75,7 +75,7 @@ internal fun SettingsCategoryMenu(
     selected: SettingsPage?,
     onSelect: (SettingsPage) -> Unit,
     modifier: Modifier = Modifier,
-    /** Rendered above the category list (the missing-permission summary). */
+    /** 渲染在分类列表上方（缺失权限摘要）。 */
     header: (@Composable () -> Unit)? = null,
 ) {
     val missing = permissionStatus.missingCore()

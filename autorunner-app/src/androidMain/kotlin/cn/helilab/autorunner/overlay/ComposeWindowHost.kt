@@ -28,11 +28,11 @@ import com.autorunner.core.platform.DockEdge
 import com.autorunner.ui.theme.Dimens
 
 /**
- * Bridges Jetpack Compose into a `WindowManager` overlay window.
+ * 把 Jetpack Compose 接入 `WindowManager` 悬浮窗的桥梁。
  *
- * Compose requires the three tree owners (`LifecycleOwner`,
- * `ViewModelStoreOwner`, `SavedStateRegistryOwner`); a plain `Service` provides
- * none of them, so [OverlayLifecycleOwner] supplies a minimal implementation.
+ * Compose 需要三个树属主（`LifecycleOwner`、`ViewModelStoreOwner`、
+ * `SavedStateRegistryOwner`）；普通的 `Service` 一个都提供不了，因此
+ * [OverlayLifecycleOwner] 提供了一套最小实现。
  *
  * 悬浮窗只有两种形态：仅悬浮球（[menuOpen] = false），以及「球 + 迷你菜单」
  * （[menuOpen] = true）。球的屏幕位置以绝对坐标 [ballX]/[ballY] 为真源，可拖动到
@@ -72,7 +72,7 @@ class ComposeWindowHost(
     var dockedEdge: MutableState<DockEdge> = mutableStateOf(DockEdge.RIGHT)
         private set
 
-    /** Attaches the window rendering [content]; returns `false` on failure. */
+    /** 附着渲染 [content] 的窗口；失败时返回 `false`。 */
     fun show(content: @Composable () -> Unit): Boolean {
         val manager = windowManager ?: return false
         if (composeView != null) {
@@ -92,24 +92,23 @@ class ComposeWindowHost(
             lifecycleOwner = owner
             composeView = view
             layoutParams = params
-            // `buildLayoutParams` can only guess the initial size; the menu
-            // state decides the real one.
+            // `buildLayoutParams` 只能猜测初始尺寸；真正的尺寸由菜单
+            // 状态决定。
             applyLayoutParams()
             owner.onStart()
             true
         }.getOrDefault(false)
     }
 
-    /** Replaces the rendered content (used when the settings change). */
+    /** 替换已渲染的内容（设置变更时使用）。 */
     fun updateContent(content: @Composable () -> Unit) {
         composeView?.setContent { content() }
     }
 
-    /** Switches between the ball and the ball + mini menu. */
+    /** 在“仅球”与“球 + 迷你菜单”两种形态之间切换。 */
     fun setMenuOpen(value: Boolean) {
-        // No early return: the window size must match the content even when the
-        // state value happens to be unchanged (the initial attach path relies on
-        // it).
+        // 不做提前返回：即使状态值恰好未变，窗口尺寸也必须与内容保持一致
+        // （初次附着的路径依赖这一点）。
         menuOpen.value = value
         applyLayoutParams()
     }
@@ -134,7 +133,7 @@ class ComposeWindowHost(
         applyLayoutParams()
     }
 
-    /** Drag modifier handed to the ball. */
+    /** 交给悬浮球的拖动 modifier。 */
     fun dragModifier(): Modifier = Modifier.pointerInput(Unit) {
         detectDragGestures { change, dragAmount ->
             change.consume()
@@ -148,7 +147,7 @@ class ComposeWindowHost(
         }
     }
 
-    /** Removes the window and releases the Compose owners. */
+    /** 移除窗口并释放 Compose 属主。 */
     fun remove() {
         val view = composeView ?: return
         composeView = null
@@ -208,14 +207,12 @@ class ComposeWindowHost(
             ballWindow,
             ballWindow,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            // FLAG_NOT_TOUCH_MODAL is mandatory here: a touchable overlay window
-            // without it consumes *every* pointer event on the display, inside or
-            // outside its bounds, which makes the whole device untappable while
-            // the floating ball/panel is visible.
+            // FLAG_NOT_TOUCH_MODAL 在此是必需的：可触摸的悬浮窗若缺少它，
+            // 会吞噬显示上的每一个指针事件——无论在其边界之内还是之外——
+            // 只要悬浮球/面板可见，整台设备就无法点击。
             //
-            // FLAG_NOT_FOCUSABLE is kept in *both* states: the overlay no longer
-            // hosts any text field, so it must never steal focus (or the IME)
-            // from the game below.
+            // FLAG_NOT_FOCUSABLE 在两种形态下都保留：悬浮层不再承载任何
+            // 输入框，因此绝不能从下层游戏抢走焦点（或输入法）。
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 // 窗口在整块屏幕内布局，x/y 按整屏绝对坐标解释。
@@ -244,8 +241,8 @@ class ComposeWindowHost(
 }
 
 /**
- * Minimal `LifecycleOwner` / `ViewModelStoreOwner` / `SavedStateRegistryOwner`
- * trio required to host `ComposeView` outside an Activity.
+ * 在 Activity 之外承载 `ComposeView` 所需的最小
+ * `LifecycleOwner` / `ViewModelStoreOwner` / `SavedStateRegistryOwner` 三件套。
  */
 internal class OverlayLifecycleOwner : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
 

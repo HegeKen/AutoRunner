@@ -4,7 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * The `execution` block of an `.arscript` file.
+ * `.arscript` 文件的 `execution` 块。
  *
  * ```json
  * "execution": { "mode": "repeat", "repeatCount": 10, "intervalMs": 2000 }
@@ -13,24 +13,23 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ExecutionConfig(
     @SerialName("mode") val mode: ExecutionMode = ExecutionMode.ONCE,
-    /** Number of loops; only meaningful for [ExecutionMode.REPEAT]. `0` = infinite. */
+    /** 循环次数；仅对 [ExecutionMode.REPEAT] 有意义。`0` = 无限。 */
     @SerialName("repeatCount") val repeatCount: Int = 1,
-    /** Idle time between two complete passes over `flow`, in milliseconds. */
+    /** 完整遍历一遍 `flow` 之间的空闲时间，单位毫秒。 */
     @SerialName("intervalMs") val intervalMs: Long = 0L,
-    /** Behaviour when a single action fails. */
+    /** 单个动作失败时的行为。 */
     @SerialName("failureStrategy") val failureStrategy: FailureStrategy = FailureStrategy.ABORT_SCRIPT,
-    /** Milliseconds to wait for the accessibility service to come back before giving up. */
+    /** 放弃前等待无障碍服务恢复的毫秒数。 */
     @SerialName("reconnectTimeoutMs") val reconnectTimeoutMs: Long = 15_000L,
-    /** Milliseconds to pause after each full loop when the screen must settle. */
+    /** 屏幕需要稳定时，每个完整循环后的暂停毫秒数。 */
     @SerialName("restoreDelayMs") val restoreDelayMs: Long = 0L,
 ) {
 
-    /** `true` when [repeatCount] is `0`, i.e. the script loops until stopped. */
+    /** [repeatCount] 为 `0` 时为 `true`，即脚本循环到被停止为止。 */
     val isInfinite: Boolean get() = mode == ExecutionMode.REPEAT && repeatCount == INFINITE_REPEAT
 
     /**
-     * Number of passes the executor will perform, or [INFINITE_LOOPS] for an
-     * endless run.
+     * 执行器将执行的遍数；无尽运行时为 [INFINITE_LOOPS]。
      */
     val totalLoops: Int
         get() = when (mode) {
@@ -38,7 +37,7 @@ data class ExecutionConfig(
             ExecutionMode.REPEAT -> if (repeatCount == INFINITE_REPEAT) INFINITE_LOOPS else repeatCount.coerceAtLeast(1)
         }
 
-    /** Clamps every field into a value the executor can honour. */
+    /** 把每个字段收敛到执行器能接受的取值。 */
     fun sanitized(): ExecutionConfig = copy(
         repeatCount = repeatCount.coerceAtLeast(0),
         intervalMs = intervalMs.coerceAtLeast(0L),
@@ -46,7 +45,7 @@ data class ExecutionConfig(
         restoreDelayMs = restoreDelayMs.coerceAtLeast(0L),
     )
 
-    /** A short localised description used by the UI. */
+    /** 界面使用的简短本地化描述。 */
     fun describe(): String = when {
         mode == ExecutionMode.ONCE -> "单次执行"
         isInfinite -> "无限循环 · 间隔 ${intervalMs}ms"
@@ -54,10 +53,10 @@ data class ExecutionConfig(
     }
 
     companion object {
-        /** `repeatCount` value that means "loop forever". */
+        /** 表示「永久循环」的 `repeatCount` 取值。 */
         const val INFINITE_REPEAT = 0
 
-        /** Sentinel used by [totalLoops] for endless runs. */
+        /** [totalLoops] 用于无尽运行的哨兵值。 */
         const val INFINITE_LOOPS = Int.MAX_VALUE
 
         val Single: ExecutionConfig = ExecutionConfig(mode = ExecutionMode.ONCE)

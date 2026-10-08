@@ -24,21 +24,19 @@ import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/** Colour families available to [AppButton]. */
+/** [AppButton] 可用的配色系列。 */
 enum class AppButtonTone { Primary, Neutral, Danger }
 
 /**
- * Filled action button with **explicit** theme colours.
+ * 填充式操作按钮，主题色**显式**指定。
  *
- * MIUIX' `Button` default colours are extremely low contrast on a Monet palette
- * (light container on a light surface), which made every primary action on a real
- * device look disabled — reported for the floating panel, the editor and the
- * recording screen. This component pins the fill to a theme role and keeps the
- * disabled state legible (a mid grey that still contrasts with the white label the
- * call sites use).
+ * MIUIX 的 `Button` 默认色在 Monet 调色板下对比度极低（浅色容器放在浅色表面
+ * 上），真机上每个主操作看起来都像被禁用 —— 悬浮面板、编辑器与录制页都收到过
+ * 这类反馈。本组件把填充色固定到主题角色上，并保证禁用态依然可辨（中灰色，
+ * 与调用方使用的白字仍有对比度）。
  *
- * The parameter list mirrors `top.yukonga.miuix.kmp.basic.Button` so call sites can
- * be migrated by swapping the symbol only.
+ * 参数列表与 `top.yukonga.miuix.kmp.basic.Button` 保持一致，调用方迁移时
+ * 只需替换符号名。
  */
 @Composable
 fun AppButton(
@@ -52,7 +50,7 @@ fun AppButton(
 ) {
     val scheme = MiuixTheme.colorScheme
     val fill = when {
-        // Mid grey: still contrasts with the white label, but clearly inactive.
+        // 中灰色：与白字仍有对比度，但明显处于未激活状态。
         !enabled -> scheme.onSurface.copy(alpha = 0.62f)
         tone == AppButtonTone.Primary -> scheme.primary
         tone == AppButtonTone.Neutral -> scheme.secondaryContainer
@@ -60,9 +58,8 @@ fun AppButton(
     }
     val shape = RoundedCornerShape(cornerRadius)
     Surface(
-        // The click target is the whole surface, so the content below is free to
-        // wrap: an unbounded call site must not stretch to the whole row (that
-        // squeezed the editor header's title column to one character per line).
+        // 点击目标是整个 Surface，因此下方内容可以自由换行：无界调用方不能被
+        // 拉伸到整行宽度（那会把编辑器页头的标题列挤成每行一个字）。
         modifier = modifier
             .clip(shape)
             .clickable(enabled = enabled, onClick = onClick),
@@ -81,12 +78,11 @@ fun AppButton(
 }
 
 /**
- * Two-or-more-way segmented switch.
+ * 两段或多段的分段切换器。
  *
- * Replaces the MIUIX `TabRow`, whose selected indicator did not match the
- * container's corner radius (square outer corners with a rounded inner pill leaked
- * odd wedges on device). Both shapes here are rounded and the indicator is inset,
- * so the geometry is always consistent.
+ * 替代 MIUIX 的 `TabRow`：后者的选中指示器与容器圆角不匹配（外角为直角、
+ * 内部胶囊是圆角，真机上会漏出奇怪的楔形）。这里两个形状都是圆角且指示器
+ * 内缩，几何形状始终一致。
  *
  * 标签一律用 [CenteredText]（`fillMaxWidth` + `TextAlign.Center`）渲染，
  * **不要**退回到「`Box(contentAlignment = Center) { Text(...) }`」：真机上出现过
@@ -159,7 +155,7 @@ fun AppSegmentedChoice(
     }
 }
 
-/** Vertical stack helper used by dialogs that mix buttons and fields. */
+/** 混排按钮与输入框的对话框所使用的纵向堆叠辅助组件。 */
 @Composable
 fun ButtonColumn(
     modifier: Modifier = Modifier,

@@ -1,11 +1,11 @@
 package com.autorunner.core.platform
 
 /**
- * `actual` factories for desktop / JVM.
+ * 桌面 / JVM 平台的 `actual` 工厂。
  *
- * AutoRunner is an Android first application; the JVM target exists so that the
- * shared model, engine and UI can be unit tested and previewed without a
- * device. Gesture dispatch and window overlays therefore stay unavailable.
+ * AutoRunner 是一款以 Android 优先的应用；提供 JVM 目标是为了让共享的
+ * 模型、引擎和 UI 无需真机即可进行单元测试与预览。因此手势派发和窗口悬浮层
+ * 在此平台上保持不可用。
  */
 actual fun createAccessibilityController(): AccessibilityController =
     PlatformServices.accessibilityController ?: UnavailableAccessibilityController

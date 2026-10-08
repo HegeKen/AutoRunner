@@ -62,6 +62,20 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      # 发布前必须通过单元测试：防止带回归 bug 的 APK 被发出。
+      - name: Run unit tests
+        run: >
+          ./gradlew
+          :autorunner-core:desktopTest
+          :autorunner-gamepad:desktopTest
+          :autorunner-ui:desktopTest
+          :autorunner-app:testDebugUnitTest
+          --console=plain
+
+      # 静态分析把关：NewApi 等 Error 级问题会中止构建（本地已验证全绿）。
+      - name: Run Android lint
+        run: ./gradlew :autorunner-app:lintDebug --console=plain
+
       # 正式发布必须使用真实签名，避免缺 Secrets 时静默回退到 debug 密钥。
       - name: Require release signing secrets
         run: |

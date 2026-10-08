@@ -12,35 +12,34 @@ import top.yukonga.miuix.kmp.theme.ThemeController
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
 
-/** Fixed AutoRunner palette. */
+/** AutoRunner 固定配色。 */
 object AutoRunnerColors {
 
-    /** Brand primary used by both the light and the dark scheme. */
+    /** 浅色与深色方案共用的品牌主色。 */
     val Primary = Color(0xFF2655FF)
 
-    /** Accent used for the recording state. */
+    /** 录制状态使用的强调色。 */
     val Recording = Color(0xFFFF4D4F)
 
-    /** Accent used while a script runs. */
+    /** 脚本运行中使用的强调色。 */
     val Running = Color(0xFF16A34A)
 
-    /** Accent used when a run is paused. */
+    /** 运行暂停时使用的强调色。 */
     val Paused = Color(0xFFF59E0B)
 
-    /** Darker shade of the brand colour, used for pressed / variant surfaces. */
+    /** 品牌色的深色变体，用于按压 / 变体表面。 */
     val PrimaryVariant = Color(0xFF1B3FCC)
 
-    /** Light tint of the brand colour, used for containers. */
+    /** 品牌色的浅色色调，用于容器背景。 */
     val PrimaryTint = Color(0xFFE8EDFF)
 }
 
 /**
- * Light scheme.
+ * 浅色方案。
  *
- * AutoRunner no longer offers Monet (dynamic colour) or a user picked seed: the
- * brand colour `#2655FF` is pinned and only the light / dark pair remains, which
- * keeps the product recognisable and MIUIX' Material You generation out of the
- * critical path.
+ * AutoRunner 不再提供 Monet（动态取色）或用户自选取色种子：
+ * 品牌色 `#2655FF` 被固定，只保留浅色 / 深色两套方案，这样既保证了产品
+ * 辨识度，也把 MIUIX 的 Material You 生成逻辑排除在关键路径之外。
  */
 private val AutoRunnerLightColors: Colors = lightColorScheme(
     primary = AutoRunnerColors.Primary,
@@ -59,7 +58,7 @@ private val AutoRunnerLightColors: Colors = lightColorScheme(
     sliderKeyPointForeground = Color(0xFF6E8CFF),
 )
 
-/** Dark scheme; the brand primary is kept identical so accents stay consistent. */
+/** 深色方案；品牌主色保持一致，以确保强调色在两套方案中统一。 */
 private val AutoRunnerDarkColors: Colors = darkColorScheme(
     primary = AutoRunnerColors.Primary,
     onPrimary = Color.White,
@@ -77,7 +76,7 @@ private val AutoRunnerDarkColors: Colors = darkColorScheme(
     sliderKeyPointForeground = Color(0xFF6E8CFF),
 )
 
-/** Maps the persisted [ThemeMode] onto MIUIX' `ColorSchemeMode`. */
+/** 将持久化的 [ThemeMode] 映射到 MIUIX 的 `ColorSchemeMode`。 */
 fun ThemeMode.toColorSchemeMode(): ColorSchemeMode = when (this) {
     ThemeMode.SYSTEM -> ColorSchemeMode.System
     ThemeMode.LIGHT -> ColorSchemeMode.Light
@@ -85,10 +84,10 @@ fun ThemeMode.toColorSchemeMode(): ColorSchemeMode = when (this) {
 }
 
 /**
- * AutoRunner's MIUIX theme.
+ * AutoRunner 的 MIUIX 主题。
  *
- * Only three modes exist — follow the system, always light, always dark — and both
- * schemes share the `#2655FF` brand primary.
+ * 只有三种模式——跟随系统、始终浅色、始终深色——且两套方案共用
+ * `#2655FF` 品牌主色。
  *
  * ## 文字色角色（避免同类文字在不同页面深浅不一）
  *
@@ -118,8 +117,8 @@ fun AutoRunnerTheme(
 }
 
 /**
- * Accent colour representing an [ExecutionState] — the single source of truth
- * for state colours, shared by the status pill and the floating ball.
+ * 代表 [ExecutionState] 的强调色——状态颜色的唯一事实来源，
+ * 状态胶囊与悬浮球共用。
  */
 @Composable
 fun ExecutionState.accentColor(): Color = when (this) {

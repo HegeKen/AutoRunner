@@ -16,15 +16,13 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 
 /**
- * Storage Access Framework bridge for importing and exporting `.arscript` files
- * (§6.5).
+ * 用于导入和导出 `.arscript` 文件的存储访问框架（SAF）桥接（§6.5）。
  *
- * The repository only ever deals with strings, so this class owns all URI work:
- * reading the picked document, writing the export document and the clipboard /
- * share fallbacks.
+ * 仓库层只处理字符串，因此本类负责所有 URI 相关工作：
+ * 读取选中的文档、写入导出文档，以及剪贴板 / 分享兜底方案。
  *
- * `ActivityResultLauncher`s can only be registered during activity creation, so
- * [register] has to be called from `MainActivity.onCreate`.
+ * `ActivityResultLauncher` 只能在 Activity 创建期间注册，
+ * 因此 [register] 必须在 `MainActivity.onCreate` 中调用。
  */
 class AndroidScriptTransferController(
     private val context: Context,
@@ -34,20 +32,20 @@ class AndroidScriptTransferController(
 
     private var exportLauncher: ActivityResultLauncher<String>? = null
 
-    /** Pending export payload, consumed by the create-document callback. */
+    /** 待处理的导出内容，由创建文档的回调消费。 */
     private var pendingExport: Pair<String, String>? = null
 
     override var onPicked: ((fileName: String?, content: String) -> Unit)? = null
 
-    /** Registers the SAF launchers; must run during activity creation. */
+    /** 注册 SAF 启动器；必须在 Activity 创建期间执行。 */
     fun register(caller: ActivityResultCaller) {
-        // HyperOS 3 / Android 16 file picker: `ACTION_OPEN_DOCUMENT` with a MIME
-        // filter. `ActivityResultContracts.OpenDocument` sets `type = */*` and
-        // forwards our array as EXTRA_MIME_TYPES, so a *narrow* array is what makes
-        // the picker list only script documents. `.arscript` is not a registered
-        // MIME type, so the picker reports it as generic binary data — hence both
-        // `application/json` (JSON content) and `application/octet-stream`.
-        // Never add `*/*` or the picker falls back to listing every file.
+        // HyperOS 3 / Android 16 文件选择器：带 MIME 过滤的 `ACTION_OPEN_DOCUMENT`。
+        // `ActivityResultContracts.OpenDocument` 会设置 `type = */*` 并把我们的数组
+        // 转发为 EXTRA_MIME_TYPES，因此只有*更窄*的数组才能让选择器
+        // 只列出脚本文档。`.arscript` 不是已注册的 MIME 类型，
+        // 选择器会把它报告为通用二进制数据——所以两种类型都要提供：
+        // `application/json`（JSON 内容）和 `application/octet-stream`。
+        // 绝不要加 `*/*`，否则选择器会回退为列出所有文件。
         Log.i(
             AutoRunnerApplication.TAG,
             "import picker filter: ${ARSCRIPT_MIME_TYPES.joinToString()}",
@@ -61,17 +59,16 @@ class AndroidScriptTransferController(
         }
 
         exportLauncher = caller.registerForActivityResult(
-            // `*/*` keeps the suggested file name untouched, including our
-            // `.arscript` extension: a concrete MIME would make the picker append
-            // the extension it derives from it (application/json -> ".json").
+            // `*/*` 会让建议的文件名保持不变，包括我们的
+            // `.arscript` 扩展名：具体的 MIME 会让选择器追加
+            // 由它推导出的扩展名（application/json -> ".json"）。
             ActivityResultContracts.CreateDocument("*/*"),
         ) { uri: Uri? ->
             val payload = pendingExport
             pendingExport = null
             if (payload == null) return@registerForActivityResult
             if (uri == null) {
-                // The user backed out of the picker: nothing to write, but keep the
-                // content reachable through the clipboard.
+                // 用户从选择器退出了：无需写入，但内容仍可通过剪贴板获取。
                 Log.i(AutoRunnerApplication.TAG, "export cancelled by the user")
                 notify("已取消导出")
                 return@registerForActivityResult
@@ -89,9 +86,9 @@ class AndroidScriptTransferController(
             notify("当前上下文无法打开文件选择器")
             return false
         }
-        // The guide's `resolveActivity` probe is advisory only: MIUI's picker
-        // declares a `*/*` filter, so resolving a concrete MIME type can return
-        // null even though launching the intent works. Log it and launch anyway.
+        // 指南中的 `resolveActivity` 探测仅供参考：MIUI 的选择器
+        // 声明的是 `*/*` 过滤，因此解析具体的 MIME 类型可能返回 null，
+        // 即便启动该 Intent 实际上是可行的。记录日志后照常启动。
         Log.i(AutoRunnerApplication.TAG, "document picker resolves=${isFilePickerAvailable()}")
         return runCatching {
             launcher.launch(ARSCRIPT_MIME_TYPES)
@@ -105,8 +102,8 @@ class AndroidScriptTransferController(
     override fun exportScript(fileName: String, content: String) {
         val launcher = exportLauncher
         if (launcher == null) {
-            // No activity registered the picker (or it is already gone): sharing the
-            // file is a usable fallback instead of failing silently.
+            // 没有 Activity 注册过选择器（或它已经销毁）：改用分享文件
+            // 作为可用的兜底方案，而不是静默失败。
             Log.w(AutoRunnerApplication.TAG, "export picker unavailable, falling back to share")
             shareScript(fileName, content)
             return
@@ -148,10 +145,10 @@ class AndroidScriptTransferController(
 
     private companion object {
         /**
-         * MIME types the import picker is allowed to show.
+         * 导入选择器允许显示的 MIME 类型。
          *
-         * `.arscript` files are JSON documents that most ROMs type as generic binary
-         * data, so both types are required for the user's own scripts to be visible.
+         * `.arscript` 文件是 JSON 文档，但大多数 ROM 将其类型标为通用二进制数据，
+         * 因此两种类型都必须提供，用户自己的脚本才可见。
          */
         val ARSCRIPT_MIME_TYPES = arrayOf("application/json", "application/octet-stream")
     }
@@ -171,10 +168,10 @@ class AndroidScriptTransferController(
     }.getOrDefault(false)
 
     /**
-     * `true` when a system file picker can handle the import intent.
+     * 当系统文件选择器能够处理导入 Intent 时为 `true`。
      *
-     * Mirrors the compatibility check recommended by the HyperOS file picker guide
-     * so an unsupported system fails with a message instead of an ActivityNotFound.
+     * 与 HyperOS 文件选择器指南推荐的兼容性检查保持一致，
+     * 使不受支持的系统以提示消息失败，而不是抛出 ActivityNotFound。
      */
     private fun isFilePickerAvailable(): Boolean = runCatching {
         val probe = Intent(Intent.ACTION_OPEN_DOCUMENT)

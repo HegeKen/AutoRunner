@@ -21,11 +21,10 @@ enum class InputMode(val displayName: String) {
 }
 
 /**
- * Appearance mode handed to MIUIX' `ThemeController` (`ColorSchemeMode`).
+ * 传给 MIUIX `ThemeController`（`ColorSchemeMode`）的外观模式。
  *
- * AutoRunner ships a single fixed palette (brand primary `#2655FF`) in a light and
- * a dark variant; the previous Monet dynamic-colour modes and the user picked seed
- * colour were removed on purpose.
+ * AutoRunner 只提供一套固定配色（品牌主色 `#2655FF`），分浅色与深色两种
+ * 变体；此前的 Monet 动态取色模式和用户自选种子色已被有意移除。
  */
 enum class ThemeMode(val displayName: String) {
     @SerialName("system") SYSTEM("跟随系统"),
@@ -38,7 +37,7 @@ enum class ThemeMode(val displayName: String) {
     }
 }
 
-/** Button naming preset shown in the gamepad mapping list (cosmetic only). */
+/** 手柄映射列表中显示的按键命名预设（仅影响外观）。 */
 @Serializable
 enum class GamepadMode(val displayName: String, val hidName: String) {
     @SerialName("xbox") XBOX("Xbox 手柄", "AutoRunner Gamepad"),
@@ -51,24 +50,24 @@ enum class GamepadMode(val displayName: String, val hidName: String) {
     }
 }
 
-/** Fine tuning of the gesture classifier used while recording. */
+/** 录制时使用的手势分类器微调参数。 */
 @Serializable
 data class RecordingConfig(
-    /** Movement below this many pixels is treated as a stationary press. */
+    /** 位移小于该像素数视为原地按压。 */
     @SerialName("tapSlopPx") val tapSlopPx: Float = 24f,
-    /** Presses longer than this become `longPress` actions. */
+    /** 按压超过该时长即成为 `longPress` 动作。 */
     @SerialName("longPressThresholdMs") val longPressThresholdMs: Long = 500L,
-    /** Presses shorter than this are dropped as accidental touches. */
+    /** 按压短于该时长视为误触而丢弃。 */
     @SerialName("minTapDurationMs") val minTapDurationMs: Long = 20L,
-    /** Samples closer than this distance are merged while building a swipe path. */
+    /** 采样点间距小于该距离时在构建滑动路径中被合并。 */
     @SerialName("minSampleDistancePx") val minSampleDistancePx: Float = 8f,
-    /** Records a `multiTouch` action instead of dropping multi-finger gestures. */
+    /** 记录为 `multiTouch` 动作，而不是丢弃多指手势。 */
     @SerialName("captureMultiTouch") val captureMultiTouch: Boolean = true,
-    /** Stores the flow in normalised (`0.0..1.0`) coordinates. */
+    /** 以归一化（`0.0..1.0`）坐标保存流程。 */
     @SerialName("normaliseCoordinates") val normaliseCoordinates: Boolean = false,
-    /** Upper bound of recorded actions, protects memory on very long sessions. */
+    /** 已录制动作数上限，超长录制时保护内存。 */
     @SerialName("maxSteps") val maxSteps: Int = 5_000,
-    /** Default delay written after each recorded action. */
+    /** 每个已录制动作之后写入的默认延时。 */
     @SerialName("defaultDelayMs") val defaultDelayMs: Long = 300L,
 ) {
     companion object {
@@ -77,51 +76,51 @@ data class RecordingConfig(
 }
 
 /**
- * Everything the user can configure; persisted through
- * [com.autorunner.core.storage.KeyValueStore].
+ * 用户可配置的全部内容；经
+ * [com.autorunner.core.storage.KeyValueStore] 持久化。
  */
 @Serializable
 data class AppSettings(
     @SerialName("themeMode") val themeMode: ThemeMode = ThemeMode.Default,
-    /** Execution defaults applied to newly recorded scripts. */
+    /** 应用到新录制脚本的执行默认值。 */
     @SerialName("defaultExecution") val defaultExecution: ExecutionConfig = ExecutionConfig(),
     @SerialName("failureStrategy") val failureStrategy: FailureStrategy = FailureStrategy.ABORT_SCRIPT,
     @SerialName("recording") val recording: RecordingConfig = RecordingConfig.Default,
-    /** Shows the floating control ball when the app starts. */
+    /** 应用启动时显示悬浮控制球。 */
     @SerialName("showFloatingBallOnStart") val showFloatingBallOnStart: Boolean = true,
-    /** Keeps the screen awake while a script runs. */
+    /** 脚本运行期间保持屏幕常亮。 */
     @SerialName("keepScreenOnWhileRunning") val keepScreenOnWhileRunning: Boolean = true,
-    /** Posts execution progress to the `autorunner_execution` notification. */
+    /** 把执行进度发布到 `autorunner_execution` 通知。 */
     @SerialName("executionNotification") val executionNotification: Boolean = true,
     /**
-     * Shows short toast reminders while a script runs (start / pause / resume,
-     * throttled loop progress and the final report).
+     * 脚本运行期间显示简短的 toast 提示（开始 / 暂停 / 恢复、
+     * 节流后的循环进度以及最终报告）。
      */
     @SerialName("executionReminder") val executionReminder: Boolean = true,
-    /** Vibrates on action boundaries (debug aid while recording). */
+    /** 在动作边界震动（录制期间的调试辅助）。 */
     @SerialName("hapticFeedback") val hapticFeedback: Boolean = true,
-    /** Collapses the floating panel to a ball right after a run starts. */
+    /** 运行开始后立即把悬浮面板收起为小球。 */
     @SerialName("autoCollapsePanel") val autoCollapsePanel: Boolean = true,
-    /** Gamepad simulation master switch (optional feature). */
+    /** 手柄模拟总开关（可选功能）。 */
     @SerialName("gamepadEnabled") val gamepadEnabled: Boolean = false,
-    /** Naming preset used by the button mapping list (and the default for new scripts). */
+    /** 按键映射列表使用的命名预设（同时是新脚本的默认值）。 */
     @SerialName("gamepadMode") val gamepadMode: GamepadMode = GamepadMode.Default,
-    /** Where each gamepad button lives on screen, plus the virtual stick centre, per mode. */
+    /** 每个手柄按键在屏幕上的位置以及虚拟摇杆中心，按模式区分。 */
     @SerialName("gamepadMappingsByMode") val gamepadMappingsByMode: Map<GamepadMode, GamepadMappings> = emptyMap(),
     /**
-     * Legacy single-pad calibration written before calibration became per-mode.
+     * 校准按模式拆分之前写入的旧版单手柄校准。
      *
-     * Kept as a nullable field only so old settings decode without losing the
-     * data; [sanitized] folds it into [gamepadMappingsByMode] for [gamepadMode]
-     * and clears it (it is never written back because `explicitNulls = false`).
+     * 之所以保留为可空字段，只是为了让旧设置能无损解码；[sanitized] 会把它
+     * 折叠进 [gamepadMappingsByMode] 中 [gamepadMode] 对应的条目并清空它
+     * （由于 `explicitNulls = false`，它永远不会被写回）。
      */
     @SerialName("gamepadMappings") val legacyGamepadMappings: GamepadMappings? = null,
-    /** Skip the manufacturer specific permission wizard. */
+    /** 跳过厂商特定的权限引导流程。 */
     @SerialName("skipOemGuidance") val skipOemGuidance: Boolean = false,
 
     /** 模拟输入方式；Root 需安装 AutoRunner Root Bridge 模块。 */
     @SerialName("inputMode") val inputMode: InputMode = InputMode.Default,
-    /** Number of days scripts are kept; `0` disables pruning. */
+    /** 脚本保留的天数；`0` 表示不清理。 */
     @SerialName("scriptRetentionDays") val scriptRetentionDays: Int = 0,
 ) {
     fun sanitized(): AppSettings {
@@ -150,11 +149,11 @@ data class AppSettings(
         )
     }
 
-    /** Button layout / stick calibration saved for [mode] (empty when never calibrated). */
+    /** 为 [mode] 保存的按键布局 / 摇杆校准（从未校准过时为空）。 */
     fun gamepadMappingsFor(mode: GamepadMode): GamepadMappings =
         gamepadMappingsByMode[mode] ?: GamepadMappings.Empty
 
-    /** Calibration of the currently selected [gamepadMode]. */
+    /** 当前所选 [gamepadMode] 的校准。 */
     val currentGamepadMappings: GamepadMappings get() = gamepadMappingsFor(gamepadMode)
 
     companion object {

@@ -17,15 +17,15 @@ import com.autorunner.gamepad.LocalGamepadGateway
 import kotlinx.coroutines.launch
 
 /**
- * Application entry point.
+ * 应用入口。
  *
- * Responsibilities (see §3.2 and §8.3):
+ * 职责（见 §3.2 与 §8.3）：
  *
- * 1. publish the Android `Context` to the shared platform layer,
- * 2. create the local gamepad injector when the device supports it,
- * 3. register the platform services (accessibility controller, recording
- *    controller, overlay manager) into `PlatformServices`,
- * 4. build the single [AppContainer] used by the UI and every service.
+ * 1. 将 Android `Context` 发布到共享的平台层，
+ * 2. 在设备支持时创建本地手柄注入器，
+ * 3. 将平台服务（无障碍控制器、录制控制器、
+ *    悬浮层管理器）注册进 `PlatformServices`，
+ * 4. 构建 UI 与所有服务共用的唯一 [AppContainer]。
  */
 class AutoRunnerApplication : Application() {
 
@@ -42,11 +42,11 @@ class AutoRunnerApplication : Application() {
 }
 
 /**
- * Process wide service locator.
+ * 进程级服务定位器。
  *
- * `AccessibilityService` instances are created by the system and services are
- * started from many places (activity, notification action, boot, …), so a tiny
- * hand written graph is easier to reason about than a DI framework here.
+ * `AccessibilityService` 实例由系统创建，且服务会从多处启动（Activity、
+ * 通知动作、开机启动等），因此这里用一个手写的小型依赖图比引入 DI 框架
+ * 更容易推理。
  */
 object AppGraph {
 
@@ -66,11 +66,11 @@ object AppGraph {
 
     val gamepad: AndroidGamepadStatusProvider? get() = gamepadStatus
 
-    /** Transfer controller published by the activity, used by the debug channel. */
+    /** Activity 发布的文件传输控制器，供调试通道使用。 */
     @Volatile
     var transfer: com.autorunner.ui.platform.ScriptTransferController? = null
 
-    /** The container, building it on demand if the application has not yet. */
+    /** 返回容器；若应用尚未构建则按需构建。 */
     fun requireContainer(): AppContainer {
         container?.let { return it }
         val application = application
@@ -80,13 +80,12 @@ object AppGraph {
     }
 
     /**
-     * Builds the object graph; called once from [AutoRunnerApplication].
+     * 构建对象图；由 [AutoRunnerApplication] 调用一次。
      *
-     * Order matters: the platform controllers are created **before** the shared
-     * container so the container never captures the no-op `expect` fallbacks.
-     * (A container built first would hold `UnavailableAccessibilityController`
-     * forever, and every screen would keep reporting "service not connected"
-     * even after the user enabled the accessibility service.)
+     * 顺序很重要：平台控制器必须**先于**共享容器创建，这样容器就不会捕获
+     * `expect` 的空实现兜底。（若先构建容器，它会永远持有
+     * `UnavailableAccessibilityController`，即便用户启用了无障碍服务，
+     * 每个页面也会一直报“服务未连接”。）
      */
     fun initialize(application: Application) {
         synchronized(this) {
@@ -99,12 +98,12 @@ object AppGraph {
             val gamepadCalibration = AndroidGamepadCalibrationController(application)
             val recording = AndroidRecordingController(
                 context = application,
-                // Resolved lazily: the settings repository lives inside the
-                // container that is built right below.
+                // 惰性解析：settings 仓库位于下方刚构建的
+                // 容器内部。
                 settingsProvider = { containerOrNull?.settingsRepository?.current ?: AppSettings.Default },
                 accessibilityController = accessibility,
-                // While recording, the transparent capture layer consumes every
-                // touch, so the floating ball is the way to press "stop".
+                // 录制期间透明采集层会吞掉所有触摸，
+                // 所以用悬浮球来按“停止”。
                 ensureStopControl = {
                     val granted = overlay.isPermissionGranted()
                     if (granted) {
@@ -117,8 +116,8 @@ object AppGraph {
                 },
             )
 
-            // --- optional gamepad module -----------------------------------
-            // Local injection: gamepad buttons become touches on *this* device.
+            // --- 可选的手柄模块 ----------------------------------
+            // 本地注入：手柄按键在*本*设备上变成触摸事件。
             gamepadGateway = runCatching {
                 val gateway = LocalGamepadGateway(
                     accessibilityController = accessibility,
@@ -131,8 +130,8 @@ object AppGraph {
                 null
             }
 
-            // Publish first so any other consumer of the `expect` factories gets
-            // the real implementations, then pin them into the container.
+            // 先发布，让 `expect` 工厂的其他消费方拿到真实现，
+            // 再把它们固定进容器。
             AndroidPlatform.registerAccessibilityController(accessibility)
             AndroidPlatform.registerRecordingController(recording)
             AndroidPlatform.registerOverlayManager(overlay)
@@ -163,9 +162,9 @@ object AppGraph {
             )
             container = built
 
-            // Warm the script cache: the overlay service, a notification action
-            // or a debug command can reach the executor before any screen is
-            // composed, and they all read `scriptRepository.scripts`.
+            // 预热脚本缓存：悬浮服务、通知动作或调试命令
+            // 可能在任何界面组合完成之前就用到执行器，
+            // 而它们都会读取 `scriptRepository.scripts`。
             built.scope.launch { runCatching { built.scriptRepository.refresh() } }
 
             // 首次启动导入内置示例脚本，让用户装上就有可直接运行的样例。

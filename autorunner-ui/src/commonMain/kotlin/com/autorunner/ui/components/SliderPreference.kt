@@ -12,13 +12,12 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.autorunner.ui.theme.Dimens
 
 /**
- * MIUIX flavoured slider row.
+ * MIUIX 风格的滑块行。
  *
- * `miuix-preference` ships `SwitchPreference`, `ArrowPreference`,
- * `CheckboxPreference`, `RadioButtonPreference` and the dropdown / spinner
- * preferences but no slider, so AutoRunner composes one from [BasicComponent]
- * and [Slider] to keep the settings page visually consistent with the rest of
- * HyperOS.
+ * `miuix-preference` 提供了 `SwitchPreference`、`ArrowPreference`、
+ * `CheckboxPreference`、`RadioButtonPreference` 与下拉 / spinner 类偏好项，
+ * 唯独没有滑块，因此 AutoRunner 用 [BasicComponent] 与 [Slider] 自行拼一个，
+ * 使设置页与 HyperOS 其余部分保持视觉一致。
  */
 @Composable
 fun SliderPreference(

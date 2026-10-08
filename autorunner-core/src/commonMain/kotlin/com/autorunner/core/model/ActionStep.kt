@@ -5,40 +5,38 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
 
 /**
- * A single recorded action.
+ * 单个已录制的动作。
  *
- * The JSON representation uses the `type` discriminator, matching the
- * `.arscript` specification:
+ * JSON 表示使用 `type` 判别字段，与 `.arscript` 规范一致：
  *
  * ```json
  * { "type": "tap", "x": 540, "y": 1200, "duration": 50, "delay": 500, "name": "登录按钮" }
  * ```
  *
- * Coordinates are pixels when the enclosing script uses
- * [CoordinateSpace.ABSOLUTE] and `0.0..1.0` fractions when it uses
- * [CoordinateSpace.NORMALIZED]; see [CoordinateResolver].
+ * 外层脚本使用 [CoordinateSpace.ABSOLUTE] 时坐标为像素，使用
+ * [CoordinateSpace.NORMALIZED] 时为 `0.0..1.0` 的比例值；参见 [CoordinateResolver]。
  *
- * [name] is an optional, user-defined label used by the editor to mark what a
- * step does for differentiation; the timeline falls back to [label] when null.
+ * [name] 是可选的用户自定义标签，编辑器用它标注步骤用途以作区分；
+ * 为空时时间线回退到 [label]。
  */
 @Serializable
 @JsonClassDiscriminator("type")
 sealed interface ActionStep {
 
-    /** Milliseconds to wait *after* this action completed. */
+    /** 该动作完成后需要等待的毫秒数。 */
     val delay: Long
 
-    /** Human readable one-liner used by the editor and the floating panel. */
+    /** 编辑器与悬浮面板使用的可读单行描述。 */
     val label: String
 
-    /** Short type name; mirrors the JSON discriminator. */
+    /** 简短类型名，与 JSON 判别字段对应。 */
     val typeName: String
 
-    /** Optional user-defined name. `null` falls back to [label] in the UI. */
+    /** 可选的用户自定义名称。为 `null` 时界面回退到 [label]。 */
     val name: String?
 }
 
-/** A single-finger tap. */
+/** 单指点击。 */
 @Serializable
 @SerialName("tap")
 data class TapStep(
@@ -57,7 +55,7 @@ data class TapStep(
     }
 }
 
-/** A press-and-hold. */
+/** 按住不放的长按。 */
 @Serializable
 @SerialName("longPress")
 data class LongPressStep(
@@ -76,7 +74,7 @@ data class LongPressStep(
     }
 }
 
-/** A straight-line drag. */
+/** 直线滑动。 */
 @Serializable
 @SerialName("swipe")
 data class SwipeStep(
@@ -99,16 +97,16 @@ data class SwipeStep(
     }
 }
 
-/** One contact of a [MultiTouchStep]. */
+/** [MultiTouchStep] 中的一个触点。 */
 @Serializable
 data class TouchPoint(
     val x: Float,
     val y: Float,
-    /** Offset in milliseconds at which this pointer joined the gesture. */
+    /** 该触点加入手势时的毫秒偏移。 */
     val startOffset: Long = 0L,
 )
 
-/** Two or more simultaneous contacts (pinch, two-finger scroll, …). */
+/** 两个及以上同时触点（捏合、双指滚动……）。 */
 @Serializable
 @SerialName("multiTouch")
 data class MultiTouchStep(
@@ -127,8 +125,7 @@ data class MultiTouchStep(
 }
 
 /**
- * A gamepad button / stick / trigger action, injected as a local gesture on this
- * device. Serialised as:
+ * 手柄按键 / 摇杆 / 扳机动作，作为本地手势注入到本设备。序列化为：
  *
  * ```json
  * { "type": "gamepad", "button": "A", "action": "press", "delay": 300 }
@@ -139,7 +136,7 @@ data class MultiTouchStep(
 data class GamepadStep(
     val button: GamepadButton = GamepadButton.A,
     val action: GamepadAction = GamepadAction.PRESS,
-    /** Analogue magnitude for stick / trigger actions, `0.0..1.0`. */
+    /** 摇杆 / 扳机动作的模拟量幅度，`0.0..1.0`。 */
     val value: Float = 1f,
     val x: Float = 0f,
     val y: Float = 0f,
@@ -182,7 +179,7 @@ data class GamepadStep(
     }
 }
 
-/** An explicit pause inside the flow. */
+/** 流程中的一次显式停顿。 */
 @Serializable
 @SerialName("delay")
 data class DelayStep(
@@ -195,11 +192,10 @@ data class DelayStep(
 }
 
 /**
- * Type arbitrary text into the focused input field via the accessibility layer
- * (Android: `ACTION_SET_TEXT`). Used for scripts that fill in login / search /
- * registration forms.
+ * 通过无障碍层向当前聚焦的输入框键入任意文本（Android：`ACTION_SET_TEXT`）。
+ * 用于填写登录 / 搜索 / 注册表单的脚本。
  *
- * Serialised as:
+ * 序列化为：
  *
  * ```json
  * { "type": "key", "text": "Hello", "delay": 300 }
@@ -229,10 +225,9 @@ data class KeyStep(
 }
 
 /**
- * Returns a copy of this action with a different trailing [delay].
+ * 返回把结尾 [delay] 改为新值后的动作副本。
  *
- * Used when the editor replaces a step with one captured from a real gesture while
- * keeping the delay the user had already configured.
+ * 当编辑器用真实手势捕获的步骤替换原有步骤、同时保留用户已配置的延时时使用。
  */
 fun ActionStep.withDelay(newDelay: Long): ActionStep = when (this) {
     is TapStep -> copy(delay = newDelay)
@@ -245,8 +240,8 @@ fun ActionStep.withDelay(newDelay: Long): ActionStep = when (this) {
 }
 
 /**
- * Returns a copy of this action with a different [ActionStep.name].
- * Used by the editor when the user renames a step.
+ * 返回改了 [ActionStep.name] 的动作副本。
+ * 用户重命名步骤时由编辑器使用。
  */
 fun ActionStep.withName(newName: String?): ActionStep {
     val trimmed = newName?.trim()?.ifBlank { null }
@@ -262,8 +257,8 @@ fun ActionStep.withName(newName: String?): ActionStep {
 }
 
 /**
- * What to display in the timeline: the user-defined [ActionStep.name] when set,
- * otherwise the auto-generated [ActionStep.label].
+ * 时间线里显示什么：设置了用户自定义的 [ActionStep.name] 就用它，
+ * 否则用自动生成的 [ActionStep.label]。
  */
 val ActionStep.displayLabel: String
     get() = name?.takeIf { it.isNotBlank() } ?: label

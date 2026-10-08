@@ -5,23 +5,22 @@ import kotlinx.coroutines.delay as coroutineDelay
 import kotlinx.coroutines.yield
 
 /**
- * Time source used by [AutoRunnerScriptExecutor].
+ * [AutoRunnerScriptExecutor] 使用的时间源。
  *
- * Abstracting it keeps the engine deterministic under test: the virtual
- * implementation advances its own clock whenever [delay] is called, so a
- * "10 loops × 2 s interval" run completes instantly instead of taking 20
- * seconds of wall clock time.
+ * 抽象出时间源能让引擎在测试下保持确定性：虚拟实现在每次调用 [delay] 时
+ * 推进自己的时钟，于是「10 圈 × 2 秒间隔」的运行会瞬间完成，而不是真的
+ * 耗费 20 秒挂钟时间。
  */
 interface ExecutionClock {
 
-    /** Milliseconds since an arbitrary origin; only differences are meaningful. */
+    /** 自任意原点起的毫秒数；只有差值有意义。 */
     fun nowMs(): Long
 
-    /** Suspends for [millis] without busy waiting. */
+    /** 挂起 [millis] 毫秒，不忙等。 */
     suspend fun delay(millis: Long)
 }
 
-/** Production clock: monotonic time and `kotlinx.coroutines.delay`. */
+/** 生产环境时钟：单调时间加 `kotlinx.coroutines.delay`。 */
 object SystemExecutionClock : ExecutionClock {
 
     private val origin = TimeSource.Monotonic.markNow()
@@ -33,7 +32,7 @@ object SystemExecutionClock : ExecutionClock {
     }
 }
 
-/** Test clock that advances instantly but still yields to the dispatcher. */
+/** 瞬间推进但仍让出到调度器的测试时钟。 */
 class VirtualExecutionClock(startMs: Long = 0L) : ExecutionClock {
 
     var currentMs: Long = startMs
@@ -43,7 +42,7 @@ class VirtualExecutionClock(startMs: Long = 0L) : ExecutionClock {
 
     override suspend fun delay(millis: Long) {
         if (millis > 0L) currentMs += millis
-        // Keeps the engine cooperative so that tests can interleave with it.
+        // 保持引擎协作式执行，测试才能与它交错运行。
         yield()
     }
 

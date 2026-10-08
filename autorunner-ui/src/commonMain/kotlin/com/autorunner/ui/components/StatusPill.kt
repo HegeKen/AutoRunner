@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/** Small status chip (running / paused / idle / recording). */
+/** 小型状态胶囊（运行 / 暂停 / 空闲 / 录制）。 */
 @Composable
 fun StatusPill(
     text: String,
@@ -39,7 +39,7 @@ fun StatusPill(
     }
 }
 
-/** Neutral chip used for action type badges. */
+/** 用于动作类型徽标的中性胶囊。 */
 @Composable
 fun TagPill(
     text: String,

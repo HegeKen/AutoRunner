@@ -9,11 +9,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Process wide calibration state.
+ * 进程级的校准状态。
  *
- * The calibration window lives in [GamepadCalibrationService] while the state is
- * observed from the activity / shared UI; a single shared holder keeps both in
- * sync without binding to the service.
+ * 校准窗口存活于 [GamepadCalibrationService] 中，而状态需要被 Activity / 共享
+ * UI 观察；用一个共享持有者让两者保持同步，无需绑定到该服务。
  */
 object GamepadCalibrationStateHolder {
 
@@ -27,11 +26,11 @@ object GamepadCalibrationStateHolder {
 }
 
 /**
- * `GamepadCalibrationController` implementation backed by
- * [GamepadCalibrationService].
+ * 由 [GamepadCalibrationService] 支撑的
+ * `GamepadCalibrationController` 实现。
  *
- * Arming requires the `SYSTEM_ALERT_WINDOW` permission; when it is missing
- * [arm] returns `false` and the caller is expected to explain how to grant it.
+ * 启用（arm）需要 `SYSTEM_ALERT_WINDOW` 权限；缺失时 [arm] 返回
+ * `false`，调用方应向用户解释如何授予该权限。
  */
 class AndroidGamepadCalibrationController(
     private val context: Context,

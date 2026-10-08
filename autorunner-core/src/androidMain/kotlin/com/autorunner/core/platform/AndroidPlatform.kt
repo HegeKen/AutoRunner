@@ -3,45 +3,45 @@ package com.autorunner.core.platform
 import android.content.Context
 
 /**
- * Android specific entry point for the shared object graph.
+ * 共享对象图的 Android 专用入口。
  *
- * `AutoRunnerApplication` calls [attach] once, after which every `expect`
- * factory in `commonMain` is able to return a real implementation.
+ * `AutoRunnerApplication` 会调用一次 [attach]，此后 `commonMain` 中的每个
+ * `expect` 工厂都能返回真实实现。
  */
 object AndroidPlatform {
 
     internal var applicationContext: Context? = null
         private set
 
-    /** Registers the application context; safe to call more than once. */
+    /** 注册应用上下文；可安全地多次调用。 */
     fun attach(context: Context) {
         applicationContext = context.applicationContext
     }
 
-    /** `true` once [attach] ran. */
+    /** [attach] 执行过之后为 `true`。 */
     val isAttached: Boolean get() = applicationContext != null
 
-    /** Publishes a connected accessibility service. */
+    /** 发布已连接的无障碍服务。 */
     fun registerAccessibilityController(controller: AccessibilityController?) {
         PlatformServices.accessibilityController = controller
     }
 
-    /** Publishes the recording implementation backed by the accessibility service. */
+    /** 发布由无障碍服务支撑的录制实现。 */
     fun registerRecordingController(controller: RecordingController?) {
         PlatformServices.recordingController = controller
     }
 
-    /** Publishes the floating window manager backed by the overlay service. */
+    /** 发布由悬浮窗服务支撑的悬浮窗口管理器。 */
     fun registerOverlayManager(manager: OverlayManager?) {
         PlatformServices.overlayManager = manager
     }
 
-    /** Publishes the gamepad calibration implementation backed by its overlay service. */
+    /** 发布由其悬浮窗服务支撑的手柄标定实现。 */
     fun registerGamepadCalibrationController(controller: GamepadCalibrationController?) {
         PlatformServices.gamepadCalibrationController = controller
     }
 
-    /** Clears everything again (used when the process shuts down). */
+    /** 清空全部注册（进程关闭时使用）。 */
     fun detach() {
         PlatformServices.reset()
         applicationContext = null

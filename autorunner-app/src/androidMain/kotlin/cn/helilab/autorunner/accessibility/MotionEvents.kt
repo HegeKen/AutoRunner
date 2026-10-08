@@ -7,13 +7,13 @@ import com.autorunner.core.recording.TouchPhase
 import com.autorunner.core.recording.TouchSample
 
 /**
- * Converts a platform [MotionEvent] into the shared [RawTouchEvent] model.
+ * 将平台的 [MotionEvent] 转换为共享的 [RawTouchEvent] 模型。
  *
- * Shared by both capture paths: the transparent
- * `TYPE_ACCESSIBILITY_OVERLAY` view (API < 34) and
- * `AccessibilityService.onMotionEvent` (API 34+).
+ * 两条采集路径共用本函数：透明的
+ * `TYPE_ACCESSIBILITY_OVERLAY` 视图（API < 34）以及
+ * `AccessibilityService.onMotionEvent`（API 34+）。
  *
- * @return `null` for phases AutoRunner does not model.
+ * @return 对于 AutoRunner 未建模的阶段返回 `null`。
  */
 internal fun MotionEvent.toRawTouchEvent(uptimeMs: Long = SystemClock.uptimeMillis()): RawTouchEvent? {
     val phase = when (actionMasked) {

@@ -21,8 +21,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
- * Gamepad simulation injects presses into *this* device, so the tests assert the
- * translated local gestures (not any Bluetooth traffic).
+ * 手柄模拟将按键注入到*本*设备，因此测试断言的是转换后的本地手势
+ * （而非任何蓝牙流量）。
  */
 class LocalGamepadGatewayTest {
 

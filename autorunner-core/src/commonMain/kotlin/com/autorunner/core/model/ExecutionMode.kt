@@ -4,18 +4,17 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * How a recorded script should be executed.
+ * 已录制脚本的执行方式。
  *
- * Serialised as `"once"` / `"repeat"` inside the `execution` block of an
- * `.arscript` file.
+ * 在 `.arscript` 文件的 `execution` 块内序列化为 `"once"` / `"repeat"`。
  */
 @Serializable
 enum class ExecutionMode {
-    /** Run the whole `flow` exactly once and stop. */
+    /** 整个 `flow` 恰好执行一遍后停止。 */
     @SerialName("once")
     ONCE,
 
-    /** Run the whole `flow` [ExecutionConfig.repeatCount] times. */
+    /** 整个 `flow` 执行 [ExecutionConfig.repeatCount] 遍。 */
     @SerialName("repeat")
     REPEAT;
 
@@ -25,16 +24,15 @@ enum class ExecutionMode {
 }
 
 /**
- * What the executor does when a single action fails (for example because the
- * accessibility service was disconnected mid-gesture).
+ * 单个动作失败（例如手势执行到一半无障碍服务断开）时执行器的处理方式。
  */
 @Serializable
 enum class FailureStrategy {
-    /** Log the failure, count it and continue with the next action. */
+    /** 记录失败、计一次数，然后继续下一个动作。 */
     @SerialName("skip")
     SKIP_ACTION,
 
-    /** Abort the whole run; the remaining loops are not executed. */
+    /** 中止整个运行；剩余循环不再执行。 */
     @SerialName("abort")
     ABORT_SCRIPT;
 
@@ -44,29 +42,29 @@ enum class FailureStrategy {
 }
 
 /**
- * Lifecycle of [com.autorunner.core.execution.AutoRunnerScriptExecutor].
+ * [com.autorunner.core.execution.AutoRunnerScriptExecutor] 的生命周期。
  */
 enum class ExecutionState {
-    /** Nothing is running. */
+    /** 没有任何运行。 */
     IDLE,
 
-    /** Actions are being dispatched. */
+    /** 正在派发动作。 */
     RUNNING,
 
-    /** Loop/action execution is suspended; the coroutine is parked on a signal. */
+    /** 循环/动作执行被挂起；协程停驻在一个信号上。 */
     PAUSED,
 
-    /** A stop request was honoured; the executor is winding down. */
+    /** 停止请求已受理；执行器正在收尾。 */
     STOPPED,
 
-    /** Every requested loop finished normally. */
+    /** 所有请求的循环都正常完成。 */
     COMPLETED,
     ;
 
     val isActive: Boolean get() = this == RUNNING || this == PAUSED
 }
 
-/** Why a run ended. */
+/** 一次运行为何结束。 */
 enum class ExecutionOutcome {
     COMPLETED,
     STOPPED,

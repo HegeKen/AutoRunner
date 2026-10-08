@@ -11,10 +11,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * State holder for the script library screen.
+ * 脚本库页面的状态持有者。
  *
- * Owns loading, searching, rename/duplicate/delete and the import/export
- * round trip through the platform [ScriptTransferController].
+ * 负责加载、搜索、重命名 / 复制 / 删除，以及经由平台 [ScriptTransferController]
+ * 完成导入 / 导出的往返流程。
  */
 class ScriptListViewModel(
     private val container: AppContainer,
@@ -24,7 +24,7 @@ class ScriptListViewModel(
     private val repository = container.scriptRepository
     private val scope = container.scope
 
-    /** All stored scripts, newest first. */
+    /** 全部已存储的脚本，最新的排在前面。 */
     val scripts: StateFlow<List<ScriptRecord>> = repository.scripts
 
     private val _query = MutableStateFlow("")
@@ -37,7 +37,7 @@ class ScriptListViewModel(
 
     private val _message = MutableStateFlow<String?>(null)
 
-    /** One shot user feedback rendered in a MIUIX dialog. */
+    /** 一次性用户反馈，用 MIUIX 对话框展示。 */
     val message: StateFlow<String?> = _message.asStateFlow()
 
     private val _busy = MutableStateFlow(false)
@@ -47,10 +47,10 @@ class ScriptListViewModel(
     private val _visibleScripts = MutableStateFlow<List<ScriptRecord>>(emptyList())
 
     /**
-     * Scripts matching [query] (case insensitive, name / description / tags).
+     * 匹配 [query] 的脚本（不区分大小写，匹配名称 / 描述 / 标签）。
      *
-     * Recomputed whenever the query changes or the repository emits, instead of
-     * being derived through `stateIn`, so the list is never one frame behind.
+     * 查询变化或仓库发出新数据时都会重新计算，而不是用 `stateIn` 派生，
+     * 以保证列表不会落后一帧。
      */
     val visibleScripts: StateFlow<List<ScriptRecord>> = _visibleScripts.asStateFlow()
 
@@ -127,7 +127,7 @@ class ScriptListViewModel(
         }
     }
 
-    /** Imports a `.arscript` payload (from SAF, clipboard or a share intent). */
+    /** 导入一段 `.arscript` 内容（来自 SAF、剪贴板或分享 Intent）。 */
     fun importText(content: String, fileName: String? = null) {
         scope.launch {
             // 兼容浏览器/系统重复下载时附加的「 (1)」，如「测试.arscript (1)」。
@@ -163,7 +163,7 @@ class ScriptListViewModel(
         _message.value = "请使用「导入」选择 .arscript 文件，或粘贴脚本文本"
     }
 
-    /** Serialises [id] and hands it to the platform export flow. */
+    /** 把 [id] 对应的脚本序列化后交给平台导出流程。 */
     fun export(id: String) {
         scope.launch {
             val record = repository.load(id) ?: run {
@@ -189,7 +189,7 @@ class ScriptListViewModel(
         }
     }
 
-    /** Shares the serialised script (system share sheet), with clipboard fallback. */
+    /** 分享序列化后的脚本（系统分享面板），并回退到剪贴板。 */
     fun share(id: String) {
         scope.launch {
             val content = repository.exportToText(id) ?: run {
@@ -225,7 +225,7 @@ class ScriptListViewModel(
         val DUPLICATE_SUFFIX = Regex("""\s*\(\d+\)\s*$""")
     }
 
-    /** Saves a script that was produced by the recording screen. */
+    /** 保存录制页面产出的脚本。 */
     fun save(script: ScriptModel, onSaved: ((ScriptRecord) -> Unit)? = null) {
         scope.launch {
             val record = repository.save(null, script)

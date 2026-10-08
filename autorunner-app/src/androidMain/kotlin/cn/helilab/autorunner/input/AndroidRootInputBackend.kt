@@ -69,9 +69,9 @@ class AndroidRootInputBackend(
             val candidates = listOf(
                 "su",
                 "/system/bin/su",
-                // KernelSU
+                // KernelSU 模块
                 "/data/adb/ksu/bin/su",
-                // Magisk
+                // Magisk 模块
                 "/debug_ramdisk/su",
                 "/sbin/su",
             )
@@ -117,14 +117,7 @@ class AndroidRootInputBackend(
     }
 
     /** 把协议行转换成 `input` 的子命令。 */
-    private fun toInputArgs(line: String): String {
-        val parts = line.split(" ")
-        return if (parts.size >= 4 && parts[0] == "long") {
-            "swipe ${parts[1]} ${parts[2]} ${parts[1]} ${parts[2]} ${parts[3]}"
-        } else {
-            line
-        }
-    }
+    private fun toInputArgs(line: String): String = rootInputArgs(line)
 
     private suspend fun execSu(line: String): ActionResult =
         kotlinx.coroutines.withContext(Dispatchers.IO) {
@@ -175,11 +168,8 @@ class AndroidRootInputBackend(
         ActionResult.Failure(error.message ?: "Root 注入写入失败")
     }
 
-    private fun px(value: Float, horizontal: Boolean): Int {
-        if (!normalised()) return value.roundToInt()
-        val (w, h) = metrics()
-        return (value * (if (horizontal) w else h)).roundToInt()
-    }
+    private fun px(value: Float, horizontal: Boolean): Int =
+        rootPx(value, horizontal, normalised(), metrics)
 
     /**
      * 导出内置模块 zip 到下载目录。
@@ -230,4 +220,35 @@ class AndroidRootInputBackend(
         const val MODULE_ASSET = "autorunner_root.zip"
         val MODULE_FILE = "autorunner_root-v${BuildInfo.VERSION_NAME}.zip"
     }
+}
+
+/**
+ * 把协议行转换成 `input` 的子命令：`long x y duration` 没有对应的 `input`
+ * 子命令，转成同起点/终点的短 swipe 实现长按。
+ *
+ * 纯函数（不依赖 Context / Android API），便于 JVM 单测。
+ */
+internal fun rootInputArgs(line: String): String {
+    val parts = line.split(" ")
+    return if (parts.size >= 4 && parts[0] == "long") {
+        "swipe ${parts[1]} ${parts[2]} ${parts[1]} ${parts[2]} ${parts[3]}"
+    } else {
+        line
+    }
+}
+
+/**
+ * 归一化（0..1）坐标按屏幕尺寸换算为像素；`normalised=false` 时视为像素原样取整。
+ *
+ * 纯函数（不依赖 Context / Android API），便于 JVM 单测。
+ */
+internal fun rootPx(
+    value: Float,
+    horizontal: Boolean,
+    normalised: Boolean,
+    metrics: () -> Pair<Int, Int>,
+): Int {
+    if (!normalised) return value.roundToInt()
+    val (w, h) = metrics()
+    return (value * (if (horizontal) w else h)).roundToInt()
 }

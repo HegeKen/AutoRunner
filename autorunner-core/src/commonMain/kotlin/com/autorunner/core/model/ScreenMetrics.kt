@@ -1,8 +1,8 @@
 package com.autorunner.core.model
 
 /**
- * Physical screen description captured while recording. It is stored in the
- * script so that coordinate normalisation stays reproducible on other devices.
+ * 录制时采集的物理屏幕描述。它被保存在脚本里，
+ * 使坐标归一化在其他设备上仍可复现。
  */
 data class ScreenMetrics(
     val widthPx: Int,
@@ -23,13 +23,11 @@ data class ScreenMetrics(
 }
 
 /**
- * Coordinate space used by the actions of a script.
+ * 脚本动作使用的坐标空间。
  *
- * * [ABSOLUTE] — pixels of the device stored in `info.device` (what the
- *   recorder produces).
- * * [NORMALIZED] — `0.0..1.0` fractions of the screen, resolution
- *   independent. The editor can convert a script to this space so that it can
- *   be replayed on a device with a different resolution.
+ * * [ABSOLUTE] — `info.device` 中保存的设备像素（录制器产出的形式）。
+ * * [NORMALIZED] — 屏幕的 `0.0..1.0` 比例值，与分辨率无关。
+ *   编辑器可以把脚本转换到该空间，以便在不同分辨率的设备上回放。
  */
 enum class CoordinateSpace {
     @kotlinx.serialization.SerialName("absolute")
@@ -45,12 +43,11 @@ enum class CoordinateSpace {
 }
 
 /**
- * Converts action coordinates between the space stored in a script and
- * absolute pixels of the current device.
+ * 在脚本所存坐标空间与当前设备绝对像素之间转换动作坐标。
  */
 object CoordinateResolver {
 
-    /** Converts an action into absolute pixels for [metrics]. */
+    /** 把动作转换为针对 [metrics] 的绝对像素。 */
     fun resolve(step: ActionStep, space: CoordinateSpace, metrics: ScreenMetrics): ActionStep =
         when (space) {
             CoordinateSpace.ABSOLUTE -> step
@@ -80,7 +77,7 @@ object CoordinateResolver {
             }
         }
 
-    /** Converts an action to normalised coordinates using [metrics] as source. */
+    /** 以 [metrics] 为源，把动作转换为归一化坐标。 */
     fun normalise(step: ActionStep, metrics: ScreenMetrics): ActionStep = when (step) {
         is TapStep -> step.copy(x = metrics.normaliseX(step.x), y = metrics.normaliseY(step.y))
         is LongPressStep -> step.copy(x = metrics.normaliseX(step.x), y = metrics.normaliseY(step.y))
@@ -98,13 +95,13 @@ object CoordinateResolver {
         is GamepadStep, is DelayStep, is KeyStep -> step
     }
 
-    /** Applies [resolve] to the whole flow and switches `info.coordinateSpace`. */
+    /** 对整个流程应用 [resolve] 并切换 `info.coordinateSpace`。 */
     fun resolveScript(script: ScriptModel, metrics: ScreenMetrics): ScriptModel = script.copy(
         info = script.info.copy(coordinateSpace = CoordinateSpace.ABSOLUTE),
         flow = script.flow.map { resolve(it, script.info.coordinateSpace, metrics) },
     )
 
-    /** Applies [normalise] to the whole flow and switches `info.coordinateSpace`. */
+    /** 对整个流程应用 [normalise] 并切换 `info.coordinateSpace`。 */
     fun normaliseScript(script: ScriptModel, metrics: ScreenMetrics): ScriptModel = script.copy(
         info = script.info.copy(coordinateSpace = CoordinateSpace.NORMALIZED),
         flow = script.flow.map { normalise(it, metrics) },

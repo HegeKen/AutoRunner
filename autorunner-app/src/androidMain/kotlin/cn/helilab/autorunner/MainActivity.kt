@@ -21,11 +21,10 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 
 /**
- * Single activity host of the AutoRunner Compose UI.
+ * AutoRunner Compose UI 的单 Activity 宿主。
  *
- * The activity is resizeable and never locks its orientation, so the same
- * screens handle phone portrait, phone landscape, unfolded foldables and
- * tablets — the prerequisite for the Android 17 resize requirement (§5.4).
+ * 该 Activity 可调整大小且从不锁定方向，因此同一套界面可以应对手机竖屏、
+ * 手机横屏、展开态折叠屏和平板 —— 这是满足 Android 17 尺寸调整要求（§5.4）的前提。
  */
 class MainActivity : ComponentActivity() {
 
@@ -39,7 +38,7 @@ class MainActivity : ComponentActivity() {
 
     private var transferController: AndroidScriptTransferController? = null
 
-    /** Screen requested through the `destination` intent extra. */
+    /** 通过 `destination` intent extra 请求的页面。 */
     private val requestedDestination =
         androidx.compose.runtime.mutableStateOf<Destination>(Destination.Scripts)
 
@@ -83,10 +82,10 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Maps `--es destination scripts|editor|record|settings` to a screen.
+     * 将 `--es destination scripts|editor|record|settings` 映射到对应页面。
      *
-     * MIUI refuses `adb shell input tap`, so this is how an automated UI pass
-     * reaches every page of the app.
+     * MIUI 拒绝 `adb shell input tap`，因此自动化 UI 测试正是通过这种方式
+     * 到达应用的每个页面。
      */
     private fun destinationFrom(intent: Intent?): Destination = when (intent?.getStringExtra(EXTRA_DESTINATION)) {
         "editor" -> Destination.Editor(intent.getStringExtra(EXTRA_SCRIPT_ID))
@@ -97,14 +96,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Permissions are granted in system settings, so the state has to be
-        // re-read every time the user comes back (§6.4.2).
+        // 权限是在系统设置中授予的，因此每次用户返回前台都必须
+        // 重新读取状态（§6.4.2）。
         permissionController?.refresh()
         AppGraph.containerOrNull?.overlayManager?.refreshPermissionState()
     }
 
     /**
-     * Imports a shared `.arscript` document (for example from a file manager).
+     * 导入分享来的 `.arscript` 文档（例如从文件管理器打开）。
      */
     private fun handleScriptIntent(intent: Intent?) {
         if (intent?.action != Intent.ACTION_VIEW) return

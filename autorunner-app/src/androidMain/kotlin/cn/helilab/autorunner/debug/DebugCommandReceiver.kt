@@ -15,13 +15,11 @@ import com.autorunner.core.model.FailureStrategy
 import kotlinx.coroutines.launch
 
 /**
- * Debug only command channel.
+ * 仅供调试的命令通道。
  *
- * MIUI (and several other ROMs) reject `adb shell input tap` with
- * `SecurityException: Injecting input events requires INJECT_EVENTS`, which makes
- * manual UI verification impossible from a workstation. This receiver exposes the
- * same operations the UI triggers so a debug build can be driven end to end from
- * `adb`:
+ * MIUI（以及若干其他 ROM）会以 `SecurityException: Injecting input events requires INJECT_EVENTS`
+ * 拒绝 `adb shell input tap`，导致无法从工作站手动验证 UI。本接收器暴露与 UI
+ * 触发的相同操作，使 debug 构建可以从 `adb` 全流程驱动：
  *
  * ```bash
  * adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND --es command state
@@ -31,9 +29,8 @@ import kotlinx.coroutines.launch
  * adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND --es command overlay_show
  * ```
  *
- * The receiver is **disabled in release builds** through the
- * `debugReceiverEnabled` manifest placeholder and additionally refuses to run
- * unless the application is debuggable.
+ * 该接收器通过 `debugReceiverEnabled` 清单占位符在 release 构建中**禁用**，
+ * 并且在应用不可调试时额外拒绝运行。
  */
 class DebugCommandReceiver : BroadcastReceiver() {
 
@@ -63,13 +60,13 @@ class DebugCommandReceiver : BroadcastReceiver() {
                         Log.w(AutoRunnerApplication.TAG, "debug run: no script stored")
                         return@launch
                     }
-                    // Mirrors the library's ▶ button: go through the view model so the
-                    // script's own execution block is applied.
+                    // 镜像脚本库的 ▶ 按钮：走 view model，以便套用
+                    // 脚本自身的执行配置块。
                     val execution = com.autorunner.ui.viewmodel.ExecutionViewModel(container)
                     execution.refreshScripts()
                     execution.start(scriptId)
-                    // start() resolves the script asynchronously; wait a moment so the
-                    // log shows the plan that is actually running.
+                    // start() 会异步解析脚本；稍等片刻，让日志
+                    // 打出实际正在运行的计划。
                     kotlinx.coroutines.delay(400)
                     Log.i(
                         AutoRunnerApplication.TAG,
@@ -176,7 +173,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
         }
     }
 
-    /** Prints everything needed to judge whether the services are wired up. */
+    /** 打印判断各服务是否正确接线所需的全部信息。 */
     private fun dumpState() {
         val container = AppGraph.requireContainer()
         Log.i(

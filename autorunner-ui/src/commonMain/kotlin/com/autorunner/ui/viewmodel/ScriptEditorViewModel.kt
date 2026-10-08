@@ -22,11 +22,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * State holder of the visual script editor (§6.5).
+ * 可视化脚本编辑器的状态持有者（§6.5）。
  *
- * The edited flow lives in a plain `List<ActionStep>`; every mutation goes
- * through this class so that validation, dirty tracking and the preview all
- * stay in sync.
+ * 编辑中的动作流保存在普通 `List<ActionStep>` 里；所有变更都经由本类，
+ * 校验、脏标记跟踪与预览因此始终保持同步。
  */
 class ScriptEditorViewModel(
     private val container: AppContainer,
@@ -37,7 +36,7 @@ class ScriptEditorViewModel(
 
     private val _scriptId = MutableStateFlow<String?>(null)
 
-    /** `null` while editing a brand new script. */
+    /** 编辑全新脚本时为 `null`。 */
     val scriptId: StateFlow<String?> = _scriptId.asStateFlow()
 
     private val _name = MutableStateFlow("")
@@ -62,7 +61,7 @@ class ScriptEditorViewModel(
 
     private val _gamepadMode = MutableStateFlow(GamepadMode.Default)
 
-    /** Gamepad preset this script's `gamepad` actions are authored against. */
+    /** 本脚本 `gamepad` 动作所依据的手柄预设。 */
     val gamepadMode: StateFlow<GamepadMode> = _gamepadMode.asStateFlow()
 
     private val _selectedIndex = MutableStateFlow<Int?>(null)
@@ -81,7 +80,7 @@ class ScriptEditorViewModel(
 
     val savedAt: StateFlow<String?> = _savedAt.asStateFlow()
 
-    /** Resolution used to preview absolute / normalised conversion. */
+    /** 用于预览绝对坐标 / 归一化坐标换算的分辨率。 */
     val screenMetrics: ScreenMetrics
         get() = container.accessibilityController.screenMetrics.takeIf { it.isValid }
             ?: ScreenMetrics.Unknown
@@ -89,8 +88,8 @@ class ScriptEditorViewModel(
     private val _validation = MutableStateFlow(ValidationResult.Valid)
 
     /**
-     * Validation of the current draft. Recomputed synchronously on every
-     * mutation so that the editor's inline hints can never lag behind the UI.
+     * 当前草稿的校验结果。每次变更都同步重算，
+     * 编辑器的内联提示因此永远不会落后于 UI。
      */
     val validation: StateFlow<ValidationResult> = _validation.asStateFlow()
 
@@ -114,7 +113,7 @@ class ScriptEditorViewModel(
     val selectedStep: ActionStep?
         get() = _selectedIndex.value?.let { index -> _flow.value.getOrNull(index) }
 
-    /** Loads [id]; pass `null` to start an empty draft. */
+    /** 加载 [id]；传 `null` 表示新建空白草稿。 */
     fun load(id: String?) {
         scope.launch {
             if (id == null) {
@@ -185,12 +184,11 @@ class ScriptEditorViewModel(
     }
 
     /**
-     * Removes a step.
+     * 删除一个步骤。
      *
-     * [followStep] keeps the selection on an existing neighbour so a caller that
-     * is editing parameters (the detail pane) stays on the list of actions. The
-     * timeline list passes `false`, so deleting a row never navigates the phone
-     * editor into the detail page.
+     * [followStep] 为 `true` 时把选中项移到相邻步骤上，让正在编辑参数的调用方
+     * （详情窗格）停留在动作列表；时间线列表传 `false`，这样删除一行不会把
+     * 手机端编辑器导航进详情页。
      */
     fun removeStep(index: Int, followStep: Boolean = true) {
         val current = _flow.value.toMutableList()
@@ -211,7 +209,7 @@ class ScriptEditorViewModel(
         revalidate()
     }
 
-    /** Duplicates a step; see [removeStep] for [followStep]. */
+    /** 复制一个步骤；[followStep] 的含义见 [removeStep]。 */
     fun duplicateStep(index: Int, followStep: Boolean = true) {
         val current = _flow.value.toMutableList()
         if (index !in current.indices) return
@@ -222,7 +220,7 @@ class ScriptEditorViewModel(
         revalidate()
     }
 
-    /** Moves a step; used by both the timeline list and the detail pane. */
+    /** 移动一个步骤；时间线列表与详情窗格都会用到。 */
     fun moveStep(from: Int, to: Int, followStep: Boolean = true) {
         val current = _flow.value.toMutableList()
         if (from !in current.indices || to !in current.indices || from == to) return
@@ -267,7 +265,7 @@ class ScriptEditorViewModel(
         revalidate()
     }
 
-    /** Selects the gamepad preset this script's `gamepad` actions target. */
+    /** 选择本脚本 `gamepad` 动作所针对的手柄预设。 */
     fun setGamepadMode(mode: GamepadMode) {
         _gamepadMode.value = mode
         _dirty.value = true
@@ -275,9 +273,8 @@ class ScriptEditorViewModel(
     }
 
     /**
-     * Switches between absolute pixels and `0.0~1.0` fractions (§6.2) and
-     * rewrites every action so the flow stays in the coordinate space the
-     * `info.coordinateSpace` field advertises.
+     * 在绝对像素与 `0.0~1.0` 百分比（§6.2）之间切换，并重写每个动作，
+     * 使动作流始终保持在 `info.coordinateSpace` 字段声明的坐标空间里。
      */
     fun toggleCoordinateSpace() {
         val metrics = screenMetrics
@@ -304,7 +301,7 @@ class ScriptEditorViewModel(
         revalidate()
     }
 
-    /** Saves the draft; returns the stored record through [onSaved]. */
+    /** 保存草稿；通过 [onSaved] 把存储后的记录交还调用方。 */
     fun save(onSaved: (ScriptRecord) -> Unit = {}) {
         val script = currentScript
         scope.launch {
@@ -318,7 +315,7 @@ class ScriptEditorViewModel(
         }
     }
 
-    /** Serialises the draft as pretty JSON and hands it to the export flow. */
+    /** 把草稿序列化为格式化 JSON，交给导出流程。 */
     fun exportText(): String = container.codec.encode(currentScript, formatted = true)
 
     fun suggestedFileName(): String = com.autorunner.core.model.ArScriptConventions.fileNameFor(
@@ -329,7 +326,7 @@ class ScriptEditorViewModel(
         _message.value = null
     }
 
-    /** `flow` entries resolved to absolute pixels (used by the preview pane). */
+    /** `flow` 条目解析为绝对像素后的结果（预览面板使用）。 */
     fun previewFlow(): List<ActionStep> {
         val metrics = screenMetrics
         if (!metrics.isValid) return _flow.value
@@ -359,7 +356,7 @@ class ScriptEditorViewModel(
         )
     }
 
-    /** Convenience used by the editor to know whether a step can move up/down. */
+    /** 编辑器用它判断某一步能否上移 / 下移。 */
     fun canMoveUp(index: Int): Boolean = index > 0
 
     fun canMoveDown(index: Int): Boolean = index < _flow.value.lastIndex

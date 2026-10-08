@@ -4,7 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Root object of an `.arscript` file.
+ * `.arscript` 文件的根对象。
  *
  * ```json
  * {
@@ -26,10 +26,10 @@ data class ScriptModel(
 
     val isEmpty: Boolean get() = flow.isEmpty()
 
-    /** Whether the flow drives a gamepad (contains at least one [GamepadStep]). */
+    /** 流程是否驱动游戏手柄（至少含一个 [GamepadStep]）。 */
     val usesGamepad: Boolean get() = flow.any { it is GamepadStep }
 
-    /** Sum of every action duration plus its trailing delay. */
+    /** 所有动作时长加上各自结尾延时的总和。 */
     val estimatedDurationMs: Long
         get() = flow.sumOf { step ->
             val own = when (step) {
@@ -44,7 +44,7 @@ data class ScriptModel(
             own + step.delay
         }
 
-    /** Estimated wall clock duration of the whole run (best effort). */
+    /** 整个运行的预估挂钟时长（尽力估算）。 */
     fun estimatedTotalDurationMs(): Long {
         val loops = execution.totalLoops
         if (loops == ExecutionConfig.INFINITE_LOOPS) return Long.MAX_VALUE
@@ -59,27 +59,25 @@ data class ScriptModel(
 }
 
 /**
- * `info` block: metadata captured at recording time plus the coordinate space
- * the `flow` uses.
+ * `info` 块：录制时采集的元数据，加上 `flow` 使用的坐标空间。
  */
 @Serializable
 data class ScriptInfo(
     @SerialName("name") val name: String = "",
     @SerialName("description") val description: String = "",
     @SerialName("device") val device: DeviceInfo = DeviceInfo(),
-    /** ISO-8601 UTC timestamp, e.g. `2026-01-15T10:30:00Z`. */
+    /** ISO-8601 UTC 时间戳，例如 `2026-01-15T10:30:00Z`。 */
     @SerialName("createdAt") val createdAt: String = "",
     @SerialName("coordinateSpace") val coordinateSpace: CoordinateSpace = CoordinateSpace.ABSOLUTE,
     @SerialName("tags") val tags: List<String> = emptyList(),
     /**
-     * Gamepad preset this script's `gamepad` actions were authored against, so the
-     * executor uses the matching calibration at run time. Defaults to Xbox for
-     * scripts recorded before the field existed.
+     * 本脚本的 `gamepad` 动作编写时所针对的手柄预设，执行器运行时据此使用
+     * 对应的校准。该字段出现之前录制的脚本默认为 Xbox。
      */
     @SerialName("gamepadMode") val gamepadMode: GamepadMode = GamepadMode.Default,
 )
 
-/** Screen the script was recorded on. */
+/** 录制时所在的屏幕。 */
 @Serializable
 data class DeviceInfo(
     @SerialName("width") val width: Int = 0,
@@ -94,23 +92,23 @@ data class DeviceInfo(
     }
 }
 
-/** Format constants for the `.arscript` container. */
+/** `.arscript` 容器的格式常量。 */
 object ArScriptConventions {
-    /** Extension without the leading dot. */
+    /** 不带前导点的扩展名。 */
     const val FILE_EXTENSION = "arscript"
 
-    /** Extension with the leading dot, as used by file pickers. */
+    /** 带前导点的扩展名，文件选择器使用的形式。 */
     const val DOT_EXTENSION = ".$FILE_EXTENSION"
 
     const val MIME_TYPE = "application/json"
 
-    /** Version written by this build. */
+    /** 本构建写入的版本号。 */
     const val FORMAT_VERSION = "1.0"
 
-    /** Versions this build is able to read. */
+    /** 本构建能够读取的版本集合。 */
     val SUPPORTED_VERSIONS: Set<String> = setOf("1.0")
 
-    /** Recommended file name for a script. */
+    /** 脚本的推荐文件名。 */
     fun fileNameFor(scriptName: String): String {
         val safe = scriptName
             .trim()

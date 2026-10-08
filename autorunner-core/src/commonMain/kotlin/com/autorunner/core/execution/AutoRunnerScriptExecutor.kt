@@ -26,9 +26,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.selects.select
 
 /**
- * Executes a [ScriptModel] action by action, once or repeatedly.
+ * 逐个动作执行 [ScriptModel]，可单次或重复运行。
  *
  * ```kotlin
  * val executor = AutoRunnerScriptExecutor(accessibilityController)
@@ -38,17 +42,15 @@ import kotlinx.coroutines.flow.first
  * ) { progress -> overlay.update(progress) }
  * ```
  *
- * Design notes:
+ * 设计要点：
  *
- * * **No busy waiting.** Pausing parks the coroutine on `state.first { … }` and
- *   both the per-action delays and the inter-loop interval use
- *   [ExecutionClock.delay] (`kotlinx.coroutines.delay` in production), so an
- *   idle loop costs no CPU and no battery.
- * * **Resumable after service loss.** When a gesture fails with a recoverable
- *   error the executor waits for the accessibility service to come back and
- *   retries the *same* action, which preserves the execution position.
- * * **Failure policy.** [FailureStrategy.SKIP_ACTION] counts the failure and
- *   continues, [FailureStrategy.ABORT_SCRIPT] unwinds the run and reports why.
+ * * **不忙等。** 暂停时协程停驻在 `state.first { … }` 上；动作间延时与循环间隔
+ *   都使用 [ExecutionClock.delay]（生产环境即 `kotlinx.coroutines.delay`），
+ *   因此空闲循环既不消耗 CPU 也不消耗电量。
+ * * **服务丢失后可恢复。** 当手势因可恢复错误失败时，执行器会等待无障碍
+ *   服务重新上线，并重试*同一个*动作，从而保留执行位置。
+ * * **失败策略。** [FailureStrategy.SKIP_ACTION] 记一次失败后继续，
+ *   [FailureStrategy.ABORT_SCRIPT] 则终止本次运行并报告原因。
  */
 class AutoRunnerScriptExecutor(
     private val accessibilityController: AccessibilityController,
@@ -62,33 +64,48 @@ class AutoRunnerScriptExecutor(
 
     private val _state = MutableStateFlow(ExecutionState.IDLE)
 
-    /** Current lifecycle state, observable by the UI and the services. */
+    /** 当前生命周期状态，可被 UI 与各服务观察。 */
     val state: StateFlow<ExecutionState> = _state.asStateFlow()
 
     private val _progress = MutableStateFlow(ExecutionProgress())
 
-    /** Latest progress snapshot; see §6.3.3 of the design document. */
+    /** 最新的进度快照；参见设计文档 §6.3.3。 */
     val progress: StateFlow<ExecutionProgress> = _progress.asStateFlow()
 
     private val _reports = MutableSharedFlow<ExecutionReport>(extraBufferCapacity = 8)
 
-    /** Emitted once per finished run. */
+    /** 每次运行结束时发出一次。 */
     val reports: SharedFlow<ExecutionReport> = _reports.asSharedFlow()
 
-    private var completedLoops = 0
-    private var executedActions = 0
-    private var skippedActions = 0
-    private var startMs = 0L
+    /**
+     * 单次 run 独有的计数与起始时间。每次 [execute] 新建一份，
+     * 旧 run 即使被新 run 淘汰，其尾部报告也只读自己那份，
+     * 避免计数器/耗时被新 run 重置后跨 run 泄漏。
+     */
+    private class RunCounters {
+        var completedLoops: Int = 0
+        var executedActions: Int = 0
+        var skippedActions: Int = 0
+        var startMs: Long = 0L
+    }
 
-    /** `true` while a run is in flight. */
+    /** 最近一次 run 的计数；供 pause/resume/emitStoppedReport 等外部入口读取。 */
+    private var activeCounters: RunCounters? = null
+
+    /** 单调递增的 run 标识；淘汰的旧 run 不得写回状态/进度/报告。 */
+    private var runId = 0L
+
+    /** 每次 run 独有的停止信号；[stop] 完成它以中断在执行协程。 */
+    private var stopSignal: CompletableDeferred<Unit>? = null
+
+    /** 有运行正在进行时为 `true`。 */
     val isActive: Boolean get() = _state.value.isActive
 
     /**
-     * Runs [script] honouring [config].
+     * 按 [config] 执行 [script]。
      *
-     * @param scriptId identifier stored in the emitted progress, so that the
-     *   floating panel can highlight the script that is running.
-     * @param onProgress invoked on every action boundary and loop boundary.
+     * @param scriptId 写入进度事件的标识，供悬浮面板高亮正在运行的脚本。
+     * @param onProgress 在每个动作边界与循环边界时回调。
      */
     suspend fun execute(
         script: ScriptModel,
@@ -111,18 +128,23 @@ class AutoRunnerScriptExecutor(
         }
 
         val effective = config.sanitized()
+        val currentRun = ++runId
+        // 每次 run 独有的停止信号：stop() 完成它来中断本 run，
+        // 旧 run 不会因新 run 覆盖 _state 而"复活"。
+        val stopRequested = CompletableDeferred<Unit>()
+        stopSignal = stopRequested
         val metrics = accessibilityController.refreshScreenMetrics()
         val steps = script.flow.map { CoordinateResolver.resolve(it, script.info.coordinateSpace, metrics) }
         val totalLoops = effective.totalLoops
         val scriptName = script.displayName()
-        // Gamepad button positions are calibrated per mode; the script decides which
-        // one it was authored against.
+        // 手柄按键位置按模式分别校准；由脚本决定它是针对哪种模式编写的。
         val gamepadMode = script.info.gamepadMode
 
-        completedLoops = 0
-        executedActions = 0
-        skippedActions = 0
-        startMs = clock.nowMs()
+        // 本 run 专属计数：即使后续有新 run 启动，本 run 的报告也只读这份。
+        val counters = RunCounters().also {
+            it.startMs = clock.nowMs()
+            activeCounters = it
+        }
         _state.value = ExecutionState.RUNNING
 
         var failureMessage: String? = null
@@ -131,10 +153,10 @@ class AutoRunnerScriptExecutor(
         if (steps.isEmpty()) {
             failureMessage = "脚本不包含任何动作"
         } else {
-            loop@ while (completedLoops < totalLoops) {
+            loop@ while (counters.completedLoops < totalLoops) {
                 for ((index, step) in steps.withIndex()) {
                     awaitResumeOrStop()
-                    if (_state.value == ExecutionState.STOPPED) {
+                    if (stopRequested.isCompleted) {
                         stoppedByUser = true
                         break@loop
                     }
@@ -148,21 +170,22 @@ class AutoRunnerScriptExecutor(
                         // 进度文案里的手柄按键按脚本自身的手柄类型显示。
                         label = step.labelFor(gamepadMode),
                         message = null,
+                        counters = counters,
                         onProgress = onProgress,
                     )
 
                     val outcome = if (step is DelayStep) {
-                        // A pure wait never reaches the gesture layer.
+                        // 纯等待不会进入手势层。
                         clock.delay(step.duration)
                         ActionResult.Success
                     } else {
                         dispatch(step, gamepadMode)
                     }
                     when (outcome) {
-                        is ActionResult.Success -> executedActions++
+                        is ActionResult.Success -> counters.executedActions++
 
                         is ActionResult.Unsupported -> {
-                            skippedActions++
+                            counters.skippedActions++
                             if (effective.failureStrategy == FailureStrategy.ABORT_SCRIPT) {
                                 failureMessage = outcome.reason
                                 break@loop
@@ -175,9 +198,9 @@ class AutoRunnerScriptExecutor(
                                 awaitServiceReconnect(effective.reconnectTimeoutMs)
                             val retried = if (recovered) dispatch(step, gamepadMode) else outcome
                             if (retried.isSuccess) {
-                                executedActions++
+                                counters.executedActions++
                             } else {
-                                skippedActions++
+                                counters.skippedActions++
                                 val reason = (retried as? ActionResult.Failure)?.reason
                                     ?: (retried as? ActionResult.Unsupported)?.reason
                                     ?: "未知错误"
@@ -193,6 +216,7 @@ class AutoRunnerScriptExecutor(
                                     totalLoops = totalLoops,
                                     label = step.labelFor(gamepadMode),
                                     message = "已跳过：$reason",
+                                    counters = counters,
                                     onProgress = onProgress,
                                 )
                             }
@@ -202,12 +226,12 @@ class AutoRunnerScriptExecutor(
                     if (step.delay > 0L) clock.delay(step.delay)
                 }
 
-                if (_state.value == ExecutionState.STOPPED) {
+                if (stopRequested.isCompleted) {
                     stoppedByUser = true
                     break@loop
                 }
 
-                completedLoops++
+                counters.completedLoops++
                 publishAction(
                     scriptId = scriptId,
                     scriptName = scriptName,
@@ -216,57 +240,96 @@ class AutoRunnerScriptExecutor(
                     totalLoops = totalLoops,
                     label = "",
                     message = null,
+                    counters = counters,
                     onProgress = onProgress,
                 )
 
-                if (completedLoops < totalLoops) {
-                    if (effective.restoreDelayMs > 0L) clock.delay(effective.restoreDelayMs)
-                    if (effective.intervalMs > 0L) clock.delay(effective.intervalMs)
+                if (counters.completedLoops < totalLoops) {
+                    if (effective.restoreDelayMs > 0L &&
+                        awaitGapInterruptedByStop(effective.restoreDelayMs, stopRequested)
+                    ) {
+                        stoppedByUser = true
+                        break@loop
+                    }
+                    if (effective.intervalMs > 0L &&
+                        awaitGapInterruptedByStop(
+                            effective.intervalMs,
+                            stopRequested,
+                            // 上报粒度跟随文案精度：≥1 分钟的间隔按分钟报（14 分钟 → 15 次），
+                            // 不足 1 分钟才按秒报，避免秒级刷新造成大量通知 IPC。
+                            tickMs = if (effective.intervalMs >= 60_000L) 60_000L else GAP_TICK_MS,
+                            onTick = { gapElapsed ->
+                                // 间隔期间按粒度上报进度，让通知栏显示「间隔 7/14 分钟」。
+                                if (currentRun == runId) {
+                                    publishInterval(
+                                        scriptId = scriptId,
+                                        scriptName = scriptName,
+                                        totalLoops = totalLoops,
+                                        totalActions = steps.size,
+                                        counters = counters,
+                                        intervalTotalMs = effective.intervalMs,
+                                        intervalElapsedMs = gapElapsed,
+                                        onProgress = onProgress,
+                                    )
+                                }
+                            },
+                        )
+                    ) {
+                        stoppedByUser = true
+                        break@loop
+                    }
                 }
             }
         }
 
         val outcome = when {
             failureMessage != null -> ExecutionOutcome.FAILED
-            stoppedByUser || _state.value == ExecutionState.STOPPED -> ExecutionOutcome.STOPPED
+            stoppedByUser || stopRequested.isCompleted -> ExecutionOutcome.STOPPED
             else -> ExecutionOutcome.COMPLETED
         }
-        _state.value = when (outcome) {
-            ExecutionOutcome.FAILED, ExecutionOutcome.STOPPED -> ExecutionState.STOPPED
-            ExecutionOutcome.COMPLETED -> ExecutionState.COMPLETED
+        // 只有当前 run 才允许写回状态/进度/报告；被淘汰的旧 run 只安静退出。
+        val isCurrentRun = currentRun == runId
+        if (isCurrentRun) {
+            _state.value = when (outcome) {
+                ExecutionOutcome.FAILED, ExecutionOutcome.STOPPED -> ExecutionState.STOPPED
+                ExecutionOutcome.COMPLETED -> ExecutionState.COMPLETED
+            }
+            if (stopSignal === stopRequested) stopSignal = null
         }
 
         val finalProgress = ExecutionProgress(
             state = _state.value,
             scriptId = scriptId,
             scriptName = scriptName,
-            completedLoops = completedLoops,
+            completedLoops = counters.completedLoops,
             totalLoops = totalLoops,
             currentActionIndex = -1,
             totalActions = steps.size,
-            elapsedMs = elapsedMs(),
-            skippedActions = skippedActions,
+            elapsedMs = elapsedSince(counters.startMs),
+            skippedActions = counters.skippedActions,
             message = failureMessage,
         )
-        _progress.value = finalProgress
-        onProgress(finalProgress)
+        if (isCurrentRun) {
+            _progress.value = finalProgress
+            onProgress(finalProgress)
+        }
 
         val report = ExecutionReport(
             scriptId = scriptId,
             scriptName = scriptName,
             outcome = outcome,
-            completedLoops = completedLoops,
+            completedLoops = counters.completedLoops,
             totalLoops = totalLoops,
-            executedActions = executedActions,
-            skippedActions = skippedActions,
-            elapsedMs = elapsedMs(),
+            executedActions = counters.executedActions,
+            skippedActions = counters.skippedActions,
+            elapsedMs = elapsedSince(counters.startMs),
             failureMessage = failureMessage,
         )
-        _reports.tryEmit(report)
+        if (isCurrentRun) _reports.tryEmit(report)
         return report
     }
 
-    /** Pauses the run; the coroutine parks until [resume] or [stop]. */
+    /** 暂停运行；协程停驻直到 [resume] 或 [stop]。 */
     fun pause() {
         if (_state.value == ExecutionState.RUNNING) {
             _state.value = ExecutionState.PAUSED
@@ -274,7 +337,7 @@ class AutoRunnerScriptExecutor(
         }
     }
 
-    /** Resumes a paused run. */
+    /** 恢复已暂停的运行。 */
     fun resume() {
         if (_state.value == ExecutionState.PAUSED) {
             _state.value = ExecutionState.RUNNING
@@ -282,7 +345,7 @@ class AutoRunnerScriptExecutor(
         }
     }
 
-    /** Toggles between running and paused. */
+    /** 在运行与暂停之间切换。 */
     fun togglePause() {
         when (_state.value) {
             ExecutionState.RUNNING -> pause()
@@ -291,23 +354,25 @@ class AutoRunnerScriptExecutor(
         }
     }
 
-    /** Requests termination; the loop exits at the next action boundary. */
+    /** 请求终止；在下一个边界中断运行，包括循环间隔等待。 */
     fun stop() {
         if (_state.value.isActive) {
             _state.value = ExecutionState.STOPPED
             accessibilityController.cancelPendingGestures()
+            // 完成本 run 的停止信号：正在 interval/restore 等待中的协程立即退出，
+            // 不再等间隔走完后"复活"执行动作。
+            stopSignal?.complete(Unit)
         }
     }
 
     /**
-     * Emits a terminal [ExecutionOutcome.STOPPED] report on behalf of a run
-     * whose driving coroutine was cancelled externally (see
-     * [ExecutionController.forceStop]): the cancelled coroutine never reaches
-     * the report emission at the end of [execute], so collectors would
-     * otherwise never see the run end.
+     * 代表某个运行发出终态 [ExecutionOutcome.STOPPED] 报告：其驱动协程被外部
+     * 取消（见 [ExecutionController.forceStop]）。被取消的协程永远走不到
+     * [execute] 末尾的报告发送，否则收集方将永远看不到该次运行结束。
      */
     fun emitStoppedReport(scriptId: String?, scriptName: String) {
         val snapshot = _progress.value
+        val counters = activeCounters
         _reports.tryEmit(
             ExecutionReport(
                 scriptId = scriptId,
@@ -315,20 +380,17 @@ class AutoRunnerScriptExecutor(
                 outcome = ExecutionOutcome.STOPPED,
                 completedLoops = snapshot.completedLoops,
                 totalLoops = snapshot.totalLoops,
-                executedActions = executedActions,
-                skippedActions = skippedActions,
+                executedActions = counters?.executedActions ?: 0,
+                skippedActions = counters?.skippedActions ?: 0,
                 elapsedMs = elapsedMs(),
             ),
         )
     }
 
-    /** Resets a terminal state back to [ExecutionState.IDLE]. */
+    /** 把终态重置回 [ExecutionState.IDLE]。 */
     fun reset() {
         if (!_state.value.isActive) {
-            completedLoops = 0
-            executedActions = 0
-            skippedActions = 0
-            startMs = 0L
+            activeCounters = null
             _state.value = ExecutionState.IDLE
             // 完整清空进度快照：否则 completedLoops/scriptName 残留会让首页
             // 运行横幅（依赖 completedLoops > 0）在"清除"后仍然显示。
@@ -342,8 +404,48 @@ class AutoRunnerScriptExecutor(
     }
 
     /**
-     * Waits for the accessibility service to be rebound (the system may kill
-     * and restart it during very long runs).
+     * 等待 [millis]（循环间隔/恢复延迟），但 [stopRequested] 完成时立即返回 `true`。
+     * 这样 stop() 能中断间隔等待，旧 run 不会在间隔走完后继续执行动作。
+     *
+     * 传入 [onTick] 时把总时长切成 [tickMs] 的小段，每段结束回调一次已等待时长，
+     * 用于通知栏显示「间隔 7/14 分钟」这类进度。粒度由调用方按文案精度决定
+     * （分钟级间隔用 60 秒，秒级间隔用 [GAP_TICK_MS]），避免高频通知刷新。
+     */
+    private suspend fun awaitGapInterruptedByStop(
+        millis: Long,
+        stopRequested: CompletableDeferred<Unit>,
+        tickMs: Long = GAP_TICK_MS,
+        onTick: ((elapsedMs: Long) -> Unit)? = null,
+    ): Boolean = coroutineScope {
+        val elapsed = async {
+            if (onTick == null) {
+                clock.delay(millis)
+            } else {
+                var waited = 0L
+                onTick(waited)
+                while (waited < millis) {
+                    val slice = minOf(tickMs, millis - waited)
+                    clock.delay(slice)
+                    waited += slice
+                    onTick(waited)
+                }
+            }
+            false
+        }
+        val stopped = async { stopRequested.await(); true }
+        try {
+            select {
+                elapsed.onAwait { it }
+                stopped.onAwait { it }
+            }
+        } finally {
+            elapsed.cancel()
+            stopped.cancel()
+        }
+    }
+
+    /**
+     * 等待无障碍服务重新绑定（超长运行期间系统可能会把它杀掉再重启）。
      */
     private suspend fun awaitServiceReconnect(timeoutMs: Long): Boolean {
         var waited = 0L
@@ -393,28 +495,66 @@ class AutoRunnerScriptExecutor(
         totalLoops: Int,
         label: String,
         message: String?,
+        counters: RunCounters,
         onProgress: (ExecutionProgress) -> Unit,
     ) {
         val snapshot = ExecutionProgress(
             state = _state.value,
             scriptId = scriptId,
             scriptName = scriptName,
-            completedLoops = completedLoops,
+            completedLoops = counters.completedLoops,
             totalLoops = totalLoops,
             currentActionIndex = index,
             totalActions = totalActions,
             currentActionLabel = label,
-            elapsedMs = elapsedMs(),
-            skippedActions = skippedActions,
+            elapsedMs = elapsedSince(counters.startMs),
+            skippedActions = counters.skippedActions,
             message = message,
         )
         _progress.value = snapshot
         onProgress(snapshot)
     }
 
-    private fun elapsedMs(): Long = (clock.nowMs() - startMs).coerceAtLeast(0L)
+    /**
+     * 间隔等待期间上报一次进度快照，携带 [intervalTotalMs]/[intervalElapsedMs]，
+     * 让通知栏实时显示「间隔 7/14 分钟」这类已过时长/总时长。
+     */
+    private fun publishInterval(
+        scriptId: String?,
+        scriptName: String,
+        totalLoops: Int,
+        totalActions: Int,
+        counters: RunCounters,
+        intervalTotalMs: Long,
+        intervalElapsedMs: Long,
+        onProgress: (ExecutionProgress) -> Unit,
+    ) {
+        val snapshot = ExecutionProgress(
+            state = _state.value,
+            scriptId = scriptId,
+            scriptName = scriptName,
+            completedLoops = counters.completedLoops,
+            totalLoops = totalLoops,
+            currentActionIndex = -1,
+            totalActions = totalActions,
+            elapsedMs = elapsedSince(counters.startMs),
+            skippedActions = counters.skippedActions,
+            intervalTotalMs = intervalTotalMs,
+            intervalElapsedMs = intervalElapsedMs,
+        )
+        _progress.value = snapshot
+        onProgress(snapshot)
+    }
+
+    /** 当前活跃 run 的已耗时；供 pause/resume 等外部入口使用。 */
+    private fun elapsedMs(): Long = elapsedSince(activeCounters?.startMs ?: 0L)
+
+    private fun elapsedSince(startMs: Long): Long = (clock.nowMs() - startMs).coerceAtLeast(0L)
 
     private companion object {
         const val RECONNECT_POLL_MS = 250L
+
+        /** 间隔进度上报粒度：每 1 秒回调一次已等待时长（通知栏秒级刷新）。 */
+        const val GAP_TICK_MS = 1_000L
     }
 }

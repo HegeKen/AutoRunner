@@ -25,24 +25,23 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Records touch input through [AutoRunnerAccessibilityService] and classifies it
- * into script actions with the shared [GestureAnalyzer] (§6.1.1).
+ * 通过 [AutoRunnerAccessibilityService] 录制触摸输入，并用共享的
+ * [GestureAnalyzer] 将其分类为脚本动作（§6.1.1）。
  *
- * ## Touch mirroring
+ * ## 触摸镜像
  *
- * A full screen `TYPE_ACCESSIBILITY_OVERLAY` view necessarily consumes the
- * touches it captures, so the app under test would otherwise stop reacting
- * during recording. AutoRunner therefore replays every classified gesture with
- * `dispatchGesture` while the session is running, which keeps the recording
- * round trip usable.
+ * 全屏的 `TYPE_ACCESSIBILITY_OVERLAY` 视图必然会消费它采集到的触摸，
+ * 否则被测应用在录制期间将停止响应。因此 AutoRunner 在会话运行期间
+ * 用 `dispatchGesture` 回放每一个已分类的手势，
+ * 使录制的往返体验保持可用。
  */
 class AndroidRecordingController(
     private val context: Context,
     private val settingsProvider: () -> AppSettings,
     private val accessibilityController: AccessibilityController,
     /**
-     * Makes sure the user has a way to stop the session while the capture layer
-     * blocks the rest of the screen. Returns `false` when that is impossible.
+     * 确保在采集层挡住屏幕其余部分时，用户仍有办法停止会话。
+     * 若无法做到则返回 `false`。
      */
     private val ensureStopControl: () -> Boolean = { true },
 ) : RecordingController {
@@ -61,38 +60,37 @@ class AndroidRecordingController(
 
     override val eventCount: StateFlow<Int> = _eventCount.asStateFlow()
 
-    /** Raw frames of the current session, used by the recording event feed. */
+    /** 当前会话的原始帧，供录制事件流使用。 */
     private val _events = MutableStateFlow<List<RawTouchEvent>>(emptyList())
 
     val events: StateFlow<List<RawTouchEvent>> = _events.asStateFlow()
 
     private var analyzer: GestureAnalyzer? = null
 
-    /** Start time of the session, used for the `description` field. */
+    /** 会话的开始时间，用于 `description` 字段。 */
     private var startedAt: String = currentIsoTimestamp()
 
-    /** Mirrors recorded gestures back so the underlying app still reacts. */
+    /** 将录制的手势镜像回去，使下层应用仍能响应。 */
     private var mirrorTouches: Boolean = true
 
     /**
-     * Number of mirror gestures currently being dispatched.
+     * 当前正在派发的镜像手势数量。
      *
-     * A full screen capture layer also receives the events AutoRunner itself
-     * injects, so without this the mirror of a recorded tap would be captured as
-     * another tap and re-mirrored — an endless feedback loop (observed on a real
-     * device: two taps produced 116 actions).
+     * 全屏采集层同样会收到 AutoRunner 自己注入的事件，
+     * 若没有这个计数，录制点击的镜像会被再次捕获为一次新的点击并再次镜像——
+     * 形成无穷反馈回路（在真机上观察到：两次点击产生了 116 个动作）。
      */
     private var mirrorInFlight: Int = 0
 
-    /** `InputDevice`s that are real touchscreens; everything else is injected. */
+    /** 来自真实触摸屏的 `InputDevice`；其余一切都是注入的。 */
     private val touchscreenDeviceIds: Set<Int> by lazy(::resolveTouchscreenDeviceIds)
 
-    /** Diagnostics surfaced in the recording screen. */
+    /** 在录制界面展示的诊断数据。 */
     private var droppedSelfInjected: Int = 0
 
     private var droppedForeignDevice: Int = 0
 
-    /** Logs every captured frame; enabled through the debug command channel. */
+    /** 记录每一帧；通过调试命令通道开启。 */
     var verboseLogging: Boolean = false
 
     override val screenMetrics get() = accessibilityController.screenMetrics
@@ -143,10 +141,9 @@ class AndroidRecordingController(
 
         droppedSelfInjected = 0
         droppedForeignDevice = 0
-        // Best effort: also show the floating panel so the user has the usual
-        // controls. It is *not* required any more — stopping is guaranteed by the
-        // control painted inside the capture layer, which is immune to window
-        // layering (on MIUI the panel's taps were swallowed by the capture layer).
+        // 尽力而为：同时显示悬浮面板，让用户拥有惯常的控件。
+        // 但它已*不*再是必需的——停止由绘制在采集层内部的控件保证，
+        // 该控件不受窗口层级影响（在 MIUI 上，面板的点击会被采集层吞掉）。
         if (!ensureStopControl()) {
             Log.i(
                 AutoRunnerApplication.TAG,
@@ -179,7 +176,7 @@ class AndroidRecordingController(
         _status.value = RecordingStatus.FINALISING
         AccessibilityServiceHolder.current()?.detachTouchCapture()
 
-        // Any gesture still in flight is completed with "now" as its end time.
+        // 仍在执行中的手势以“现在”作为结束时间完成。
         analyzer?.let { active ->
             val flushed = active.flush(SystemClock.uptimeMillis())
             if (flushed.isNotEmpty()) _steps.value = _steps.value + flushed
@@ -228,8 +225,8 @@ class AndroidRecordingController(
     override fun pickAction(onPicked: (ActionStep) -> Unit): Boolean {
         if (_status.value == RecordingStatus.RECORDING) return false
         val service = AccessibilityServiceHolder.current() ?: return false
-        // A throwaway analyzer classifies exactly one gesture; the capture layer is
-        // detached as soon as it is complete.
+        // 一次性的分析器只对一个手势做分类；一旦完成，
+        // 采集层就会被卸载。
         val analyzer = GestureAnalyzer(settingsProvider().recording)
         return service.attachTouchCapture(
             listener = { event ->
@@ -250,7 +247,7 @@ class AndroidRecordingController(
     private fun onTouchEvent(event: RawTouchEvent) {
         val active = analyzer ?: return
 
-        // Bounded raw stream trace; off unless the debug channel enables it.
+        // 有上限的原始流跟踪；除非调试通道开启，否则关闭。
         if (verboseLogging && _eventCount.value < TRACE_FRAMES) {
             Log.i(
                 AutoRunnerApplication.TAG,
@@ -259,14 +256,14 @@ class AndroidRecordingController(
             )
         }
 
-        // Guard 1: we are dispatching our own mirror right now.
+        // 守卫 1：我们此刻正在派发自己的镜像。
         if (mirrorInFlight > 0) {
             droppedSelfInjected++
             return
         }
 
-        // Guard 2: the frame did not come from a real touchscreen, so it can
-        // only be an injected gesture (script replay or another automation app).
+        // 守卫 2：该帧并非来自真实触摸屏，因此只可能是注入的手势
+        // （脚本回放或其他自动化应用）。
         if (event.sourceDeviceId >= 0 &&
             touchscreenDeviceIds.isNotEmpty() &&
             event.sourceDeviceId !in touchscreenDeviceIds
@@ -280,7 +277,7 @@ class AndroidRecordingController(
         if (verboseLogging) {
             finished.forEach { Log.i(AutoRunnerApplication.TAG, "step> ${it.typeName} ${it.label}") }
         }
-        // Keep a bounded feed so a long session cannot exhaust memory.
+        // 保持有界的事件流，使长时间会话不会耗尽内存。
         val feed = _events.value
         _events.value = if (feed.size >= MAX_FEED) feed.drop(feed.size - MAX_FEED + 1) + event else feed + event
 
@@ -293,13 +290,19 @@ class AndroidRecordingController(
             finished.forEach { step ->
                 mirrorInFlight++
                 scope.launch {
-                    val service = AccessibilityServiceHolder.current()
-                    // 注入期间让采集层不可触摸：否则镜像会被我们自己吃掉，
-                    // 用户的操作无法穿透到真实应用。
-                    service?.setCaptureTouchable(false)
-                    runCatching { accessibilityController.perform(step) }
-                    service?.setCaptureTouchable(true)
-                    mirrorInFlight = (mirrorInFlight - 1).coerceAtLeast(0)
+                    // try/finally 保证任何异常路径下计数都归零：
+                    // 否则 setCaptureTouchable 抛异常后 mirrorInFlight 永远 > 0，
+                    // 后续所有帧都会被 Guard 1 当作自注入丢弃，录制"卡死"。
+                    try {
+                        val service = AccessibilityServiceHolder.current()
+                        // 注入期间让采集层不可触摸：否则镜像会被我们自己吃掉，
+                        // 用户的操作无法穿透到真实应用。
+                        service?.setCaptureTouchable(false)
+                        runCatching { accessibilityController.perform(step) }
+                        service?.setCaptureTouchable(true)
+                    } finally {
+                        mirrorInFlight = (mirrorInFlight - 1).coerceAtLeast(0)
+                    }
                 }
             }
         }
@@ -323,9 +326,9 @@ class AndroidRecordingController(
     }
 
     /**
-     * Lists the `InputDevice`s whose sources include a touchscreen. Frames from
-     * any other device were injected programmatically (by AutoRunner's own
-     * gesture replay or by another automation app) and must not be recorded.
+     * 列出来源包含触摸屏的 `InputDevice`。来自任何其他设备的帧都是以编程方式
+     * 注入的（由 AutoRunner 自己的手势回放或其他自动化应用），
+     * 绝不能被录制。
      */
     private fun resolveTouchscreenDeviceIds(): Set<Int> = runCatching {
         InputDevice.getDeviceIds()
@@ -338,10 +341,10 @@ class AndroidRecordingController(
     }.getOrDefault(emptySet())
 
     private companion object {
-        /** Maximum number of raw frames retained for the event feed. */
+        /** 事件流保留的原始帧上限。 */
         const val MAX_FEED = 200
 
-        /** How many raw frames are written to logcat per session. */
+        /** 每个会话写入 logcat 的原始帧数量。 */
         const val TRACE_FRAMES = 80
     }
 }

@@ -42,6 +42,9 @@ kotlin {
             implementation(libs.androidx.core.ktx)
             implementation(libs.kotlinx.coroutines.android)
         }
+        androidUnitTest.dependencies {
+            implementation(kotlin("test"))
+        }
     }
 }
 

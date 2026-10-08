@@ -4,8 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.unit.dp
 
 /**
- * Shared spacing / sizing tokens. Keeping them in one place is what makes the
- * phone and tablet layouts look like the same product.
+ * 共享的间距 / 尺寸令牌。集中放在一处，手机与平板布局才会看起来像同一个产品。
  */
 object Dimens {
 
@@ -53,21 +52,21 @@ object Dimens {
     val CardCorner = 16.dp
     val PanelCorner = 20.dp
 
-    /** Minimum touch target mandated by the Android accessibility guidelines. */
+    /** Android 无障碍规范要求的最小触摸目标尺寸。 */
     val MinTouchTarget = 48.dp
 
-    /** Width of the floating ball's long-press mini action menu. */
+    /** 悬浮球长按迷你快捷菜单的宽度。 */
     val OverlayMenuWidth = 208.dp
 
-    /** Size of the draggable floating ball. */
+    /** 可拖动悬浮球的尺寸。 */
     val FloatingBallSize = 56.dp
 
-    /** Extra window margin around the floating ball (touch slop / glow room). */
+    /** 悬浮球四周额外的窗口边距（触摸容差 / 发光效果预留空间）。 */
     val FloatingBallWindowPadding = 12.dp
 
-    /** Preferred maximum width of centred content on tablets. */
+    /** 平板上居中内容的首选最大宽度。 */
     val MaxContentWidth = 720.dp
 
-    /** Width of the editor's preview pane in the supporting pane layout. */
+    /** 辅助窗格布局中编辑器预览面板的宽度。 */
     val PreviewPaneWidth = 320.dp
 }

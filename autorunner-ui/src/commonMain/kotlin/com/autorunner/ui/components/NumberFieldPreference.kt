@@ -21,7 +21,7 @@ import com.autorunner.ui.theme.Dimens
  * 输入框复用 [NumberField]，数字过滤只有一份实现；本地文本状态让用户可以先把
  * 内容清空再重新输入，不会在清空的瞬间把配置写成 0。
  *
- * @param allowInfinite when `true` a value of `0` is labelled as "无限循环".
+ * @param allowInfinite 为 `true` 时数值 `0` 显示为「无限循环」。
  */
 @Composable
 fun NumberFieldPreference(

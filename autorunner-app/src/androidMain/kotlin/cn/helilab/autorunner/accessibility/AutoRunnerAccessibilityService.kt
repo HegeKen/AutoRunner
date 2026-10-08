@@ -15,15 +15,15 @@ import com.autorunner.core.recording.RawTouchEvent
 import com.autorunner.core.recording.TouchPhase
 
 /**
- * The heart of gesture recording and replay (§6.1).
+ * 手势录制与回放的核心（§6.1）。
  *
- * * `onServiceConnected` publishes the instance to [AccessibilityServiceHolder]
- *   so `AndroidAccessibilityController` can dispatch gestures and
- *   `AndroidRecordingController` can attach the capture layer.
- * * The capture layer is a `TYPE_ACCESSIBILITY_OVERLAY` view, so recording never
- *   needs the `SYSTEM_ALERT_WINDOW` permission.
- * * `onUnbind` immediately detaches the capture layer: leaving a full screen
- *   touch consumer behind would make the device unusable.
+ * * `onServiceConnected` 将实例发布到 [AccessibilityServiceHolder]，
+ *   以便 `AndroidAccessibilityController` 能派发手势、
+ *   `AndroidRecordingController` 能挂载采集层。
+ * * 采集层是一个 `TYPE_ACCESSIBILITY_OVERLAY` 视图，因此录制永远
+ *   不需要 `SYSTEM_ALERT_WINDOW` 权限。
+ * * `onUnbind` 会立即卸载采集层：遗留一个全屏触摸消费者
+ *   会让设备无法使用。
  */
 class AutoRunnerAccessibilityService : AccessibilityService() {
 
@@ -33,16 +33,14 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
 
     private var touchListener: ((RawTouchEvent) -> Unit)? = null
 
-    // NOTE: `AccessibilityServiceInfo.motionEventSources` is deliberately NOT
-    // used. The platform documents that "MotionEvents from sources in
-    // getMotionEventSources() are not sent to the rest of the system", i.e.
-    // requesting SOURCE_TOUCHSCREEN makes the service swallow every touch on the
-    // device. Doing that in onServiceConnected() bricked the whole screen the
-    // moment the user granted the accessibility permission. Touch capture is
-    // therefore done exclusively with the transparent
-    // TYPE_ACCESSIBILITY_OVERLAY layer described in §6.1.1 of the design
-    // document, which keeps normal window targeting (and therefore the floating
-    // stop control) intact.
+    // 注意：这里刻意*不*使用 `AccessibilityServiceInfo.motionEventSources`。
+    // 平台文档写明“来自 getMotionEventSources() 中来源的 MotionEvent
+    // 不会被发送到系统的其余部分”，也就是说请求 SOURCE_TOUCHSCREEN 会让
+    // 本服务吞掉设备上的每一次触摸。在 onServiceConnected() 中这么做，
+    // 会在用户授予权限的那一刻让整块屏幕变成砖。
+    // 因此触摸采集完全由设计文档 §6.1.1 描述的透明
+    // TYPE_ACCESSIBILITY_OVERLAY 层完成，从而保持正常的窗口寻址
+    // （以及浮动停止控件）不受影响。
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -55,40 +53,49 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
                 AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS or
                 AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
             notificationTimeout = 100
-            // Defensive reset: clear any motion event source a previous build may
-            // have registered, otherwise the touch screen would stay swallowed
-            // until the user disables the service by hand.
-            motionEventSources = 0
+            // 防御性重置：清除之前版本可能注册过的动作事件来源，
+            // 否则触摸屏会一直处于被吞掉的状态，直到用户手动禁用服务。
+            // setMotionEventSources 是 API 34+；在较旧的设备上该方法不存在，
+            // 调用会让 onServiceConnected 崩溃（NoSuchMethodError）。
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                motionEventSources = 0
+            }
         }
-        // Defensive clean-up: if the process was restarted while a recording
-        // session owned the full screen capture layer, that layer would keep
-        // consuming every touch on the device. Drop it before anything else.
+        // 防御性清理：如果进程在某个录制会话持有全屏采集层时被重启，
+        // 那一层会继续吞掉设备上的每一次触摸。先把它丢掉，再做其他事。
         detachTouchCapture()
         AccessibilityServiceHolder.attach(this)
+        // getMotionEventSources 是 API 34+；加保护，确保这段诊断日志
+        // 在旧设备上永远不会让服务崩溃。
+        val motionSources = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            runCatching { serviceInfo?.motionEventSources }.getOrNull()
+        } else {
+            null
+        }
         Log.i(
             AutoRunnerApplication.TAG,
             "accessibility service connected: motionEventSources=" +
-                "${runCatching { serviceInfo?.motionEventSources }.getOrNull()} (0 = touches reach apps)",
+                "$motionSources (0 = touches reach apps)",
         )
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Gesture replay does not need the event stream; the hook is kept so the
-        // service stays bound and is not optimised away by the system.
+        // 手势回放不需要事件流；保留这个钩子是为了让服务保持绑定状态，
+        // 不会被系统优化掉。
     }
 
     override fun onInterrupt() = Unit
 
     /**
-     * Attaches the transparent capture layer (§6.1.1).
+     * 挂载透明采集层（§6.1.1）。
      *
-     * The layer is a normal window of type `TYPE_ACCESSIBILITY_OVERLAY`, so window
-     * targeting still works: the floating control panel sits above it and stays
-     * tappable, which is how the user stops a session.
+     * 该层是类型为 `TYPE_ACCESSIBILITY_OVERLAY` 的普通窗口，因此窗口寻址
+     * 依然有效：浮动控制面板位于它之上并保持可点击，
+     * 用户正是通过它来停止会话。
      *
-     * @param onStopRequested invoked when the user taps the painted stop control.
-     * @param isSelfInjected `true` while AutoRunner is injecting the mirror.
-     * @return `true` when the layer was scheduled for attachment.
+     * @param onStopRequested 当用户点击绘制的停止控件时调用。
+     * @param isSelfInjected AutoRunner 正在注入镜像手势时为 `true`。
+     * @return 当该层已被安排挂载时返回 `true`。
      */
     fun attachTouchCapture(
         listener: (RawTouchEvent) -> Unit,
@@ -120,7 +127,7 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
         }.getOrDefault(false)
     }
 
-    /** Removes the capture layer; safe to call when nothing is attached. */
+    /** 移除采集层；在没有挂载任何内容时调用也是安全的。 */
     fun detachTouchCapture() {
         touchListener = null
         val view = captureView ?: return
@@ -132,7 +139,7 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** `true` while the capture layer consumes touches. */
+    /** 采集层正在消费触摸时为 `true`。 */
     val isCapturing: Boolean get() = captureView != null
 
     /**
@@ -158,11 +165,10 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Captures the next released tap and reports its coordinates.
+     * 捕获下一次抬起的点击并报告其坐标。
      *
-     * Used by the gamepad mapping UI ("拾取坐标"). The temporary capture layer is
-     * removed as soon as the user lifts the finger, and the session is not affected
-     * because picking is refused while a recording runs.
+     * 供手柄映射界面使用（“拾取坐标”）。用户手指抬起后，
+     * 临时采集层会被移除，且不会影响会话，因为录制进行时会拒绝拾取。
      */
     fun captureNextPoint(onCaptured: (Float, Float) -> Unit): Boolean {
         if (captureView != null) return false
@@ -181,6 +187,6 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
         )
     }
 
-    /** Aborts an in-flight gesture (used by the "stop" control). */
+    /** 中止正在执行的手势（由“停止”控件使用）。 */
     fun abortCurrentGesture() = Unit
 }

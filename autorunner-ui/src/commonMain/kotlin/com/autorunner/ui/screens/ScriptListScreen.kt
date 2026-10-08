@@ -35,12 +35,11 @@ import com.autorunner.ui.theme.Dimens
 import com.autorunner.ui.viewmodel.ScriptListViewModel
 
 /**
- * Script library — the home screen (§6.5).
+ * 脚本库——主页面（§6.5）。
  *
- * Phone: a single list that navigates into the editor.
- * Tablet: the same list, but the shell renders it next to the editor
- * (List-Detail pattern, §5.3), which is why [onSelect] is separate from
- * [onOpen].
+ * 手机：单列表，点击后跳转编辑器。
+ * 平板：同一份列表，但外壳把它渲染在编辑器旁边
+ * （List-Detail 模式，§5.3），因此 [onSelect] 与 [onOpen] 分开。
  */
 @Composable
 fun ScriptListScreen(
@@ -173,7 +172,7 @@ private fun ScriptListContent(
         }
     }
 
-    // -------------------------------------------------------------- dialogs
+    // -------------------------------------------------------------- 对话框
     //
     // 危险操作统一走 ConfirmDialog + Danger 语气（此前删除脚本用主色、清空全部用
     // 危险色，同一个破坏性动作给出两种风险暗示）。显隐由 show 驱动，记录本身留到
@@ -214,7 +213,7 @@ private fun ScriptListContent(
     )
 }
 
-/** Friendly empty state explaining how to get the first script. */
+/** 友好的空状态，说明如何创建第一个脚本。 */
 @Composable
 private fun EmptyScriptsState(
     hasQuery: Boolean,

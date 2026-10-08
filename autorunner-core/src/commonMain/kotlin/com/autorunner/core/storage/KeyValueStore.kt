@@ -1,11 +1,11 @@
 package com.autorunner.core.storage
 
 /**
- * Tiny key/value persistence used for user settings.
+ * 用于用户设置的迷你键值持久化。
  *
- * Android implementation is backed by `SharedPreferences`, the JVM one by a
- * properties file. Values are stored as strings; callers use
- * [SettingsCodec] helpers to (de)serialise richer objects.
+ * Android 实现基于 `SharedPreferences`，JVM 实现基于属性文件。
+ * 值以字符串存储；调用方使用 [SettingsCodec] 辅助函数来（反）序列化
+ * 更复杂的对象。
  */
 interface KeyValueStore {
     fun getString(key: String, default: String? = null): String?
@@ -35,7 +35,7 @@ interface KeyValueStore {
     fun clear()
 }
 
-/** In-memory [KeyValueStore], used by tests. */
+/** 测试使用的内存版 [KeyValueStore]。 */
 class InMemoryKeyValueStore(
     initial: Map<String, String> = emptyMap(),
 ) : KeyValueStore {
@@ -85,5 +85,5 @@ class InMemoryKeyValueStore(
     override fun clear() = values.clear()
 }
 
-/** Creates the platform default settings store. */
+/** 创建平台默认的设置存储。 */
 expect fun createKeyValueStore(name: String = "autorunner_settings"): KeyValueStore

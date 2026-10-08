@@ -14,22 +14,21 @@ import com.autorunner.core.model.ExecutionProgress
 import com.autorunner.core.model.ExecutionState
 
 /**
- * Foreground notification used by `AutoRunnerOverlayService`.
+ * `AutoRunnerOverlayService` 使用的前台通知。
  *
- * The channel id `autorunner_execution` is part of the public contract listed in
- * §1.1 of the design document. Showing progress in the notification is also the
- * mechanism that keeps long repeat runs alive when MIUI/ColorOS try to reclaim
- * the accessibility service (§6.3.4).
+ * 渠道 id `autorunner_execution` 是设计文档 §1.1 列出的公开契约的一部分。
+ * 在通知中展示进度，同时也是在 MIUI/ColorOS 试图回收无障碍服务时
+ * 保持长时间循环运行存活的机制（§6.3.4）。
  */
 object ExecutionNotifications {
 
-    /** Fixed channel id (see §1.1). */
+    /** 固定的渠道 id（见 §1.1）。 */
     const val CHANNEL_ID = "autorunner_execution"
 
-    /** Fixed notification id so the notification is updated in place. */
+    /** 固定的通知 id，使通知能够原地更新。 */
     const val NOTIFICATION_ID = 0x4152
 
-    /** Foreground notification shown while the gamepad calibration layer is up. */
+    /** 手柄标定层显示时展示的前台通知。 */
     const val CALIBRATION_NOTIFICATION_ID = 0x4153
 
     const val ACTION_STOP = "cn.helilab.autorunner.action.STOP_EXECUTION"
@@ -38,7 +37,7 @@ object ExecutionNotifications {
     /** 广播/服务动作：停止正在进行的录制（通知栏保底按钮）。 */
     const val ACTION_STOP_RECORDING = "cn.helilab.autorunner.action.STOP_RECORDING"
 
-    /** Creates the channel once; safe to call repeatedly. */
+    /** 创建渠道一次；可重复调用。 */
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -55,7 +54,7 @@ object ExecutionNotifications {
         manager.createNotificationChannel(channel)
     }
 
-    /** Builds the foreground notification for the current execution state. */
+    /** 根据当前执行状态构建前台通知。 */
     fun build(context: Context, progress: ExecutionProgress): Notification {
         ensureChannel(context)
 
@@ -75,10 +74,12 @@ object ExecutionNotifications {
             else -> context.getString(R.string.notification_execution_title)
         }
 
+        // 循环间隔等待期间追加「间隔 7/14 分钟」实时进度（intervalLabel 为 null 时不显示）。
+        val intervalSuffix = progress.intervalLabel?.let { " · 间隔 $it" }.orEmpty()
         val text = when (progress.state) {
             ExecutionState.IDLE -> context.getString(R.string.notification_execution_idle)
-            ExecutionState.RUNNING -> "运行中 · 循环 ${progress.loopLabel} · 耗时 ${progress.elapsedLabel}"
-            ExecutionState.PAUSED -> "已暂停 · 循环 ${progress.loopLabel}"
+            ExecutionState.RUNNING -> "运行中 · 循环 ${progress.loopLabel}$intervalSuffix · 耗时 ${progress.elapsedLabel}"
+            ExecutionState.PAUSED -> "已暂停 · 循环 ${progress.loopLabel}$intervalSuffix"
             ExecutionState.STOPPED -> "已停止 · 循环 ${progress.loopLabel}"
             ExecutionState.COMPLETED -> "已完成 · 循环 ${progress.loopLabel} · 耗时 ${progress.elapsedLabel}"
         }
@@ -124,7 +125,7 @@ object ExecutionNotifications {
         return builder.build()
     }
 
-    /** Notification used when the foreground service starts. */
+    /** 前台服务启动时使用的通知。 */
     fun buildIdle(context: Context): Notification {
         ensureChannel(context)
         return NotificationCompat.Builder(context, CHANNEL_ID)
@@ -137,7 +138,7 @@ object ExecutionNotifications {
             .build()
     }
 
-    /** Notification shown while a recording is in progress. */
+    /** 录制进行中展示的通知。 */
     fun buildRecording(context: Context): Notification {
         ensureChannel(context)
         return NotificationCompat.Builder(context, CHANNEL_ID)
@@ -159,7 +160,7 @@ object ExecutionNotifications {
         context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
     }
 
-    /** Foreground notification shown while the gamepad calibration layer is up. */
+    /** 手柄标定层显示时展示的前台通知。 */
     fun buildCalibration(context: Context): Notification {
         ensureChannel(context)
         return NotificationCompat.Builder(context, CHANNEL_ID)

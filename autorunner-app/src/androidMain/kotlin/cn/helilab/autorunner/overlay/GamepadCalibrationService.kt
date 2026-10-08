@@ -19,13 +19,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 
 /**
- * Foreground service that owns the gamepad calibration overlay.
+ * 持有手柄校准悬浮层的前台服务。
  *
- * The service mirrors `AutoRunnerOverlayService` (foreground notification +
- * `WindowManager` overlay) but is dedicated to calibration: it renders
- * [GamepadCalibrationPanel], a permanent full screen layer where the user drags
- * every button onto the real game controls. A floating ball at the bottom opens
- * a long-press menu to reset, cancel or save &amp; exit.
+ * 该服务与 `AutoRunnerOverlayService` 结构相似（前台通知 + `WindowManager`
+ * 悬浮层），但专用于校准：它渲染 [GamepadCalibrationPanel]，这是一个常驻的
+ * 全屏层，用户可将每个按键拖动到真实游戏控件之上。底部的悬浮球通过长按菜单
+ * 提供重置、取消、保存并退出。
  */
 class GamepadCalibrationService : Service() {
 
@@ -56,7 +55,7 @@ class GamepadCalibrationService : Service() {
         super.onDestroy()
     }
 
-    // --------------------------------------------------------------- overlay
+    // --------------------------------------------------------------- 悬浮层
 
     private fun attachOverlay() {
         val windowHost = GamepadCalibrationWindowHost(this)
@@ -84,7 +83,7 @@ class GamepadCalibrationService : Service() {
         }
     }
 
-    /** Brings the app back to the foreground after calibration finishes. */
+    /** 校准完成后把 App 重新带回前台。 */
     private fun bringAppToFront() {
         runCatching {
             startActivity(
@@ -114,7 +113,7 @@ class GamepadCalibrationService : Service() {
 
     companion object {
 
-        /** Starts (or re-commands) the calibration service. */
+        /** 启动（或重新下达指令给）校准服务。 */
         fun start(context: Context) {
             val intent = Intent(context, GamepadCalibrationService::class.java)
             runCatching {

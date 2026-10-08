@@ -3,17 +3,16 @@ package com.autorunner.core.storage
 import com.autorunner.core.util.currentTimeMillis
 
 /**
- * Minimal file abstraction the script repository is built on.
+ * 脚本仓库所基于的极简文件抽象。
  *
- * Implemented on Android with `Context.filesDir` (app private storage, no
- * runtime permission required) and on the JVM with a directory inside the user
- * home. Keeping it an interface makes the repository fully testable.
+ * Android 上用 `Context.filesDir` 实现（应用私有存储，无需运行时权限），
+ * JVM 上用用户主目录内的一个目录实现。保持为接口使仓库可完全测试。
  */
 interface ScriptStorage {
-    /** Directory shown to the user, if the platform has one. */
+    /** 展示给用户的目录（若平台有）。 */
     val location: String
 
-    /** File names (without directory) currently stored, sorted. */
+    /** 当前已存储的文件名（不含目录），已排序。 */
     fun list(): List<String>
 
     fun read(name: String): String?
@@ -24,14 +23,14 @@ interface ScriptStorage {
 
     fun exists(name: String): Boolean
 
-    /** Last modification time in epoch milliseconds, `0` when unknown. */
+    /** 最后修改时间（纪元毫秒），未知时为 `0`。 */
     fun lastModified(name: String): Long = 0L
 
-    /** Removes every stored file. */
+    /** 删除所有已存储的文件。 */
     fun clear()
 }
 
-/** In-memory [ScriptStorage] used by tests and as a safe fallback. */
+/** 测试使用、并作为安全兜底的内存版 [ScriptStorage]。 */
 class InMemoryScriptStorage(initial: Map<String, String> = emptyMap()) : ScriptStorage {
 
     private val files = LinkedHashMap<String, String>()
@@ -67,5 +66,5 @@ class InMemoryScriptStorage(initial: Map<String, String> = emptyMap()) : ScriptS
     }
 }
 
-/** Creates the platform default script storage. */
+/** 创建平台默认的脚本存储。 */
 expect fun createScriptStorage(): ScriptStorage

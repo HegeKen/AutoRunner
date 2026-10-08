@@ -75,12 +75,11 @@ import com.autorunner.ui.theme.Dimens
 import com.autorunner.ui.viewmodel.ScriptEditorViewModel
 
 /**
- * Visual script editor (§6.5).
+ * 可视化脚本编辑器（§6.5）。
  *
- * * Phone (`compact`) — step-by-step navigation: the action list, or the
- *   parameter editor of the selected action.
- * * Tablet (`expanded`) — Supporting Pane layout: the timeline list scrolls on
- *   the left, the parameter editor + live preview stay on the right.
+ * * 手机（`compact`）——逐步导航：显示动作列表，或选中动作的参数编辑器。
+ * * 平板（`expanded`）——Supporting Pane 布局：时间线列表在左侧滚动，
+ *   参数编辑器 + 实时预览固定在右侧。
  */
 @Composable
 fun ScriptEditorScreen(
@@ -90,10 +89,9 @@ fun ScriptEditorScreen(
     modifier: Modifier = Modifier,
     onExport: ((fileName: String, content: String) -> Unit)? = null,
     /**
-     * Captures one real gesture and reports the classified action.
+     * 捕获一次真实手势并上报分类后的动作。
      *
-     * Provided by the app layer (`RecordingController.pickAction`); returns `false`
-     * when capturing is unavailable.
+     * 由 app 层提供（`RecordingController.pickAction`）；无法采集时返回 `false`。
      */
     onCaptureRequest: ((ActionStep) -> Unit) -> Boolean = { false },
     /**
@@ -108,9 +106,8 @@ fun ScriptEditorScreen(
      */
     calibratedGamepadModes: Set<GamepadMode> = emptySet(),
     /**
-     * `true` when the host already split the window (master-detail): the editor
-     * then stays in ONE pane, otherwise its own supporting-pane split would nest
-     * inside a narrow column.
+     * `true` 表示宿主已经分过窗（主从详情）：此时编辑器保持单栏，
+     * 否则它自己的 supporting-pane 分栏会嵌套进一根狭窄的列里。
      */
     forceSinglePane: Boolean = false,
 ) {
@@ -235,7 +232,7 @@ private fun SaveAction(dirty: Boolean, onSave: () -> Unit) {
 }
 
 // ---------------------------------------------------------------------------
-// Timeline (list of actions)
+// 时间线（动作列表）
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -386,7 +383,7 @@ private fun EditorTimeline(
     }
 }
 
-/** Name / description / coordinate space of the script being edited. */
+/** 正在编辑的脚本的名称 / 描述 / 坐标空间。 */
 @Composable
 private fun ScriptMetaCard(viewModel: ScriptEditorViewModel) {
     val name by viewModel.name.collectAsState()
@@ -478,7 +475,7 @@ private fun ScriptMetaCard(viewModel: ScriptEditorViewModel) {
 }
 
 // ---------------------------------------------------------------------------
-// Detail pane: parameters + configuration + preview
+// 详情窗格：参数 + 执行配置 + 预览
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -573,7 +570,7 @@ private fun EditorDetailPane(
 }
 
 // ---------------------------------------------------------------------------
-// Action creation
+// 动作创建
 // ---------------------------------------------------------------------------
 
 /** 新增动作面板围绕的三类输入方式。 */
@@ -584,15 +581,14 @@ private enum class AddActionModule(val label: String) {
 }
 
 /**
- * Bottom panel for creating a new action.
+ * 创建新动作的底部面板。
  *
- * Organised around the three things a user actually does on screen — **触摸**、
- * **键盘输入**、**手柄输入** — picked with a segmented switch. The gamepad module
- * renders an on-screen pad ([GamepadLayout]) so the button is tapped *where it is*
- * instead of being chosen from a name list.
+ * 围绕用户在屏幕上实际会做的三类操作组织——**触摸**、**键盘输入**、
+ * **手柄输入**，用分段开关选择。手柄模块会渲染一块屏幕上的手柄盘
+ * （[GamepadLayout]），让按钮*点在它所在的位置*，而不是从名称列表里挑。
  *
- * Rendered inline (rather than in a `WindowBottomSheet`) so that the editor also
- * works inside the floating window host.
+ * 以内联方式渲染（而不是放进 `WindowBottomSheet`），这样编辑器在
+ * 悬浮窗宿主内也能正常工作。
  */
 @Composable
 private fun AddActionPanel(
@@ -801,12 +797,12 @@ private fun GamepadAddModule(
 }
 
 // ---------------------------------------------------------------------------
-// Per action parameter editing
+// 单个动作的参数编辑
 // ---------------------------------------------------------------------------
 
 /**
- * Edits the parameters of one action: coordinates, duration and the trailing
- * delay. Everything is kept in local state and applied on "应用".
+ * 编辑单个动作的参数：坐标、时长和其后的延迟。
+ * 一切先保存在本地状态，点「应用」时才生效。
  */
 @Composable
 private fun ActionParameterEditor(
@@ -1143,8 +1139,8 @@ private fun ActionParameterEditorBody(
                 text = "从实际操作录入（覆盖当前坐标与时长）",
                 onClick = {
                     onCaptureRequest { captured ->
-                        // Keep the name and the delay the user configured for this step;
-                        // the freshly classified action only carries coordinates / duration.
+                        // 保留这一步用户配置的名称与延迟；
+                        // 刚分类出来的动作只携带坐标 / 时长。
                         draft = captured.withName(nameText).withDelay(draft.delay)
                     }
                 },
@@ -1184,7 +1180,7 @@ private fun ActionParameterEditorBody(
 }
 
 /**
- * Numeric field row; `normalised` switches between pixels and 0~1 fractions.
+ * 数值输入行；`normalised` 在像素与 0~1 归一化小数之间切换。
  *
  * 输入原文保存在本地，`onValueChange` 只在能解析出数值时回调；末尾小数点
  * （`540.`）按 `540` 解析，因此不会出现「界面显示已输入、实际值没变」的静默丢失。

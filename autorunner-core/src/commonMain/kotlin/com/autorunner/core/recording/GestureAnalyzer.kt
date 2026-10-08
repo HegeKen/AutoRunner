@@ -10,19 +10,19 @@ import com.autorunner.core.model.TouchPoint
 import kotlin.math.sqrt
 
 /**
- * Turns a stream of [RawTouchEvent]s into [ActionStep]s.
+ * 将 [RawTouchEvent] 流转换为 [ActionStep]。
  *
- * Classification rules (thresholds come from [RecordingConfig]):
+ * 分类规则（阈值取自 [RecordingConfig]）：
  *
- * | gesture | condition |
+ * | 手势 | 条件 |
  * |---|---|
- * | `longPress` | travel ≤ `tapSlopPx` and duration ≥ `longPressThresholdMs` |
- * | `tap` | travel ≤ `tapSlopPx` and duration ≥ `minTapDurationMs` |
- * | `swipe` | travel > `tapSlopPx` (start point → last point) |
- * | `multiTouch` | more than one pointer was down simultaneously |
+ * | `longPress` | 位移 ≤ `tapSlopPx` 且时长 ≥ `longPressThresholdMs` |
+ * | `tap` | 位移 ≤ `tapSlopPx` 且时长 ≥ `minTapDurationMs` |
+ * | `swipe` | 位移 > `tapSlopPx`（起点 → 终点） |
+ * | `multiTouch` | 同时按下超过一个触点 |
  *
- * The analyzer only depends on shared types, so the whole gesture vocabulary is
- * covered by `commonTest` without an emulator.
+ * 该分析器只依赖共享类型，因此整套手词语汇都能在无需模拟器的
+ * `commonTest` 中被覆盖。
  */
 class GestureAnalyzer(
     private val config: RecordingConfig = RecordingConfig.Default,
@@ -38,24 +38,24 @@ class GestureAnalyzer(
         var travel: Float = 0f
     }
 
-    /** Every pointer that took part in the gesture currently being classified. */
+    /** 参与当前正在分类手势的每一个触点。 */
     private val tracks = LinkedHashMap<Int, PointerTrack>()
 
-    /** Pointers that are still pressed. */
+    /** 仍处于按下状态的触点。 */
     private val pressed = LinkedHashSet<Int>()
 
     private var gestureStartMs = 0L
 
     private var maxSimultaneousPointers = 0
 
-    /** Number of raw frames fed into the analyzer since the last [reset]. */
+    /** 自上次 [reset] 以来喂给分析器的原始帧数。 */
     var eventCount: Int = 0
         private set
 
-    /** `true` while at least one pointer is down. */
+    /** 至少有一个触点按下时为 `true`。 */
     val isGestureInProgress: Boolean get() = tracks.isNotEmpty()
 
-    /** Drops any in-flight gesture and clears the counters. */
+    /** 丢弃任何进行中的手势并清空计数器。 */
     fun reset() {
         tracks.clear()
         pressed.clear()
@@ -65,10 +65,10 @@ class GestureAnalyzer(
     }
 
     /**
-     * Feeds one frame.
+     * 喂入一帧。
      *
-     * @return actions completed by this frame: empty for `DOWN` / `MOVE`, the
-     *   classified action for the `UP` / `CANCEL` that ends a gesture.
+     * @return 本帧完成的动作：`DOWN` / `MOVE` 返回空列表；结束手势的
+     *   `UP` / `CANCEL` 返回分类后的动作。
      */
     fun onTouchEvent(event: RawTouchEvent): List<ActionStep> {
         eventCount++
@@ -111,8 +111,7 @@ class GestureAnalyzer(
     }
 
     /**
-     * Completes a gesture that never received an `UP` frame (service
-     * disconnected, window lost focus, …).
+     * 完成一个从未收到 `UP` 帧的手势（服务断开、窗口失焦等）。
      */
     fun flush(timestampMs: Long): List<ActionStep> {
         if (tracks.isEmpty()) return emptyList()
@@ -148,7 +147,7 @@ class GestureAnalyzer(
             track.lastX = sample.x
             track.lastY = sample.y
         } else if (sample.pointerId !in pressed) {
-            // Final position after the pointer lifted still counts.
+            // 抬起后指针的最终位置也要计入。
             track.travel += distance
             track.lastX = sample.x
             track.lastY = sample.y
@@ -193,7 +192,7 @@ class GestureAnalyzer(
         }
 
         if (pointerCount > 1 || gestureTracks.size > 1) {
-            // Multi-touch capture disabled: keep the first contact only.
+            // 多点触控采集被禁用：只保留最早的接触点。
             val first = gestureTracks.minBy { it.startTimeMs }
             return classifySinglePointer(first, delay)
         }
@@ -204,7 +203,7 @@ class GestureAnalyzer(
     private fun classifySinglePointer(track: PointerTrack, delay: Long): List<ActionStep> {
         val rawDuration = (track.endTimeMs - track.startTimeMs).coerceAtLeast(0L)
         if (track.travel <= config.tapSlopPx && rawDuration < config.minTapDurationMs) {
-            // Shorter than minTapDurationMs with no travel: accidental touch.
+            // 时长不足 minTapDurationMs 且无位移：误触。
             return emptyList()
         }
         val duration = rawDuration.coerceAtLeast(MIN_DURATION_MS)
@@ -243,7 +242,7 @@ class GestureAnalyzer(
     }
 
     private companion object {
-        /** Gestures are never recorded with a zero duration. */
+        /** 手势的录制时长永远不会为零。 */
         const val MIN_DURATION_MS = 20L
     }
 }

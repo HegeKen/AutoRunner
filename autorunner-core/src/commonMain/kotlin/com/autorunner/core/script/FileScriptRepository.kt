@@ -19,20 +19,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 
 /**
- * Default [ScriptRepository]: one `.arscript` file per script inside a
- * platform provided directory.
+ * 默认的 [ScriptRepository]：在平台提供的目录内，每个脚本对应一个
+ * `.arscript` 文件。
  *
- * Android uses the app private `filesDir/scripts` folder, so no storage
- * permission is ever required. Import/export through the Storage Access
- * Framework is handled by the app module, which simply passes text in and out
- * of this repository.
+ * Android 使用应用私有的 `filesDir/scripts` 目录，因此永远不需要存储
+ * 权限。通过存储访问框架（Storage Access Framework）的导入／导出由应用
+ * 模块处理，它只是把文本进出传递给本仓库。
  */
 class FileScriptRepository(
     private val storage: ScriptStorage = createScriptStorage(),
     private val codec: ArScriptCodec = ArScriptCodec(),
-    /** Supplies the current device metrics so new scripts get a device block. */
+    /** 提供当前设备指标，让新脚本带上设备信息块。 */
     private val metricsProvider: () -> ScreenMetrics = { ScreenMetrics.Unknown },
-    /** Dispatcher used for file IO; injectable so tests stay deterministic. */
+    /** 文件 IO 使用的调度器；可注入以保证测试的确定性。 */
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ScriptRepository {
 
@@ -40,7 +39,7 @@ class FileScriptRepository(
 
     override val scripts: StateFlow<List<ScriptRecord>> = _scripts.asStateFlow()
 
-    /** Directory the repository writes to; shown in the settings screen. */
+    /** 仓库写入的目录；会显示在设置页。 */
     val location: String get() = storage.location
 
     override suspend fun refresh(): List<ScriptRecord> = withContext(dispatcher) {
@@ -183,7 +182,7 @@ class FileScriptRepository(
         _scripts.value = (others + record).sortedByDescending { it.updatedAtMs }
     }
 
-    /** Fills `createdAt` / device block when the payload does not carry them. */
+    /** 当载荷缺少 `createdAt` / 设备信息块时补齐它们。 */
     private fun stamp(script: ScriptModel): ScriptModel {
         val metrics = metricsProvider()
         val device = script.info.device
@@ -206,8 +205,12 @@ class FileScriptRepository(
         val base = sanitizeFileBaseName(rawName)
         val taken = _scripts.value.map { it.id }.toSet() + storage.list().map { scriptBaseName(it) }
         if (base !in taken) return base
-        var index = 2
-        while ("$base-$index" in taken) index++
-        return "$base-$index"
+        // 直接取已有同名后缀的最大值 +1，避免逐个递增探测（同名堆积时逐 probe 是 O(n²)）。
+        val maxSuffix = taken
+            .mapNotNull { name ->
+                name.removePrefix("$base-").takeIf { name.startsWith("$base-") }?.toIntOrNull()
+            }
+            .maxOrNull() ?: 1
+        return "$base-${maxSuffix + 1}"
     }
 }

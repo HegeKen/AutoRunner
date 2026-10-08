@@ -14,25 +14,24 @@ import com.autorunner.core.platform.AccessibilityController
 import com.autorunner.core.platform.ActionResult
 
 /**
- * Gamepad simulation that injects the buttons **into this device**.
+ * 将按键**注入到本设备**的手柄模拟实现。
  *
- * A `gamepad` action in a script is translated into a local gesture and dispatched
- * through the accessibility service exactly like a recorded tap:
+ * 脚本中的 `gamepad` 动作会被转换为本地手势，并与录制的点击一样通过
+ * 无障碍服务派发：
  *
- * | script action | local effect |
+ * | 脚本动作 | 本地效果 |
  * |---|---|
- * | `press` / `click` | tap at the mapped position of that button |
- * | `release` | no-op (a tap is already instantaneous) |
- * | `trigger` | long press whose duration scales with `value` |
- * | `stick` | drag from the configured stick centre towards `(x, y)` |
+ * | `press` / `click` | 在该按键映射的位置上点击 |
+ * | `release` | 空操作（点击本身就是瞬时的） |
+ * | `trigger` | 时长随 `value` 缩放的长按 |
+ * | `stick` | 从配置的摇杆中心向 `(x, y)` 拖动 |
  *
- * This is what makes the feature usable for phone games that render their own
- * virtual pad: the press lands on the game, on this device. Nothing is streamed to
- * an external console, so no Bluetooth permission is required — the earlier
- * Bluetooth HID implementation was removed because it drove *other* devices.
+ * 正因如此，该功能才适用于自绘虚拟手柄的手机游戏：按键落在这台设备上的
+ * 游戏里。不会向外部主机串流任何内容，因此无需蓝牙权限——早先的
+ * 蓝牙 HID 实现之所以被移除，是因为它驱动的是*其他*设备。
  *
- * The class is deliberately free of Android types: it only needs the shared
- * [AccessibilityController] and a settings snapshot.
+ * 该类刻意不依赖任何 Android 类型：它只需要共享的
+ * [AccessibilityController] 和一份设置快照。
  */
 class LocalGamepadGateway(
     private val accessibilityController: AccessibilityController,
@@ -76,8 +75,8 @@ class LocalGamepadGateway(
                 )
             }
 
-            // A tap cannot be held open across two script actions, so releasing is
-            // intentionally a no-op instead of leaving a dangling pointer down.
+            // 一次点击无法跨越两个脚本动作保持按下，因此释放刻意设为空操作，
+            // 而不是留下一个悬而未决的按下指针。
             GamepadAction.RELEASE -> Unit
         }
     }

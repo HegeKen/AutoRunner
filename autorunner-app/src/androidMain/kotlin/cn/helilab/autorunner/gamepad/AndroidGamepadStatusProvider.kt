@@ -5,12 +5,11 @@ import com.autorunner.gamepad.LocalGamepadGateway
 import com.autorunner.ui.platform.GamepadStatusProvider
 
 /**
- * Adapts the local gamepad injector to the UI's [GamepadStatusProvider].
+ * 将本地手柄注入器适配为 UI 使用的 [GamepadStatusProvider]。
  *
- * Gamepad simulation no longer talks to an external host, so there is no handshake
- * to perform: the feature is available whenever the accessibility service (the
- * channel used to inject the presses) is connected, and the only per-device setup
- * is mapping each button to an on-screen position in the settings.
+ * 手柄模拟不再与外部宿主通信，因此没有需要执行的握手流程：只要无障碍服务
+ * （用于注入按键的通道）处于已连接状态，该功能即可用；唯一的按设备配置
+ * 是在设置中把每个按键映射到屏幕上的坐标。
  */
 class AndroidGamepadStatusProvider(
     private val gateway: LocalGamepadGateway,
@@ -19,10 +18,10 @@ class AndroidGamepadStatusProvider(
 
     override val supported: Boolean get() = gateway.isSupported
 
-    /** `true` while presses can actually be injected. */
+    /** 只有按键确实可以注入时才为 `true`。 */
     override val connected: Boolean get() = accessibilityController.isConnected
 
-    /** No asynchronous handshake exists, so there is nothing to report. */
+    /** 不存在异步握手，因此没有需要上报的内容。 */
     override val lastError: String? get() = null
 
     override fun connect() = Unit

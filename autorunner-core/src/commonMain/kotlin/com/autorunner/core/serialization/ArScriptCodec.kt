@@ -4,17 +4,15 @@ import com.autorunner.core.model.ScriptModel
 import kotlinx.serialization.json.Json
 
 /**
- * The canonical `.arscript` JSON configuration.
+ * 规范的 `.arscript` JSON 配置。
  *
- * * `type` is the polymorphic discriminator used by `flow` entries.
- * * unknown keys are ignored so that scripts produced by a newer build keep
- *   loading on an older one.
- * * default values are always written so that a produced file is explicit and
- *   diff friendly.
+ * * `type` 是 `flow` 条目使用的多态判别字段。
+ * * 未知键被忽略，这样新版本构建产出的脚本在旧版本上仍能加载。
+ * * 默认值总是被写出，使产出的文件内容明确、便于 diff。
  */
 object ArScriptJson {
 
-    /** Human readable output used when exporting a script to disk. */
+    /** 导出脚本到磁盘时使用的人类可读输出。 */
     val pretty: Json = Json {
         prettyPrint = true
         prettyPrintIndent = "  "
@@ -25,7 +23,7 @@ object ArScriptJson {
         classDiscriminator = "type"
     }
 
-    /** Minimal output used for logs, clipboard payloads and IPC. */
+    /** 用于日志、剪贴板载荷和 IPC 的最小输出。 */
     val compact: Json = Json {
         prettyPrint = false
         ignoreUnknownKeys = true
@@ -36,35 +34,34 @@ object ArScriptJson {
     }
 }
 
-/** Raised when a file is not a valid `.arscript` document. */
+/** 当文件不是合法的 `.arscript` 文档时抛出。 */
 class ScriptFormatException(
     message: String,
     cause: Throwable? = null,
 ) : Exception(message, cause)
 
 /**
- * Encodes and decodes [ScriptModel] instances.
+ * 编解码 [ScriptModel] 实例。
  *
- * The codec is stateless and therefore safe to share between the UI, the
- * repository and the service layer.
+ * 编解码器是无状态的，因此可在 UI、仓库和服务层之间安全共享。
  */
 class ArScriptCodec(
     private val pretty: Json = ArScriptJson.pretty,
     private val compact: Json = ArScriptJson.compact,
 ) {
 
-    /** Serialises [script]; [formatted] controls pretty printing. */
+    /** 序列化 [script]；[formatted] 控制是否美化输出。 */
     fun encode(script: ScriptModel, formatted: Boolean = true): String =
         (if (formatted) pretty else compact).encodeToString(ScriptModel.serializer(), script)
 
-    /** Serialises [script], wrapping any failure into a [Result]. */
+    /** 序列化 [script]，把任何失败包装进 [Result]。 */
     fun encodeResult(script: ScriptModel, formatted: Boolean = true): Result<String> =
         runCatching { encode(script, formatted) }
 
     /**
-     * Parses [text].
+     * 解析 [text]。
      *
-     * @throws ScriptFormatException when the payload is not a valid script.
+     * @throws ScriptFormatException 当载荷不是合法脚本时。
      */
     fun decode(text: String): ScriptModel {
         if (text.isBlank()) throw ScriptFormatException("脚本内容为空")
@@ -75,15 +72,17 @@ class ArScriptCodec(
         }
     }
 
-    /** Parses [text], returning `null` instead of throwing. */
+    /** 解析 [text]，返回 `null` 而不是抛异常。 */
     fun decodeOrNull(text: String): ScriptModel? = runCatching { decode(text) }.getOrNull()
 
-    /** Parses [text], returning a [Result] instead of throwing. */
+    /** 解析 [text]，返回 [Result] 而不是抛异常。 */
     fun decodeResult(text: String): Result<ScriptModel> = runCatching { decode(text) }
 
-    /** Looks like an `.arscript` payload without fully parsing it. */
+    /** 不做完整解析，仅判断它是否像 `.arscript` 载荷。 */
     fun looksLikeScript(text: String): Boolean {
         val head = text.take(4096)
-        return head.contains("\"flow\"") || head.contains("\"version\"")
+        // 必须同时命中 flow 与 version：任一 OR 都会误匹配
+        // package.json / build.gradle 等含 "version" 字段的普通 JSON。
+        return head.contains("\"flow\"") && head.contains("\"version\"")
     }
 }

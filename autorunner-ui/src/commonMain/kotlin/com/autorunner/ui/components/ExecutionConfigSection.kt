@@ -33,11 +33,10 @@ import com.autorunner.core.model.FailureStrategy
 import com.autorunner.ui.theme.Dimens
 
 /**
- * Reusable execution configuration editor: single / repeat mode, repeat count,
- * loop interval and the failure policy.
+ * 可复用的执行配置编辑器：单次 / 重复模式、重复次数、循环间隔与失败策略。
  *
- * Rendered by the script editor (§6.5), the settings page (defaults) and the
- * floating control panel (§6.4.3) so the same controls appear everywhere.
+ * 由脚本编辑器（§6.5）、设置页（默认值）与悬浮控制面板（§6.4.3）共同渲染，
+ * 同一套控件出现在所有地方。
  */
 @Composable
 fun ExecutionConfigSection(
@@ -65,8 +64,8 @@ fun ExecutionConfigSection(
                 .padding(horizontal = 16.dp, vertical = 4.dp),
         )
 
-        // The interval can be expressed in milliseconds, seconds or minutes; the
-        // script always stores milliseconds, only the editor changes units.
+        // 间隔可以用毫秒、秒或分钟表示；脚本始终存储毫秒，
+        // 只有编辑器会切换单位。
         var intervalUnit by remember { mutableStateOf(IntervalUnit.forValue(config.intervalMs)) }
         var unitPopupVisible by remember { mutableStateOf(false) }
 
@@ -207,9 +206,8 @@ fun ExecutionConfigSection(
 }
 
 /**
- * Numeric entry for the loop interval. The number is interpreted in the
- * currently selected [unit]; edits beyond the unit's range are rejected so the
- * field never shows a value that disagrees with the stored configuration.
+ * 循环间隔的数字输入框。数值按当前选中的 [unit] 解读；超出该单位范围的
+ * 编辑会被拒绝，保证输入框显示的值始终与存储的配置一致。
  */
 @Composable
 private fun IntervalNumberInput(
@@ -223,7 +221,7 @@ private fun IntervalNumberInput(
         (value / unit.perUnitMs).coerceAtMost(maxWhole.toLong()).toString()
     }
     var text by remember { mutableStateOf(synced) }
-    // External changes (slider drag, unit switch, new config) take over the field.
+    // 外部变更（滑块拖动、单位切换、新配置）接管输入框内容。
     LaunchedEffect(synced) { text = synced }
 
     top.yukonga.miuix.kmp.basic.TextField(
@@ -245,10 +243,10 @@ private fun IntervalNumberInput(
 }
 
 /**
- * Unit used by the loop interval control.
+ * 循环间隔控件使用的单位。
  *
- * The script format is milliseconds only; this purely affects how the user enters
- * and reads the value, so "every 5 minutes" does not have to be typed as 300000.
+ * 脚本格式只存毫秒；单位纯粹影响用户的输入与阅读方式，
+ * 「每 5 分钟」不必写成 300000。
  */
 enum class IntervalUnit(val label: String, internal val perUnitMs: Long, val maxUnits: Float, val steps: Int) {
     MILLIS("毫秒", 1L, 5_000f, 49),
@@ -279,7 +277,7 @@ enum class IntervalUnit(val label: String, internal val perUnitMs: Long, val max
         MINUTES -> "${trimTrailingZero(units)} min"
     }
 
-    /** Picks the largest unit that keeps the stored value readable. */
+    /** 选取能让存储值保持可读的最大单位。 */
     companion object {
         fun forValue(millis: Long): IntervalUnit = when {
             millis <= 0L -> SECONDS
@@ -295,7 +293,7 @@ enum class IntervalUnit(val label: String, internal val perUnitMs: Long, val max
     }
 }
 
-/** Radio-style picker for [FailureStrategy] (§6.3.4). */
+/** [FailureStrategy] 的单选式选择器（§6.3.4）。 */
 @Composable
 fun FailureStrategyPreference(
     strategy: FailureStrategy,

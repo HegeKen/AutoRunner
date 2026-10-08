@@ -25,13 +25,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Android implementation of the permission surface (§6.4.2, §9).
+ * 权限表面的 Android 实现（§6.4.2、§9）。
  *
- * Special permissions (`SYSTEM_ALERT_WINDOW`, accessibility) cannot be granted
- * with the runtime API, so the controller only *guides* the user to the correct
- * system screen and re-reads the state when the app comes back to the
- * foreground. Vendor ROMs hide those screens in different places, so the
- * manufacturer specific hints live in [oemGuidance].
+ * 特殊权限（`SYSTEM_ALERT_WINDOW`、无障碍）无法通过运行时 API 授予，
+ * 因此控制器只是*引导*用户前往正确的系统页面，并在应用回到前台时
+ * 重新读取状态。厂商 ROM 会把这些页面藏在不同的位置，
+ * 因此针对具体厂商的提示放在 [oemGuidance] 中。
  */
 class AndroidPermissionController(
     private val context: Context,
@@ -82,8 +81,7 @@ class AndroidPermissionController(
     override fun openAccessibilitySettings() {
         val intents = listOf(
             Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS),
-            // Some ROMs only expose the service list through the "installed
-            // services" screen.
+            // 某些 ROM 只在“已安装服务”页面暴露服务列表。
             Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS").setData(
                 Uri.parse("package:${context.packageName}"),
             ),
@@ -98,7 +96,7 @@ class AndroidPermissionController(
                 Uri.parse("package:${context.packageName}"),
             ),
             Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
-            // MIUI keeps app permissions in a separate "app details" screen.
+            // MIUI 把应用权限保存在独立的“应用详情”页面中。
             appDetailsIntent(),
         )
         launchFirstAvailable(intents, Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
@@ -162,10 +160,9 @@ class AndroidPermissionController(
     }
 
     /**
-     * Android 13+ blocks enabling an accessibility service for apps installed
-     * from an unknown source ("Restricted settings"). Without this extra step the
-     * toggle in Settings looks available but the service is never bound, which is
-     * exactly the "已授权却一直提示未授权" symptom.
+     * Android 13+ 会阻止为来自未知来源安装的应用启用无障碍服务
+     * （“受限设置”）。没有这一步，设置中的开关看起来可用，
+     * 但服务永远不会绑定——这正是“已授权却一直提示未授权”的症状。
      */
     private fun restrictedSettingsStep(): OemGuidanceStep? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
@@ -184,7 +181,7 @@ class AndroidPermissionController(
         )
     }
 
-    /** Re-reads every flag the Android platform can report. */
+    /** 重新读取 Android 平台能报告的每一个标志位。 */
     private fun readStatus(): PermissionStatus {
         val overlay = runCatching { Settings.canDrawOverlays(context) }.getOrDefault(false)
         val notifications = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -212,14 +209,13 @@ class AndroidPermissionController(
     }
 
     /**
-     * Reads the enabled accessibility services from `Settings.Secure` and the
-     * live [AccessibilityManager] list.
+     * 从 `Settings.Secure` 与实时的 [AccessibilityManager] 列表中读取已启用的无障碍服务。
      *
-     * The raw setting stores entries as `package/.relative.Class` or
-     * `package/full.Class.Name`, so a plain string comparison against
-     * `ComponentName.flattenToString()` misses the abbreviated form — which made
-     * the app report "未授予" even with the service running. Both forms are
-     * normalised here, and the bound service instance is treated as proof.
+     * 原始设置把条目存为 `package/.relative.Class` 或
+     * `package/full.Class.Name`，因此与 `ComponentName.flattenToString()`
+     * 做简单的字符串比较会漏掉缩写形式——这导致即使服务正在运行，
+     * 应用仍报告“未授予”。这里对两种形式都做了归一化，
+     * 并把已绑定的服务实例视为凭据。
      */
     private fun isAccessibilityServiceEnabled(): Boolean {
         if (AccessibilityServiceHolder.isConnected) return true
@@ -228,7 +224,7 @@ class AndroidPermissionController(
             ComponentName(context, AutoRunnerAccessibilityService::class.java)
         }.getOrNull() ?: return false
 
-        // 1) the live list maintained by the AccessibilityManager
+        // 1) AccessibilityManager 维护的实时列表
         val live = runCatching {
             val manager = context.getSystemService(AccessibilityManager::class.java)
             manager?.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
@@ -240,31 +236,16 @@ class AndroidPermissionController(
         }.getOrDefault(false)
         if (live) return true
 
-        // 2) the persisted secure setting
+        // 2) 持久化的 secure 设置
         return runCatching {
             val raw = Settings.Secure.getString(
                 context.contentResolver,
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
             ) ?: return false
-            raw.split(':').any { entry -> matchesComponent(entry, expected) }
+            raw.split(':').any { entry ->
+                matchesAccessibilityComponent(entry, expected.packageName, expected.className)
+            }
         }.getOrDefault(false)
-    }
-
-    /** Accepts both the `package/.Relative` and `package/full.Name` spellings. */
-    private fun matchesComponent(entry: String, expected: ComponentName): Boolean {
-        val trimmed = entry.trim()
-        if (trimmed.isEmpty()) return false
-        val slash = trimmed.indexOf('/')
-        if (slash <= 0) return false
-        val packageName = trimmed.substring(0, slash)
-        val rawClass = trimmed.substring(slash + 1)
-        if (packageName != expected.packageName) return false
-        val className = when {
-            rawClass.startsWith(".") -> packageName + rawClass
-            rawClass.contains('.') -> rawClass
-            else -> "$packageName.$rawClass"
-        }
-        return className == expected.className
     }
 
     private fun appDetailsIntent() = Intent(
@@ -289,7 +270,7 @@ class AndroidPermissionController(
         refresh()
     }
 
-    /** Human readable label used by the settings screen. */
+    /** 设置页面使用的可读权限名称。 */
     fun labelOf(permission: AutoRunnerPermission): String = when (permission) {
         AutoRunnerPermission.ACCESSIBILITY -> "无障碍服务"
         AutoRunnerPermission.OVERLAY -> "悬浮窗权限"
@@ -300,4 +281,31 @@ class AndroidPermissionController(
         /** 下发修复请求后等待守护进程/系统生效，再重读状态刷新 UI。 */
         const val REPAIR_RECHECK_DELAY_MS = 800L
     }
+}
+
+/**
+ * 将 `Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES` 中以 `:` 分隔的条目
+ * 逐个与期望的服务组件比对。同时接受 `package/.Relative`、
+ * `package/full.Name`（以及 `package/shortName`）几种写法。
+ *
+ * 用 String 参数而非 [ComponentName]，便于在 JVM 单测中直接覆盖。
+ */
+internal fun matchesAccessibilityComponent(
+    entry: String,
+    expectedPackage: String,
+    expectedClass: String,
+): Boolean {
+    val trimmed = entry.trim()
+    if (trimmed.isEmpty()) return false
+    val slash = trimmed.indexOf('/')
+    if (slash <= 0) return false
+    val packageName = trimmed.substring(0, slash)
+    val rawClass = trimmed.substring(slash + 1)
+    if (packageName != expectedPackage) return false
+    val className = when {
+        rawClass.startsWith(".") -> packageName + rawClass
+        rawClass.contains('.') -> rawClass
+        else -> "$packageName.$rawClass"
+    }
+    return className == expectedClass
 }

@@ -3,10 +3,9 @@ package com.autorunner.core.storage
 import java.io.File
 
 /**
- * JVM storage: `~/.autorunner/scripts` (one `.arscript` file per script).
+ * JVM 存储：`~/.autorunner/scripts`（每个脚本一个 `.arscript` 文件）。
  *
- * Useful for the desktop preview build and for integration tests, which pass an
- * explicit root directory.
+ * 适用于桌面预览构建和集成测试，二者会传入显式的根目录。
  */
 class DesktopScriptStorage(private val root: File) : ScriptStorage {
 
@@ -22,8 +21,8 @@ class DesktopScriptStorage(private val root: File) : ScriptStorage {
 
     override fun write(name: String, content: String) {
         if (!root.exists()) root.mkdirs()
-        // Write-then-rename keeps the previous file intact when the process dies
-        // or the disk fills up mid-write.
+        // 先写入再重命名，可在进程中断或写入过程中磁盘写满时
+        // 保持原文件完好无损。
         val target = File(root, name)
         val tmp = File(root, "$name.tmp")
         tmp.writeText(content)

@@ -560,12 +560,11 @@ private fun openPermission(
 // ---------------------------------------------------------------------------
 
 /**
- * Appearance: light / dark / follow-system only.
+ * 外观：仅浅色 / 深色 / 跟随系统。
  *
- * The Monet dynamic-colour modes and the preset seed colours were removed; the
- * brand primary (#2655FF) is fixed in the theme itself. The mode is chosen with a
- * `WindowDropdownPreference`, which renders the option list in its own window and
- * therefore behaves identically inside the settings Scaffold and anywhere else.
+ * Monet 动态取色模式与预置种子色已移除；品牌主色（#2655FF）
+ * 直接固定在主题里。模式通过 `WindowDropdownPreference` 选择，它把选项列表
+ * 渲染在自己的窗口中，因此在设置 Scaffold 内外行为完全一致。
  */
 @Composable
 private fun AppearanceSection(
@@ -791,13 +790,12 @@ private fun PowerSection(
 // ---------------------------------------------------------------------------
 
 /**
- * Gamepad simulation (§7) — **local input**.
+ * 手柄模拟（§7）——**本机输入**。
  *
- * AutoRunner does not pretend to be a Bluetooth controller for another machine:
- * a `gamepad` action is injected into *this* device as a touch at the position the
- * user mapped for that button, which is what phone games with an on-screen pad
- * actually need. Each button therefore stores a screen position, picked with the
- * "拾取" action or typed in by hand.
+ * AutoRunner 不会伪装成连接到另一台机器的蓝牙手柄：`gamepad` 动作是以触摸的
+ * 形式注入到*本*设备上、落在用户为该按键映射的位置，这正是带虚拟手柄盘的
+ * 手机游戏真正需要的。因此每个按键都存储一个屏幕坐标，用「拾取」动作获取
+ * 或手动输入。
  */
 @Composable
 private fun GamepadSection(
@@ -864,7 +862,7 @@ private fun GamepadSection(
             },
         )
 
-        // ------------------------------------------------------ virtual stick
+        // ------------------------------------------------------ 虚拟摇杆
         PreferenceRow(
             title = "虚拟摇杆中心",
             summary = if (mappings.stickCenterConfigured) {
@@ -896,7 +894,7 @@ private fun GamepadSection(
             valueLabel = { "${it.toInt()} px" },
         )
 
-        // ------------------------------------------------------------ buttons
+        // ------------------------------------------------------------ 按键
         GamepadButton.entries.forEach { button ->
             val mapping = mappings.buttons.firstOrNull { it.button == button }
             val configured = mapping?.configured == true
@@ -969,7 +967,7 @@ private fun GamepadSection(
     )
 }
 
-/** Editor for one button position; values are absolute pixels of this device. */
+/** 单个按键位置的编辑器；数值为本设备的绝对像素。 */
 @Composable
 private fun GamepadButtonMappingDialog(
     show: Boolean,
@@ -1046,7 +1044,7 @@ private fun GamepadButtonMappingDialog(
     }
 }
 
-/** Editor for the virtual stick centre. */
+/** 虚拟摇杆中心点的编辑器。 */
 @Composable
 private fun StickCenterDialog(
     show: Boolean,

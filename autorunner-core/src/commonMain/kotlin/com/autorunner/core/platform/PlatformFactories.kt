@@ -1,8 +1,7 @@
 package com.autorunner.core.platform
 
 /**
- * Expect/actual bridge that hands the platform specific implementations of the
- * AutoRunner services to the shared code.
+ * expect/actual 桥梁，把 AutoRunner 服务的平台特定实现交给共享代码。
  *
  * ```
  * // commonMain
@@ -26,12 +25,11 @@ expect fun createRecordingController(): RecordingController
 expect fun createGamepadCalibrationController(): GamepadCalibrationController
 
 /**
- * Simple service locator the platform layer fills in once its singletons exist.
+ * 简单的服务定位器，由平台层在单例创建后填入。
  *
- * Keeping it in shared code (instead of reaching for a DI framework) lets the
- * `expect fun` above stay parameterless, which matters because an
- * `AccessibilityService` is constructed by the system and has no injectable
- * constructor.
+ * 把它放在共享代码里（而不是引入 DI 框架）可以让上面的
+ * `expect fun` 保持无参数，这很重要，因为 `AccessibilityService`
+ * 由系统构造，没有可注入的构造函数。
  */
 object PlatformServices {
 
@@ -43,7 +41,7 @@ object PlatformServices {
 
     var gamepadCalibrationController: GamepadCalibrationController? = null
 
-    /** Called from tests to detach everything again. */
+    /** 测试调用它来把所有注册清空。 */
     fun reset() {
         accessibilityController = null
         overlayManager = null

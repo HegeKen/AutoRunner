@@ -40,17 +40,17 @@ import com.autorunner.core.script.ScriptRecord
 import com.autorunner.ui.theme.Dimens
 
 /**
- * Script library card.
+ * 脚本库卡片。
  *
- * Three fixed rows so every entry has the same rhythm:
+ * 固定三行，让每个条目保持同样的节奏：
  *
- * 1. the script name (plus the gamepad type badge when the script drives a gamepad),
- * 2. the existing description (step count / execution mode / creation date),
- * 3. the per-script actions as icon buttons — run, edit, duplicate, export, share,
- *    rename, delete — instead of hiding them behind a "more" sheet.
+ * 1. 脚本名（脚本驱动手柄时附带手柄类型徽标），
+ * 2. 已有描述（步数 / 执行模式 / 创建日期），
+ * 3. 脚本级操作图标按钮 —— 运行、编辑、创建副本、导出、分享、
+ *    重命名、删除 —— 而不是藏进「更多」面板里。
  *
- * Tapping the card itself opens the editor. The actions use uniform boxes (see
- * [RowAction]) so the glyphs always line up.
+ * 点按卡片本身打开编辑器。操作按钮使用统一的方框（见 [RowAction]），
+ * 保证图标始终对齐。
  */
 @Composable
 fun ScriptListItem(
@@ -76,7 +76,7 @@ fun ScriptListItem(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
-            // 1 — title (+ gamepad type when the script drives a gamepad)
+            // 1 — 标题（脚本驱动手柄时附带手柄类型）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -108,7 +108,7 @@ fun ScriptListItem(
                 }
             }
 
-            // 2 — description
+            // 2 — 描述
             Text(
                 text = buildString {
                     append(record.summary())
@@ -124,7 +124,7 @@ fun ScriptListItem(
                 overflow = TextOverflow.Ellipsis,
             )
 
-            // 3 — actions
+            // 3 — 操作按钮
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -154,10 +154,10 @@ fun ScriptListItem(
 }
 
 /**
- * Fixed size action of a card row.
+ * 卡片行中固定尺寸的操作按钮。
  *
- * @param onClick `null` renders a non interactive indicator that still occupies
- *   exactly the same box, which is what keeps a row of actions aligned.
+ * @param onClick 传 `null` 时渲染为不可交互的占位图标，但占据完全相同的方框，
+ *   一排操作按钮正是靠这一点保持对齐。
  */
 @Composable
 fun RowAction(
@@ -183,8 +183,8 @@ fun RowAction(
 }
 
 /**
- * Read-only row describing a single [ActionStep]; used by the editor list, the
- * recording feed and the floating panel's step preview.
+ * 描述单个 [ActionStep] 的只读行；编辑器列表、录制动作流与悬浮面板的
+ * 步骤预览共用此实现。
  */
 @Composable
 fun ActionStepRow(
@@ -224,19 +224,18 @@ fun ActionStepRow(
 }
 
 /**
- * Title of the page currently being rendered.
+ * 当前渲染页面的标题。
  *
- * A secondary page (see the settings categories) already shows its own title in
- * the top app bar, so a section card repeating the same words reads as a double
- * title. [SectionCard] compares its title against this value and drops the header
- * when they match.
+ * 二级页面（见设置页的分类入口）自身已在顶栏显示标题，若分区卡片再重复
+ * 同样的文字就会出现双重标题。[SectionCard] 会把自身标题与该值比较，
+ * 相同时省略表头。
  *
  * 仅限本模块内部使用：这是「页面级」信息，只有设置页的二级路由需要提供它，
  * 不对外暴露成全局 API（`internal` 限制了可见范围）。
  */
 internal val LocalPageTitle = androidx.compose.runtime.compositionLocalOf { "" }
 
-/** Titled card used to group sections on every screen. */
+/** 用于在各页面分组分区的带标题卡片。 */
 @Composable
 fun SectionCard(
     title: String,

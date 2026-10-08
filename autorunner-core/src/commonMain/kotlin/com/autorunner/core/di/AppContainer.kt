@@ -26,13 +26,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Hand rolled dependency container (no DI framework needed for a graph this
- * small, see §8.3 of the design document).
+ * 手写的依赖容器（依赖图这么小，无需 DI 框架，见设计文档 §8.3）。
  *
- * The platform layer creates the services first (`AutoRunnerAccessibilityService`,
- * `AutoRunnerOverlayService`, …) and publishes them through
- * `PlatformServices`; [AutoRunnerCore.createContainer] then wires everything
- * together for the shared UI.
+ * 平台层先创建各服务（`AutoRunnerAccessibilityService`、
+ * `AutoRunnerOverlayService` 等）并通过 `PlatformServices` 发布；
+ * [AutoRunnerCore.createContainer] 随后把所有东西为共享 UI 装配到一起。
  */
 class AppContainer(
     val codec: ArScriptCodec,
@@ -52,28 +50,27 @@ class AppContainer(
     val rootInputBackend: RootInputBackend? = null,
 ) {
 
-    /** Latest settings snapshot, convenience for the UI layer. */
+    /** 最新的设置快照，方便 UI 层使用。 */
     val settings: StateFlow<AppSettings> get() = settingsRepository.settings
 }
 
-/** Factory for the shared object graph. */
+/** 共享对象图的工厂。 */
 object AutoRunnerCore {
 
     /**
-     * Builds the container.
+     * 构建容器。
      *
-     * The three platform controllers can be supplied explicitly. That matters on
-     * Android: `expect` factories fall back to no-op implementations until the
-     * platform layer has registered its services, so a container built too early
-     * would capture the no-op controllers and every feature would report "service
-     * not connected" for the whole process lifetime.
+     * 三个平台控制器可以显式传入。这在 Android 上很重要：`expect` 工厂
+     * 在平台层注册服务之前会退化为 no-op 实现，若容器构建过早，
+     * 就会捕获这些 no-op 控制器，导致所有功能在整个进程生命周期内
+     * 一直报告“服务未连接”。
      *
-     * @param scope lifetime scope of the application; the execution job runs in it.
-     * @param gamepadGateway optional local gamepad injector.
-     * @param accessibilityController overrides the `expect` factory when non-null.
-     * @param recordingController overrides the `expect` factory when non-null.
-     * @param overlayManager overrides the `expect` factory when non-null.
-     * @param gamepadCalibrationController overrides the `expect` factory when non-null.
+     * @param scope 应用的生命周期 scope；执行任务在其中运行。
+     * @param gamepadGateway 可选的本地手柄注入器。
+     * @param accessibilityController 非空时覆盖 `expect` 工厂。
+     * @param recordingController 非空时覆盖 `expect` 工厂。
+     * @param overlayManager 非空时覆盖 `expect` 工厂。
+     * @param gamepadCalibrationController 非空时覆盖 `expect` 工厂。
      */
     fun createContainer(
         scope: CoroutineScope,
@@ -124,6 +121,6 @@ object AutoRunnerCore {
         )
     }
 
-    /** Creates a scope that keeps the graph alive for the process lifetime. */
+    /** 创建一个让对象图在进程生命周期内存活的 scope。 */
     fun applicationScope(): CoroutineScope = CoroutineScope(SupervisorJob())
 }

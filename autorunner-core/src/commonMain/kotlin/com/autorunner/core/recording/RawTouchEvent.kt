@@ -1,6 +1,6 @@
 package com.autorunner.core.recording
 
-/** Pointer phase reported by the capture layer. */
+/** 采集层上报的指针阶段。 */
 enum class TouchPhase {
     DOWN,
     MOVE,
@@ -10,7 +10,7 @@ enum class TouchPhase {
     POINTER_UP,
 }
 
-/** A single contact inside a [RawTouchEvent]. */
+/** [RawTouchEvent] 中的单个接触点。 */
 data class TouchSample(
     val pointerId: Int,
     val x: Float,
@@ -18,23 +18,22 @@ data class TouchSample(
 )
 
 /**
- * Platform independent description of one touch frame.
+ * 一帧触摸事件的平台无关描述。
  *
- * The Android capture layer converts `MotionEvent`s into this type, which keeps
- * [GestureAnalyzer] unit-testable without an emulator.
+ * Android 采集层把 `MotionEvent` 转换成该类型，使得 [GestureAnalyzer]
+ * 无需模拟器也能单元测试。
  */
 data class RawTouchEvent(
     val phase: TouchPhase,
     val samples: List<TouchSample>,
-    /** Milliseconds on an arbitrary but monotonic clock. */
+    /** 任意但单调的时钟上的毫秒数。 */
     val timestampMs: Long,
     /**
-     * `InputDevice` the frame came from, `-1` when unknown.
+     * 该帧来自哪个 `InputDevice`，未知时为 `-1`。
      *
-     * The capture layer uses it to tell a real finger apart from a gesture the
-     * app itself injected through `dispatchGesture`; without that check the
-     * "mirror the recorded gesture back to the app" step would be captured
-     * again and the recorder would feed itself forever.
+     * 采集层用它区分真实手指与应用自身通过 `dispatchGesture` 注入的
+     * 手势；没有这个检查，“把录制的手势回放给应用”这一步会被再次
+     * 采集，录制器就会无限地喂给自己。
      */
     val sourceDeviceId: Int = -1,
 ) {

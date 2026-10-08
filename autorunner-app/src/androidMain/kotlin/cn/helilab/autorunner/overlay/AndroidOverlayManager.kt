@@ -9,11 +9,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Process wide overlay state.
+ * 进程级的悬浮层状态。
  *
- * The overlay window lives in `AutoRunnerOverlayService`, but the state has to
- * be observable from the activity; a single shared holder keeps both in sync
- * without binding to the service.
+ * 悬浮窗存活于 `AutoRunnerOverlayService` 中，但状态需要能被 Activity 观察；
+ * 用一个共享持有者让两者保持同步，无需绑定到该服务。
  */
 object OverlayStateHolder {
 
@@ -27,13 +26,12 @@ object OverlayStateHolder {
 }
 
 /**
- * Pending one-shot action for the overlay service.
+ * 供悬浮层服务使用的一次性待办动作。
  *
- * The in-app ViewModels and [AutoRunnerOverlayService] own **separate**
- * ViewModel instances, so "run script X" / "start recording" requests cannot be
- * passed through the ViewModel state. A process-wide holder bridges the gap:
- * the service observes it, arms its own ViewModels, collapses to the ball and
- * clears the request.
+ * App 内的 ViewModel 与 [AutoRunnerOverlayService] 持有**各自独立**的
+ * ViewModel 实例，因此“运行脚本 X” / “开始录制”请求无法通过 ViewModel 状态
+ * 传递。一个进程级持有者来弥合这一空隙：服务观察它、武装自己的 ViewModel、
+ * 收起菜单回到悬浮球，然后清除该请求。
  */
 object PendingOverlayAction {
 
@@ -55,12 +53,11 @@ object PendingOverlayAction {
 }
 
 /**
- * `OverlayManager` implementation (§6.4.2).
+ * `OverlayManager` 实现（§6.4.2）。
  *
- * `SYSTEM_ALERT_WINDOW` is a special permission that cannot be requested with
- * the runtime API, so [isPermissionGranted] checks
- * `Settings.canDrawOverlays(context)` and the UI is responsible for sending the
- * user to `Settings.ACTION_MANAGE_OVERLAY_PERMISSION`.
+ * `SYSTEM_ALERT_WINDOW` 是特殊权限，无法通过运行时 API 请求，因此
+ * [isPermissionGranted] 检查 `Settings.canDrawOverlays(context)`，并由 UI 负责
+ * 把用户引导至 `Settings.ACTION_MANAGE_OVERLAY_PERMISSION`。
  */
 class AndroidOverlayManager(
     private val context: Context,
@@ -96,7 +93,7 @@ class AndroidOverlayManager(
         }
         OverlayStateHolder.update { it.copy(permissionGranted = true, error = null) }
         AutoRunnerOverlayService.start(context)
-        // The service confirms attachment asynchronously.
+        // 服务会异步确认附着结果。
         OverlayStateHolder.update { it.copy(visible = true) }
         return true
     }
@@ -117,7 +114,7 @@ class AndroidOverlayManager(
         }
         PendingOverlayAction.request(PendingOverlayAction.Mode.RUN, scriptId)
         AutoRunnerOverlayService.start(context)
-        // The service confirms attachment asynchronously.
+        // 服务会异步确认附着结果。
         OverlayStateHolder.update { it.copy(visible = true) }
         return true
     }

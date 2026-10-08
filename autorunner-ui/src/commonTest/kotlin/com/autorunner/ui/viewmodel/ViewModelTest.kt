@@ -31,11 +31,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * ViewModel level tests.
+ * ViewModel 层测试。
  *
- * The shared `PlatformServices` locator is what makes this possible without a
- * device: the tests publish a fake [AccessibilityController] and an in-memory
- * script store, then drive the same ViewModels the Compose screens use.
+ * 正因为共享的 `PlatformServices` 定位器，测试无需真机也能进行：
+ * 测试注册一个假的 [AccessibilityController] 和内存脚本存储，
+ * 然后驱动 Compose 页面所用的同一批 ViewModel。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ViewModelTest {
@@ -61,11 +61,10 @@ class ViewModelTest {
     }
 
     /**
-     * Builds a container whose scope runs eagerly on the test scheduler.
+     * 构建一个作用域在测试调度器上立即运行的容器。
      *
-     * The ViewModels keep long lived collectors alive for the lifetime of the
-     * app, so the container gets a scope of its own rather than the test job
-     * (which would never become idle).
+     * ViewModel 会在应用生命周期内维持长生命周期的收集器，因此容器
+     * 需要自己的作用域，而不是挂在测试 job 上（那将永远不会空闲）。
      */
     private fun TestScope.container(controller: AccessibilityController): AppContainer {
         PlatformServices.reset()
@@ -74,7 +73,7 @@ class ViewModelTest {
             scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
             scriptStorage = InMemoryScriptStorage(),
             keyValueStore = InMemoryKeyValueStore(),
-            // Unconfined keeps the repository IO on the test scheduler.
+            // Unconfined 让仓储的 IO 跑在测试调度器上。
             repositoryDispatcher = Dispatchers.Unconfined,
         )
         PlatformServices.reset()
@@ -84,7 +83,7 @@ class ViewModelTest {
     @AfterTest
     fun tearDown() = PlatformServices.reset()
 
-    // ------------------------------------------------------------------ editor
+    // ------------------------------------------------------------------ 编辑器
 
     @Test
     fun editorBuildsAndStoresAScript() = runTest {
@@ -114,7 +113,7 @@ class ViewModelTest {
         assertEquals(2, record.stepCount)
         assertFalse(editor.dirty.value)
 
-        // The device block comes from the accessibility controller's metrics.
+        // device 块来自无障碍控制器上报的屏幕尺寸。
         assertEquals(1080, record.script.info.device.width)
         assertEquals(2400, record.script.info.device.height)
     }
@@ -163,7 +162,7 @@ class ViewModelTest {
         editor.load(null)
         advanceUntilIdle()
 
-        // No actions yet.
+        // 还没有任何动作。
         assertFalse(editor.validation.value.isValid)
         assertTrue(editor.validation.value.errors.any { it.code == "empty_flow" })
 
@@ -172,7 +171,7 @@ class ViewModelTest {
         assertTrue(editor.validation.value.errors.any { it.code == "non_positive_duration" })
     }
 
-    // --------------------------------------------------------------- execution
+    // --------------------------------------------------------------- 执行
 
     @Test
     fun executionPanelRunsTheSelectedScriptToCompletion() = runTest {
@@ -204,9 +203,9 @@ class ViewModelTest {
     }
 
     /**
-     * Regression: the library's ▶ calls `start(id)` directly, so the script's own
-     * `execution` block (here "repeat 20×") must be adopted — it used to be ignored
-     * and the task ran exactly once.
+     * 回归测试：脚本库的 ▶ 直接调用 `start(id)`，因此必须采纳脚本自身的
+     * `execution` 块（此处为「重复 20 次」）——过去它会被忽略，
+     * 任务只运行一次。
      */
     @Test
     fun startingAScriptFromTheLibraryAdoptsItsStoredRepeatConfig() = runTest {
@@ -261,7 +260,7 @@ class ViewModelTest {
         execution.selectScript(record.id)
         advanceUntilIdle()
 
-        // The user narrows the run down to 3 loops in the panel.
+        // 用户在面板中把运行次数收窄为 3 次循环。
         execution.setRepeatCount(3)
         execution.start(record.id)
         advanceUntilIdle()
@@ -269,7 +268,7 @@ class ViewModelTest {
         assertEquals(3, execution.lastReport.value?.totalLoops)
     }
 
-    /** A run that starts must not interrupt the user with a dialog. */
+    /** 已开始的运行不得用对话框打断用户。 */
     @Test
     fun startingARunDoesNotShowADialog() = runTest {
         val controller = FakeAccessibilityController()
@@ -344,7 +343,7 @@ class ViewModelTest {
         assertEquals(500L, execution.intervalMs.value)
     }
 
-    // ------------------------------------------------------------- script list
+    // ------------------------------------------------------------- 脚本列表
 
     @Test
     fun listFiltersImportsAndDeletes() = runTest {
@@ -370,7 +369,7 @@ class ViewModelTest {
 
         list.setQuery("")
 
-        // Import a payload produced by the codec.
+        // 导入一段由编解码器生成的载荷。
         val payload = ArScriptCodec().encode(
             ScriptModel(
                 info = com.autorunner.core.model.ScriptInfo(name = "导入脚本"),
@@ -386,7 +385,7 @@ class ViewModelTest {
         assertEquals(2, list.visibleScripts.value.size)
     }
 
-    // --------------------------------------------------------------- settings
+    // --------------------------------------------------------------- 设置
 
     @Test
     fun settingsWriteThroughToTheRepository() = runTest {
@@ -406,7 +405,7 @@ class ViewModelTest {
         assertEquals(7, stored.defaultExecution.repeatCount)
         assertEquals(1500L, stored.defaultExecution.intervalMs)
         assertEquals(com.autorunner.core.model.FailureStrategy.SKIP_ACTION, stored.failureStrategy)
-        // The policy is mirrored into the default execution block as well.
+        // 该策略同样会镜像进默认执行块。
         assertEquals(
             com.autorunner.core.model.FailureStrategy.SKIP_ACTION,
             stored.defaultExecution.failureStrategy,

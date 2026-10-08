@@ -13,10 +13,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * State holder of the recording screen (§6.1.1).
+ * 录制页面的状态持有者（§6.1.1）。
  *
- * Recording itself happens inside `AutoRunnerAccessibilityService`; this class
- * only drives it and turns the captured actions into a stored script.
+ * 录制本身发生在 `AutoRunnerAccessibilityService` 内部；本类只负责驱动它，
+ * 并把采集到的动作整理成可存储的脚本。
  */
 class RecordingViewModel(
     private val container: AppContainer,
@@ -28,10 +28,10 @@ class RecordingViewModel(
 
     val status: StateFlow<RecordingStatus> = controller.status
 
-    /** Classified actions, updated live while recording. */
+    /** 已分类的动作，录制过程中实时更新。 */
     val steps: StateFlow<List<ActionStep>> = controller.steps
 
-    /** Raw touch frames seen so far — shown as the "event feed". */
+    /** 至今为止看到的原始触摸帧——作为「事件流」展示。 */
     val eventCount: StateFlow<Int> = controller.eventCount
 
     private val _name = MutableStateFlow("")
@@ -54,7 +54,7 @@ class RecordingViewModel(
 
     val accessibilityConnected: Boolean get() = container.accessibilityController.isConnected
 
-    /** `true` when the platform is able to capture touches at all. */
+    /** 当平台至少有能力采集触摸时为 `true`。 */
     val canRecord: Boolean get() = controller !is com.autorunner.core.platform.UnavailableRecordingController
 
     val isRecording: Boolean get() = status.value == RecordingStatus.RECORDING
@@ -77,10 +77,10 @@ class RecordingViewModel(
         _keepScreenOn.value = enabled
     }
 
-    /** Suggests a fresh name such as `录制脚本 2026-01-15`. */
+    /** 生成一个新名字，如 `录制脚本 2026-01-15`。 */
     fun defaultName(): String = "录制脚本 ${com.autorunner.core.util.isoDatePart(com.autorunner.core.util.currentIsoTimestamp())}"
 
-    /** Starts a session; returns `false` when the service is not connected. */
+    /** 开始一次录制；无障碍服务未连接时返回 `false`。 */
     fun start(): Boolean {
         if (!accessibilityConnected) {
             _message.value = "请先开启 AutoRunner 无障碍服务"
@@ -129,7 +129,7 @@ class RecordingViewModel(
         return started
     }
 
-    /** Stops the session and remembers the produced script. */
+    /** 结束录制并记住生成的脚本。 */
     fun stop() {
         val result = controller.stop()
         _armed.value = false
@@ -151,7 +151,7 @@ class RecordingViewModel(
         controller.clear()
     }
 
-    /** Builds (but does not store) the script for the actions captured so far. */
+    /** 根据迄今采集到的动作构建脚本（但不存储）。 */
     fun buildScript(): ScriptModel {
         val settings = container.settingsRepository.current
         return RecordedScriptBuilder.build(
@@ -163,7 +163,7 @@ class RecordingViewModel(
         )
     }
 
-    /** Persists the recorded actions as a new `.arscript` file. */
+    /** 把录制到的动作持久化为一个新的 `.arscript` 文件。 */
     fun saveRecorded() {
         val script = buildScript()
         if (script.flow.isEmpty()) {
@@ -177,7 +177,7 @@ class RecordingViewModel(
         }
     }
 
-    /** Loads the last recorded script into the editor. */
+    /** 把最近一次录制的脚本载入编辑器。 */
     fun lastSavedId(): String? = _lastSaved.value?.id
 
     fun dismissMessage() {

@@ -3,7 +3,7 @@ package com.autorunner.core.storage
 import java.io.File
 import java.util.Properties
 
-/** Properties file backed [KeyValueStore] for the desktop target. */
+/** 桌面目标上基于属性文件的 [KeyValueStore]。 */
 class DesktopKeyValueStore(private val file: File) : KeyValueStore {
 
     private val lock = Any()

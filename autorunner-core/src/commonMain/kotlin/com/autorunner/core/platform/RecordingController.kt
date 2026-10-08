@@ -7,22 +7,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Lifecycle of a recording session. */
+/** 录制会话的生命周期。 */
 enum class RecordingStatus {
-    /** No session running. */
+    /** 没有会话在运行。 */
     IDLE,
 
-    /** The transparent capture layer is attached and recording touches. */
+    /** 透明采集层已附加并正在记录触摸。 */
     RECORDING,
 
-    /** Stop was requested; pending gestures are being flushed. */
+    /** 已请求停止；正在冲刷挂起的手势。 */
     FINALISING,
 
-    /** The capture layer could not be attached (accessibility service missing). */
+    /** 采集层无法附加（缺少无障碍服务）。 */
     ERROR,
 }
 
-/** Outcome of `stop()`. */
+/** `stop()` 的结果。 */
 data class RecordingResult(
     val success: Boolean,
     val script: ScriptModel? = null,
@@ -30,30 +30,29 @@ data class RecordingResult(
 )
 
 /**
- * Captures raw touch input and turns it into [ActionStep]s.
+ * 采集原始触摸输入并把它们转换为 [ActionStep]。
  *
- * Android implementation attaches a `TYPE_ACCESSIBILITY_OVERLAY` view inside
- * `AutoRunnerAccessibilityService`; the gesture classification itself is shared
- * (`GestureAnalyzer`).
+ * Android 实现在 `AutoRunnerAccessibilityService` 内附加一个
+ * `TYPE_ACCESSIBILITY_OVERLAY` 视图；手势分类本身是共享的
+ * （`GestureAnalyzer`）。
  */
 interface RecordingController {
 
     val status: StateFlow<RecordingStatus>
 
-    /** Actions classified so far, in the order they happened. */
+    /** 迄今已分类的动作，按发生顺序排列。 */
     val steps: StateFlow<List<ActionStep>>
 
-    /** Raw touch events seen so far (diagnostics / event feed). */
+    /** 迄今见到的原始触摸事件（诊断／事件馈送）。 */
     val eventCount: StateFlow<Int>
 
-    /** Screen the session is recording against. */
+    /** 会话录制所针对的屏幕。 */
     val screenMetrics: ScreenMetrics
 
     /**
-     * Starts a session.
+     * 启动一个会话。
      *
-     * @return `false` when the accessibility service is not connected or a
-     *   session is already running.
+     * @return 无障碍服务未连接、或已有会话在运行时为 `false`。
      */
     /**
      * 「准备录制」：只把悬浮控制显示出来（不开始采集），由用户在悬浮窗上点开始。
@@ -70,44 +69,39 @@ interface RecordingController {
 
     fun start(): Boolean
 
-    /** Stops the session and builds the resulting script. */
+    /** 停止会话并构建生成的脚本。 */
     fun stop(): RecordingResult
 
-    /** Discards the current session without producing a script. */
+    /** 丢弃当前会话，不产出脚本。 */
     fun cancel()
 
-    /** Clears recorded actions while staying in the session. */
+    /** 在保持会话的前提下清空已录制的动作。 */
     fun clear()
 
-    /** Builds a script from the actions recorded so far without stopping. */
+    /** 不停止会话，基于迄今录制的动作构建一个脚本。 */
     fun snapshotScript(name: String = ""): ScriptModel
 
     /**
-     * Captures a single screen point.
+     * 采集屏幕上的单个点。
      *
-     * Used by the gamepad mapping UI: the user taps the position of a virtual
-     * button and the coordinates are reported back. The temporary capture layer is
-     * removed as soon as the first tap is released.
+     * 供手柄映射 UI 使用：用户点一下虚拟按键的位置，坐标即回传。
+     * 第一次抬指后临时采集层就会被移除。
      *
-     * @return `false` when picking is impossible (no accessibility service, or a
-     *   recording session is already running).
+     * @return 无法取点（没有无障碍服务，或已有录制会话在运行）时为 `false`。
      */
     fun pickPoint(onPicked: (x: Float, y: Float) -> Unit): Boolean = false
 
     /**
-     * Captures one complete gesture (tap / long press / swipe / multi touch) and
-     * reports the classified action.
+     * 采集一个完整手势（点击／长按／滑动／多点触控）并上报分类后的动作。
      *
-     * This is how the editor fills in coordinates "from a real operation" instead
-     * of asking the user to type pixels.
+     * 编辑器正是通过它“从真实操作”填入坐标，而不用让用户手动敲像素值。
      *
-     * @return `false` when capturing is impossible (no accessibility service, or a
-     *   recording session is already running).
+     * @return 无法采集（没有无障碍服务，或已有录制会话在运行）时为 `false`。
      */
     fun pickAction(onPicked: (com.autorunner.core.model.ActionStep) -> Unit): Boolean = false
 }
 
-/** Fallback recording controller used when the platform cannot record. */
+/** 平台无法录制时使用的兜底实现。 */
 class UnavailableRecordingController(
     private val reason: String = "当前平台不支持录制",
 ) : RecordingController {
@@ -121,7 +115,7 @@ class UnavailableRecordingController(
     override val eventCount: StateFlow<Int> = _eventCount.asStateFlow()
     override val screenMetrics: ScreenMetrics = ScreenMetrics.Unknown
 
-    /** Populated by [start] so the UI can explain why recording is unavailable. */
+    /** 由 [start] 填充，让 UI 能解释录制为何不可用。 */
     var lastError: String? = reason
         private set
 

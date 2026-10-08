@@ -32,14 +32,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 
 /**
- * Foreground service that owns the floating control panel (§6.4).
+ * 持有悬浮控制面板的前台服务（§6.4）。
  *
- * * runs in the foreground with the fixed `autorunner_execution` channel, which
- *   both satisfies the "startForeground within 5 s" rule and keeps the process
- *   (and therefore the accessibility service) alive during long repeat runs,
- * * renders [FloatingControlPanel] inside a `WindowManager` overlay,
- * * mirrors the execution progress into the notification with pause / stop
- *   actions (§6.3.3).
+ * * 以固定频道 `autorunner_execution` 运行于前台，既满足“5 秒内 startForeground”
+ *   的规则，又能在长时间循环运行期间保持进程（进而保持无障碍服务）存活；
+ * * 在 `WindowManager` 悬浮层内渲染 [FloatingControlPanel]；
+ * * 把执行进度连同暂停 / 停止操作同步到通知栏（§6.3.3）。
  */
 class AutoRunnerOverlayService : Service() {
 
@@ -104,9 +102,8 @@ class AutoRunnerOverlayService : Service() {
             ACTION_COLLAPSE -> host?.setMenuOpen(false)
             ACTION_TOGGLE -> host?.toggleMenu()
             ACTION_SET_MODE -> {
-                // The HID profile is fixed at registration time; nothing to do
-                // here beyond updating the persisted preference (handled by the
-                // settings screen).
+                // HID 配置在注册时即已固定；这里除了更新持久化的偏好设置
+                // （由设置页处理）之外无事可做。
             }
         }
         OverlayStateHolder.update { it.copy(menuOpen = host?.menuOpen?.value ?: false, visible = true) }
@@ -126,7 +123,7 @@ class AutoRunnerOverlayService : Service() {
         super.onDestroy()
     }
 
-    // --------------------------------------------------------------- overlay
+    // --------------------------------------------------------------- 悬浮层
 
     private fun attachOverlay() {
         val windowHost = ComposeWindowHost(
@@ -196,7 +193,7 @@ class AutoRunnerOverlayService : Service() {
         observePending()
     }
 
-    /** Keeps the foreground notification in sync with the executor. */
+    /** 保持前台通知与执行器状态同步。 */
     private fun observeProgress() {
         progressJob?.cancel()
         progressJob = scope.launch {
@@ -205,8 +202,8 @@ class AutoRunnerOverlayService : Service() {
     }
 
     /**
-     * Keeps the foreground notification in sync with recording. Without this the
-     * "stop recording" action would never appear while a recording is running.
+     * 保持前台通知与录制状态同步。否则录制进行期间，“停止录制”操作永远不会
+     * 出现在通知中。
      */
     private fun observeRecording() {
         recordingJob?.cancel()
@@ -216,9 +213,9 @@ class AutoRunnerOverlayService : Service() {
     }
 
     /**
-     * Arms this service's own ViewModels from one-shot requests posted by the
-     * in-app ViewModels ("run script X" / "start recording"), then collapses to
-     * the ball so a single tap starts the work.
+     * 接收 App 内 ViewModel 发来的一次性请求（“运行脚本 X” / “开始录制”），
+     * 用以武装本服务自己的 ViewModel，随后收起菜单回到悬浮球，只需一次点击
+     * 即可开始工作。
      */
     private fun observePending() {
         pendingJob?.cancel()
@@ -243,8 +240,8 @@ class AutoRunnerOverlayService : Service() {
     }
 
     /**
-     * Rebuilds the foreground notification from the current execution and
-     * recording state, so the actions always match what the user can do.
+     * 依据当前执行与录制状态重建前台通知，使通知上的操作始终与用户此刻能做
+     * 的动作一致。
      */
     private fun refreshNotification() {
         if (!AppGraph.requireContainer().settingsRepository.current.executionNotification) return
@@ -275,6 +272,9 @@ class AutoRunnerOverlayService : Service() {
             }
         }.onFailure { error ->
             Log.w(AutoRunnerApplication.TAG, "startForeground failed", error)
+            // 前台服务启动失败时系统稍后会抛异常杀掉本服务；
+            // 与其让悬浮窗在"半死"状态下继续响应用户操作，不如立即自停。
+            stopSelf()
         }
     }
 
@@ -282,7 +282,7 @@ class AutoRunnerOverlayService : Service() {
 
         private val _isRunning = MutableStateFlow(false)
 
-        /** `true` while the overlay window is attached. */
+        /** 悬浮窗处于附着状态时为 `true`。 */
         val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
         const val ACTION_EXPAND = "cn.helilab.autorunner.action.EXPAND_OVERLAY"
@@ -290,7 +290,7 @@ class AutoRunnerOverlayService : Service() {
         const val ACTION_TOGGLE = "cn.helilab.autorunner.action.TOGGLE_OVERLAY"
         const val ACTION_SET_MODE = "cn.helilab.autorunner.action.SET_OVERLAY_MODE"
 
-        /** Starts (or re-commands) the overlay service. */
+        /** 启动（或重新下达指令给）悬浮层服务。 */
         fun start(context: Context, action: String? = null) {
             val intent = Intent(context, AutoRunnerOverlayService::class.java).apply {
                 if (action != null) this.action = action

@@ -6,10 +6,10 @@ import com.autorunner.core.model.ScriptModel
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * A stored script plus the bookkeeping the UI needs for its list.
+ * 已存储的脚本，加上 UI 列表所需的簿记信息。
  */
 data class ScriptRecord(
-    /** Stable identifier; also the file base name on disk. */
+    /** 稳定标识符；同时是磁盘上的文件基名。 */
     val id: String,
     val fileName: String,
     val script: ScriptModel,
@@ -37,7 +37,7 @@ data class ScriptRecord(
     }
 }
 
-/** Outcome of importing a `.arscript` payload. */
+/** 导入 `.arscript` 载荷的结果。 */
 sealed interface ImportResult {
     data class Success(val record: ScriptRecord, val warnings: List<String> = emptyList()) : ImportResult
 
@@ -45,23 +45,22 @@ sealed interface ImportResult {
 }
 
 /**
- * Persistence boundary for `.arscript` files.
+ * `.arscript` 文件的持久化边界。
  *
- * The editor, the floating panel and the importer all go through this
- * interface, which keeps the storage backend (app private files on Android,
- * a directory on the JVM) out of the UI layer.
+ * 编辑器、悬浮面板和导入器都经由该接口，把存储后端（Android 上的应用
+ * 私有文件、JVM 上的一个目录）挡在 UI 层之外。
  */
 interface ScriptRepository {
 
-    /** Latest snapshot of all stored scripts, newest first. */
+    /** 所有已存储脚本的最新快照，最新的在前。 */
     val scripts: StateFlow<List<ScriptRecord>>
 
-    /** Re-reads the backing storage and updates [scripts]. */
+    /** 重新读取底层存储并更新 [scripts]。 */
     suspend fun refresh(): List<ScriptRecord>
 
     suspend fun load(id: String): ScriptRecord?
 
-    /** Creates or replaces a script. */
+    /** 创建或替换一个脚本。 */
     suspend fun save(id: String?, script: ScriptModel): ScriptRecord
 
     suspend fun rename(id: String, newName: String): ScriptRecord?
@@ -72,23 +71,23 @@ interface ScriptRepository {
 
     suspend fun deleteAll(): Int
 
-    /** Serialises a stored script to pretty `.arscript` JSON. */
+    /** 把已存储的脚本序列化为带缩进的 `.arscript` JSON。 */
     suspend fun exportToText(id: String): String?
 
-    /** Parses and stores an `.arscript` payload (`fileName` seeds the id). */
+    /** 解析并存储 `.arscript` 载荷（`fileName` 用于生成 id）。 */
     suspend fun importFromText(
         text: String,
         fileName: String? = null,
         overwrite: Boolean = false,
     ): ImportResult
 
-    /** File name suggested for exporting [id]. */
+    /** 导出 [id] 时建议的文件名。 */
     suspend fun suggestedFileName(id: String): String
 }
 
-/** Convenience: the extension used by every stored file. */
+/** 便捷函数：所有已存储文件使用的扩展名。 */
 internal fun scriptFileName(baseName: String): String = "$baseName${ArScriptConventions.DOT_EXTENSION}"
 
-/** Strips the `.arscript` suffix from a stored file name. */
+/** 去掉已存储文件名中的 `.arscript` 后缀。 */
 internal fun scriptBaseName(fileName: String): String =
     fileName.removeSuffix(ArScriptConventions.DOT_EXTENSION).ifBlank { fileName }

@@ -12,23 +12,22 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Owns the coroutine that drives [AutoRunnerScriptExecutor] and exposes the
- * start / pause / resume / stop surface used by the floating panel, the
- * notification and the editor's "试运行" button.
+ * 持有驱动 [AutoRunnerScriptExecutor] 的协程，并暴露悬浮面板、通知和编辑器
+ * 「试运行」按钮所使用的开始 / 暂停 / 恢复 / 停止接口。
  */
 class ExecutionController(
     private val executor: AutoRunnerScriptExecutor,
     private val scope: CoroutineScope,
 ) {
 
-    /** Live progress, ready to be rendered by the overlay. */
+    /** 实时进度，可直接交给覆盖层渲染。 */
     val progress: StateFlow<ExecutionProgress> = executor.progress
 
     val state: StateFlow<ExecutionState> = executor.state
 
     val reports: SharedFlow<ExecutionReport> = executor.reports
 
-    /** Identifier of the script that is currently loaded. */
+    /** 当前已加载脚本的标识。 */
     var activeScriptId: String? = null
         private set
 
@@ -42,16 +41,18 @@ class ExecutionController(
     val isPaused: Boolean get() = state.value == ExecutionState.PAUSED
 
     /**
-     * Starts [script].
+     * 启动 [script]。
      *
-     * @return `false` when a run is already in flight.
+     * @return 已有运行在进行中时返回 `false`。
      */
     fun start(
         script: ScriptModel,
         config: ExecutionConfig = script.execution,
         scriptId: String? = null,
     ): Boolean {
-        if (executor.isActive) return false
+        if (executor.isActive) {
+            return false
+        }
         executor.reset()
         activeScriptId = scriptId
         activeScriptName = script.displayName()
@@ -67,23 +68,22 @@ class ExecutionController(
 
     fun togglePause() = executor.togglePause()
 
-    /** Graceful stop: the engine finishes the current action, then unwinds. */
+    /** 优雅停止：引擎完成当前动作后收尾退出。 */
     fun stop() = executor.stop()
 
-    /** Hard stop used when the accessibility service goes away permanently. */
+    /** 无障碍服务永久消失时使用的强制停止。 */
     fun forceStop() {
         val wasActive = job?.isActive == true
         executor.stop()
         job?.cancel()
         job = null
         if (wasActive) {
-            // Cancelling the job means execute() never reaches its terminal
-            // report emission; publish the STOPPED report on its behalf so UI
-            // collectors are not left waiting.
+            // 取消 job 意味着 execute() 永远走不到末尾的终态报告发送；
+            // 代替它发布 STOPPED 报告，避免 UI 侧的收集方一直等下去。
             executor.emitStoppedReport(activeScriptId, activeScriptName)
         }
     }
 
-    /** Clears a finished run so the panel returns to its idle state. */
+    /** 清除已结束的运行，让面板回到空闲状态。 */
     fun reset() = executor.reset()
 }

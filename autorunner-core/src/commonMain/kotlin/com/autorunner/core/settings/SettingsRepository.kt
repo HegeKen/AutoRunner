@@ -19,8 +19,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 
 /**
- * Persists [AppSettings] and exposes them as an observable [StateFlow] so that
- * both the Compose UI and the services react to changes immediately.
+ * 持久化 [AppSettings] 并以可观察的 [StateFlow] 暴露，
+ * 使 Compose UI 与各服务都能立即对变更作出反应。
  */
 class SettingsRepository(
     private val store: KeyValueStore,
@@ -33,7 +33,7 @@ class SettingsRepository(
 
     val current: AppSettings get() = _settings.value
 
-    /** Applies [transform] and persists the result. */
+    /** 应用 [transform] 并持久化结果。 */
     fun update(transform: (AppSettings) -> AppSettings): AppSettings {
         val updated = transform(_settings.value).sanitized()
         _settings.value = updated
@@ -74,7 +74,7 @@ class SettingsRepository(
 
     fun setGamepadMode(mode: GamepadMode) = update { it.copy(gamepadMode = mode) }
 
-    /** Replaces the calibration stored for [mode] (each mode keeps its own copy). */
+    /** 替换为 [mode] 存储的标定结果（每种模式各存一份）。 */
     fun setGamepadMappings(mode: GamepadMode, mappings: GamepadMappings) = update {
         it.copy(gamepadMappingsByMode = it.gamepadMappingsByMode + (mode to mappings))
     }
@@ -89,9 +89,8 @@ class SettingsRepository(
     private fun read(): AppSettings {
         val raw = store.getString(KEY_SETTINGS) ?: return AppSettings.Default
         decode(raw)?.let { return it.sanitized() }
-        // Schema migration: a stored value for a removed option (the Monet theme
-        // modes and the seed colour) would fail to decode and silently reset every
-        // other preference, so drop those keys and retry once.
+        // 架构迁移：已移除选项的存量值（Monet 主题模式和种子色）
+        // 会导致解码失败，并静默重置其他所有偏好，因此先丢弃这些键再重试一次。
         return migrate(raw)?.sanitized() ?: AppSettings.Default
     }
 
@@ -111,7 +110,7 @@ class SettingsRepository(
     private companion object {
         const val KEY_SETTINGS = "app_settings_v1"
 
-        /** Fields that existed in older builds and must be ignored now. */
+        /** 旧版本存在、现在必须忽略的字段。 */
         val REMOVED_KEYS = listOf("keyColor", "themeMode")
     }
 }

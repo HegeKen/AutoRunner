@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.autorunner.core.platform.AndroidPlatform
 
-/** `SharedPreferences` backed [KeyValueStore]. */
+/** 基于 `SharedPreferences` 的 [KeyValueStore]。 */
 class AndroidKeyValueStore(private val preferences: SharedPreferences) : KeyValueStore {
 
     override fun getString(key: String, default: String?): String? = preferences.getString(key, default)

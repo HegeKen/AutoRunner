@@ -15,19 +15,19 @@ import com.autorunner.core.model.ScriptModel
 import com.autorunner.core.model.SwipeStep
 import com.autorunner.core.model.TapStep
 
-/** Severity of a [ValidationIssue]. */
+/** [ValidationIssue] 的严重级别。 */
 enum class ValidationSeverity { ERROR, WARNING }
 
-/** A single problem found by [ScriptValidator]. */
+/** [ScriptValidator] 发现的单个问题。 */
 data class ValidationIssue(
     val code: String,
     val message: String,
     val severity: ValidationSeverity,
-    /** Index inside `flow`, or `null` for script level issues. */
+    /** 在 `flow` 中的下标；脚本级问题为 `null`。 */
     val stepIndex: Int? = null,
 )
 
-/** Result of validating a script before it is stored or executed. */
+/** 脚本在存储或执行前校验的结果。 */
 data class ValidationResult(val issues: List<ValidationIssue> = emptyList()) {
 
     val errors: List<ValidationIssue> get() = issues.filter { it.severity == ValidationSeverity.ERROR }
@@ -51,16 +51,21 @@ data class ValidationResult(val issues: List<ValidationIssue> = emptyList()) {
 }
 
 /**
- * Pure validation of a [ScriptModel]. Used by the editor (inline hints), by
- * the importer (reject broken files) and by the executor (fail fast instead of
- * dispatching nonsense gestures).
+ * 对 [ScriptModel] 的纯校验。编辑器（行内提示）、导入器（拒绝损坏文件）
+ * 和执行器（快速失败，而不是分发乱七八糟的手势）都会用到。
  */
 object ScriptValidator {
 
-    /** Maximum plausible gesture duration, guards against corrupt files. */
+    /** 合理的手势时长上限，防止损坏文件。 */
     private const val MAX_ACTION_DURATION_MS = 120_000L
 
     private const val MAX_DELAY_MS = 3_600_000L
+
+    /**
+     * 键盘输入文本上限。`ACTION_SET_TEXT` 派发超长文本（如损坏/恶意文件里的
+     * MB 级字符串）可能拖死无障碍服务导致 ANR，正常输入远达不到该量级。
+     */
+    private const val MAX_KEY_TEXT_LENGTH = 10_000
 
     fun validate(script: ScriptModel, metrics: ScreenMetrics? = null): ValidationResult {
         val issues = mutableListOf<ValidationIssue>()
@@ -224,6 +229,13 @@ object ScriptValidator {
                     issues += ValidationIssue(
                         "empty_key_text",
                         "键盘输入内容不能为空",
+                        ValidationSeverity.ERROR,
+                        index,
+                    )
+                } else if (step.text.length > MAX_KEY_TEXT_LENGTH) {
+                    issues += ValidationIssue(
+                        "excessive_key_text",
+                        "键盘输入内容超过 $MAX_KEY_TEXT_LENGTH 字符上限",
                         ValidationSeverity.ERROR,
                         index,
                     )

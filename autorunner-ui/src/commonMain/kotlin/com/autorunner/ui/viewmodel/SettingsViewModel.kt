@@ -22,11 +22,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * State holder of the settings screen.
+ * 设置页面的状态持有者。
  *
- * Everything is written straight through to
- * [com.autorunner.core.settings.SettingsRepository] so that the services pick
- * the new value up immediately.
+ * 所有修改都直接写入 [com.autorunner.core.settings.SettingsRepository]，
+ * 以便各服务能立即读到新值。
  */
 class SettingsViewModel(
     private val container: AppContainer,
@@ -40,7 +39,7 @@ class SettingsViewModel(
 
     val message: StateFlow<String?> = _message.asStateFlow()
 
-    /** `true` once the storage directory is known. */
+    /** 存储目录确定后即可用。 */
     val storageLocation: String =
         (container.scriptRepository as? com.autorunner.core.script.FileScriptRepository)?.location
             ?: "应用私有目录"
@@ -54,18 +53,18 @@ class SettingsViewModel(
 
     val gamepadError: String? get() = gamepad?.lastError
 
-    /** Observable overlay state so the settings rows stay reactive. */
+    /** 可观察的悬浮层状态，让设置行保持响应式。 */
     val overlayState: StateFlow<com.autorunner.core.platform.OverlayState> = container.overlayManager.state
 
     val overlayVisible: Boolean get() = overlayState.value.visible
 
     val overlayDockEdge: DockEdge get() = overlayState.value.dockedEdge
 
-    // ---------------------------------------------------------------- theme
+    // ---------------------------------------------------------------- 主题
 
     fun setThemeMode(mode: ThemeMode) = container.settingsRepository.setThemeMode(mode)
 
-    // ------------------------------------------------------------ execution
+    // ------------------------------------------------------------ 执行
 
     fun setDefaultMode(mode: ExecutionMode) = container.settingsRepository.update {
         it.copy(defaultExecution = it.defaultExecution.copy(mode = mode))
@@ -78,10 +77,9 @@ class SettingsViewModel(
     }
 
     /**
-     * The failure policy is stored twice on purpose: [AppSettings.failureStrategy]
-     * is the global default applied when the floating panel starts a run, and
-     * `defaultExecution.failureStrategy` is embedded into newly recorded scripts,
-     * so both must stay in sync.
+     * 失败策略有意存储了两份：[AppSettings.failureStrategy] 是悬浮面板发起运行时
+     * 采用的全局默认值，而 `defaultExecution.failureStrategy` 会嵌入新录制的脚本，
+     * 因此两者必须保持同步。
      */
     fun setFailureStrategy(strategy: FailureStrategy) = container.settingsRepository.update {
         it.copy(
@@ -102,7 +100,7 @@ class SettingsViewModel(
 
     fun setHapticFeedback(enabled: Boolean) = container.settingsRepository.setHapticFeedback(enabled)
 
-    // ------------------------------------------------------------ recording
+    // ------------------------------------------------------------ 录制
 
     fun setRecordingConfig(config: RecordingConfig) = container.settingsRepository.setRecordingConfig(config)
 
@@ -126,7 +124,7 @@ class SettingsViewModel(
         it.copy(recording = it.recording.copy(defaultDelayMs = ms))
     }
 
-    // ------------------------------------------------------------- overlay
+    // ------------------------------------------------------------- 悬浮层
 
     fun setShowFloatingBallOnStart(enabled: Boolean) =
         container.settingsRepository.setShowFloatingBall(enabled)
@@ -141,10 +139,10 @@ class SettingsViewModel(
         manager.toggle()
     }
 
-    // ------------------------------------------------------------- gamepad
+    // ------------------------------------------------------------- 手柄
     //
-    // Gamepad simulation injects the buttons into *this* device, so the only setup
-    // is telling AutoRunner where each virtual button lives on screen.
+    // 手柄模拟是把按键注入到*本*设备，因此唯一的配置工作就是
+    // 告诉 AutoRunner 每个虚拟按键在屏幕上的位置。
 
     fun setGamepadEnabled(enabled: Boolean) {
         container.settingsRepository.setGamepadEnabled(enabled)
@@ -173,7 +171,7 @@ class SettingsViewModel(
         repository.setGamepadMappings(mode, transform(repository.current.gamepadMappingsFor(mode)))
     }
 
-    /** Saves one button position (used by the manual editor and the picker). */
+    /** 保存一个按键位置（手动编辑器和拾取器都会用到）。 */
     fun setGamepadMapping(
         button: GamepadButton,
         x: Float,
@@ -203,13 +201,12 @@ class SettingsViewModel(
     fun setStickRadius(radius: Float) = updateCurrentGamepadMappings { it.copy(stickRadius = radius) }
 
     /**
-     * Asks the accessibility layer to capture the next tap.
+     * 请求无障碍层捕获下一次点击的坐标。
      *
-     * @param button `null` picks the virtual stick centre instead of a button.
-     * @param onPicked when provided (the mapping dialog), the captured coordinates
-     *   are handed back so the dialog can fill its input fields and let the user
-     *   confirm with 保存; `null` writes the position straight to the settings,
-     *   which is what the quick "拾取" action on the stick row needs.
+     * @param button 为 `null` 时拾取虚拟摇杆中心而不是某个按键。
+     * @param onPicked 提供时（映射对话框），捕获的坐标会回传给对话框，
+     *   由它填充输入框并让用户点「保存」确认；为 `null` 时坐标直接写入设置，
+     *   即摇杆行上快速「拾取」操作所需的行为。
      */
     fun pickGamepadPoint(
         button: GamepadButton?,
@@ -246,7 +243,7 @@ class SettingsViewModel(
         }
     }
 
-    // --------------------------------------------------------- permissions
+    // --------------------------------------------------------- 权限
 
     fun refreshPermissions() = permissions?.refresh()
 

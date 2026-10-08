@@ -27,11 +27,10 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 
 /**
- * Holds the currently bound [AutoRunnerAccessibilityService].
+ * 持有当前已绑定的 [AutoRunnerAccessibilityService]。
  *
- * The controller is created before the service exists (the user has to enable
- * it in Settings), so it reads the holder lazily instead of capturing an
- * instance.
+ * 控制器在服务存在之前就会被创建（用户需要先在设置中启用它），
+ * 因此它延迟读取持有者，而不是捕获某个实例。
  */
 object AccessibilityServiceHolder {
 
@@ -56,12 +55,10 @@ object AccessibilityServiceHolder {
 }
 
 /**
- * `AccessibilityController` implementation backed by `dispatchGesture`
- * (§6.1.2).
+ * 基于 `dispatchGesture` 的 `AccessibilityController` 实现（§6.1.2）。
  *
- * Every gesture is dispatched on the main looper and the suspend function only
- * returns once the system reported completion or cancellation, which keeps the
- * executor's timing honest.
+ * 每个手势都在主循环上派发，挂起函数只在系统报告完成或取消后才返回，
+ * 从而保证执行器的计时是准确的。
  */
 class AndroidAccessibilityController(
     private val context: Context,
@@ -77,7 +74,7 @@ class AndroidAccessibilityController(
     override fun refreshScreenMetrics(): ScreenMetrics = measureScreen(context)
 
     override suspend fun perform(step: ActionStep): ActionResult = when (step) {
-        // Pure waits and gamepad reports are handled outside the gesture API.
+        // 纯等待和手柄上报在手势 API 之外处理。
         is DelayStep -> ActionResult.Success
         is GamepadStep -> ActionResult.Unsupported("手柄动作由手柄模块处理")
         // 文本输入走 `ACTION_SET_TEXT`，不是手势。
@@ -86,10 +83,10 @@ class AndroidAccessibilityController(
     }
 
     /**
-     * Types [KeyStep.text] into the focused input field via `ACTION_SET_TEXT`.
+     * 通过 `ACTION_SET_TEXT` 将 [KeyStep.text] 输入到当前聚焦的输入框。
      *
-     * There is no gesture equivalent, so this bypasses [dispatch]: it looks up the
-     * node that currently holds input focus and sets its text in one action.
+     * 没有对应的手势形式，因此这里绕过 [dispatch]：查找当前持有输入焦点的节点，
+     * 并在一次操作中设置其文本。
      */
     private suspend fun performKeyInput(step: KeyStep): ActionResult {
         val service = AccessibilityServiceHolder.current()
@@ -121,9 +118,8 @@ class AndroidAccessibilityController(
     }
 
     override fun cancelPendingGestures() {
-        // `dispatchGesture` returns false for new gestures until the current one
-        // finishes; asking the service to detach the capture layer also aborts
-        // an in-flight recording gesture.
+        // 在当前手势结束之前，`dispatchGesture` 对新手势返回 false；
+        // 请求服务卸载采集层也会中止正在执行的录制手势。
         AccessibilityServiceHolder.current()?.abortCurrentGesture()
     }
 
@@ -168,13 +164,12 @@ class AndroidAccessibilityController(
     }
 
     /**
-     * Translates an [ActionStep] into a [GestureDescription].
+     * 将 [ActionStep] 转换为 [GestureDescription]。
      *
-     * Returns `null` only when the step genuinely has no gesture form
-     * (delay/gamepad/key or too many simultaneous strokes). Coordinates are
-     * clamped into the screen because the platform rejects strokes with
-     * negative bounds; anything else is thrown to the caller so real failures
-     * surface instead of being mistaken for unsupported actions.
+     * 只有当该步骤确实没有手势形式时才返回 `null`
+     * （延迟/手柄/按键，或同时的笔画过多）。坐标会被钳制到屏幕内，
+     * 因为平台会拒绝带有负值边界的笔画；其他任何错误都会抛给调用方，
+     * 使真正的故障暴露出来，而不会被误判为不支持的动作。
      */
     private fun buildGesture(step: ActionStep): GestureDescription? {
         val metrics = measureScreen(context)
@@ -215,7 +210,7 @@ class AndroidAccessibilityController(
         return builder.build()
     }
 
-    /** Keeps a gesture coordinate inside the screen so the platform's non-negative bounds check passes. */
+    /** 将手势坐标保持在屏幕内，以便通过平台的非负边界检查。 */
     private fun Float.clampToScreen(max: Float): Float = coerceIn(0f, max)
 
     private fun pointPath(x: Float, y: Float): Path = Path().apply { moveTo(x, y) }
@@ -227,18 +222,17 @@ class AndroidAccessibilityController(
     )
 
     companion object {
-        /** Android renders at most 10 simultaneous strokes. */
+        /** Android 最多渲染 10 个同时进行的笔画。 */
         const val MAX_STROKES = 10
 
-        /** The platform rejects zero length strokes. */
+        /** 平台会拒绝零长度的笔画。 */
         const val MIN_STROKE_DURATION_MS = 20L
 
         /**
-         * Current window size in pixels.
+         * 当前窗口尺寸（像素）。
          *
-         * `WindowMetrics` (API 30+) reports the real bounds of the window the
-         * accessibility service covers, which is what gesture coordinates are
-         * relative to; older releases fall back to the display metrics.
+         * `WindowMetrics`（API 30+）报告无障碍服务所覆盖窗口的真实边界，
+         * 手势坐标正是相对于它而言；较旧的版本则回退到显示指标。
          */
         fun measureScreen(context: Context): ScreenMetrics {
             val resources = context.resources

@@ -119,7 +119,7 @@ class GamepadCalibrationViewModel(
         _message.value = null
     }
 
-    // --------------------------------------------------------------- layout
+    // --------------------------------------------------------------- 布局
 
     private fun buildDefaultLayout(widthPx: Float, heightPx: Float): List<CalibrationTarget> {
         val settings = container.settingsRepository.current

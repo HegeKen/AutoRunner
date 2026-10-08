@@ -38,8 +38,8 @@ class ExecutionToastNotifier(
     private var lastReport: ExecutionReport? = null
 
     /**
-     * `true` after a start transition whose toast was deferred because the first
-     * progress snapshot (carrying the script name) had not arrived yet.
+     * 为 `true` 表示发生了一次启动状态切换，但其 Toast 因首个进度快照（携带
+     * 脚本名）尚未到达而被推迟。
      */
     private var pendingStartToast = false
 
@@ -120,11 +120,10 @@ class ExecutionToastNotifier(
     }
 
     /**
-     * Shows [text]; the previous toast is cancelled first so messages never
-     * queue up. A brand new [Toast] is created each time: on some ROMs (实测
-     * HyperOS) reusing the same instance with `setText` — even after `cancel()`
-     * — does not refresh the visible window, whereas a new instance renders
-     * immediately.
+     * 显示 [text]；先取消上一条 Toast，确保消息不会排队堆积。每次都会创建
+     * 全新的 [Toast] 实例：在部分 ROM（实测 HyperOS）上，复用同一实例调用
+     * `setText` —— 即便先 `cancel()` —— 也不会刷新可见的提示窗口，而新实例
+     * 能立即渲染。
      */
     private fun show(text: String) {
         if (!isReminderEnabled()) return

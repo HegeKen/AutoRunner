@@ -83,7 +83,7 @@ class AutoRunnerScriptExecutorTest {
 
         assertEquals(4, report.completedLoops)
         assertEquals(8, controller.dispatched.size)
-        // 3 intervals of 2s plus the per action delays (2 taps x 300ms x 4 loops)
+        // 3 次 2 秒间隔，加上每个动作的延迟（2 次点击 x 300ms x 4 轮）
         assertEquals(6_000L + 2_400L, report.elapsedMs)
     }
 
@@ -96,7 +96,7 @@ class AutoRunnerScriptExecutorTest {
             executor.execute(script, ExecutionConfig(mode = ExecutionMode.REPEAT, repeatCount = 0))
         }
 
-        // Let a few loops happen, then stop.
+        // 让循环跑几次，然后停止。
         repeat(6) { yield() }
         executor.stop()
         job.join()
@@ -148,7 +148,7 @@ class AutoRunnerScriptExecutorTest {
         controller.isConnected = true
         job.join()
 
-        // Both actions were retried successfully after the service came back.
+        // 服务恢复后，两个动作都成功重试。
         assertEquals(2, controller.dispatched.size)
         assertEquals(ExecutionState.COMPLETED, executor.state.value)
         assertEquals(2, executor.progress.value.totalActions)
@@ -240,7 +240,7 @@ class AutoRunnerScriptExecutorTest {
 
         assertEquals(ExecutionOutcome.COMPLETED, report.outcome)
         assertEquals(GamepadButton.B, pressed)
-        // The gamepad action must not reach the accessibility service.
+        // 手柄动作绝不能到达无障碍服务。
         assertTrue(controller.dispatched.isEmpty())
     }
 

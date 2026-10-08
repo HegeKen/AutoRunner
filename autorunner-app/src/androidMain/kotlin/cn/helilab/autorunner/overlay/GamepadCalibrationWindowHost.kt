@@ -12,21 +12,18 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
 /**
- * `WindowManager` host for the gamepad calibration layer.
+ * 手柄校准层的 `WindowManager` 宿主。
  *
- * The calibration layer is a single permanent, fully transparent full screen
- * window: it lays every gamepad button over the real game so the user can drag
- * them into place. The floating ball and its long-press menu live *inside* the
- * Compose content (see [com.autorunner.ui.overlay.GamepadCalibrationPanel]),
- * so this host never has to resize or move the window itself.
+ * 校准层是一个常驻、完全透明的全屏窗口：它把每个手柄按键铺在真实游戏画面之上，
+ * 供用户拖动就位。悬浮球及其长按菜单位于 Compose 内容*内部*（见
+ * [com.autorunner.ui.overlay.GamepadCalibrationPanel]），因此本宿主无需自行
+ * 调整窗口大小或位置。
  *
- * The window keeps `FLAG_LAYOUT_IN_SCREEN` and lays out inside the display
- * cutout, so the Compose content origin is the physical screen origin `(0, 0)`;
- * the absolute pixel coordinates produced by the calibration panel therefore
- * match the coordinate system used by the recorded scripts and the stored
- * gamepad mappings. Without the cutout mode the window is letterboxed on a
- * landscape punch-hole display and the origin shifts by the cutout inset
- * (e.g. 144px / 48dp), making every stored coordinate miss the real button.
+ * 窗口保留 `FLAG_LAYOUT_IN_SCREEN` 并在显示 cutout 区域内布局，因此 Compose
+ * 内容原点即物理屏幕原点 `(0, 0)`；校准面板产出的绝对像素坐标也因此与录制
+ * 脚本、已存手柄映射所用的坐标系一致。缺少该 cutout 模式时，窗口在横屏打孔屏
+ * 上会被 letterbox，原点随之偏移一个 cutout inset（例如 144px / 48dp），
+ * 导致每个存储的坐标都打不中真实按键。
  */
 class GamepadCalibrationWindowHost(
     private val context: Context,
@@ -40,7 +37,7 @@ class GamepadCalibrationWindowHost(
 
     val isAttached: Boolean get() = composeView != null
 
-    /** Attaches the window rendering [content]; returns `false` on failure. */
+    /** 附着渲染 [content] 的窗口；失败时返回 `false`。 */
     fun show(content: @Composable () -> Unit): Boolean {
         val manager = windowManager ?: return false
         if (composeView != null) {
@@ -64,12 +61,12 @@ class GamepadCalibrationWindowHost(
         }.getOrDefault(false)
     }
 
-    /** Replaces the rendered content. */
+    /** 替换已渲染的内容。 */
     fun updateContent(content: @Composable () -> Unit) {
         composeView?.setContent { content() }
     }
 
-    /** Removes the window and releases the Compose owners. */
+    /** 移除窗口并释放 Compose 属主。 */
     fun remove() {
         val view = composeView ?: return
         composeView = null
@@ -83,8 +80,8 @@ class GamepadCalibrationWindowHost(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            // FLAG_NOT_TOUCH_MODAL is mandatory: a touchable overlay window
-            // without it consumes *every* pointer event on the display.
+            // FLAG_NOT_TOUCH_MODAL 是必需的：可触摸的悬浮窗若缺少它，
+            // 会吞噬显示上的每一个指针事件。
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -94,12 +91,11 @@ class GamepadCalibrationWindowHost(
             gravity = Gravity.TOP or Gravity.START
             x = 0
             y = 0
-            // Lay out inside the cutout so the content origin stays at the
-            // physical (0, 0) even on a landscape punch-hole display. Otherwise
-            // the window is letterboxed by the cutout inset and every calibrated
-            // absolute coordinate shifts by that inset.
-            // ALWAYS (API 30+) is used when available; SHORT_EDGES is the
-            // equivalent fallback for API 28/29 (punch-holes sit on a short edge).
+            // 在 cutout 区域内布局，使内容原点在横屏打孔屏上仍停在物理 (0, 0)。
+            // 否则窗口会被 cutout inset letterbox，每个校准出的绝对坐标都会
+            // 整体偏移该 inset。
+            // 可用时优先 ALWAYS（API 30+）；SHORT_EDGES 是 API 28/29 的等效
+            // 回退（打孔位于短边）。
             layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             } else {

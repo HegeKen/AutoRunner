@@ -20,7 +20,7 @@ import com.autorunner.ui.theme.AutoRunnerColors
 import com.autorunner.ui.theme.accentColor
 
 /**
- * Content of the floating control window (`AutoRunnerOverlayService`, §6.4.3).
+ * 悬浮控制窗的内容（`AutoRunnerOverlayService`，§6.4.3）。
  *
  * 编辑、录入、执行、标定手柄四处共用同一个悬浮球：单击触发当前状态的主操作，长按
  * 展开 [MiniActionMenu] 迷你快捷菜单。悬浮窗始终只有「球」与「球 + 菜单」两种形态，
@@ -123,5 +123,5 @@ fun FloatingControlPanel(
     }
 }
 
-/** Transparent colour constant used by the window host. */
+/** 窗口宿主使用的透明颜色常量。 */
 val TransparentWindowColor: Color = Color.Transparent

@@ -4,11 +4,10 @@ import com.autorunner.core.platform.AndroidPlatform
 import java.io.File
 
 /**
- * App private storage: `<filesDir>/scripts` (one `.arscript` file per script).
+ * 应用私有存储：`<filesDir>/scripts`（每个脚本一个 `.arscript` 文件）。
  *
- * Using internal storage means importing or exporting a script never requires a
- * storage permission; the user facing import/export goes through the Storage
- * Access Framework in the app module.
+ * 使用内部存储意味着导入或导出脚本始终无需存储权限；面向用户的导入/导出
+ * 走应用模块中的存储访问框架（Storage Access Framework）。
  */
 class AndroidScriptStorage(private val root: File) : ScriptStorage {
 
@@ -24,8 +23,8 @@ class AndroidScriptStorage(private val root: File) : ScriptStorage {
 
     override fun write(name: String, content: String) {
         if (!root.exists()) root.mkdirs()
-        // Write-then-rename keeps the previous file intact when the process dies
-        // or the disk fills up mid-write.
+        // 先写入再重命名，可在进程中断或写入过程中磁盘写满时
+        // 保持原文件完好无损。
         val target = File(root, name)
         val tmp = File(root, "$name.tmp")
         tmp.writeText(content)
