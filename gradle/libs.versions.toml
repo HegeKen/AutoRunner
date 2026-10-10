@@ -1,10 +1,9 @@
 [versions]
 # --- Toolchain (see docs/DEVELOPMENT.md § Environment) -----------------------
 kotlin = "2.4.20"
-# AGP 9.x 的 com.android.application/library 与 KMP 插件同模块共存需要经
-# `android.builtInKotlin=false` + `android.newDsl=false` 临时开关放行（见 gradle.properties）；
-# 这两个开关会在 AGP 10 移除，届时须迁移到 com.android.kotlin.multiplatform.library
-# 并拆分 Android 入口模块。9.2.1 支持 API 37.0，满足 Compose 1.12+ 的 compileSdk 37 要求。
+# 库模块（core/gamepad/ui）统一使用 AGP 9 专为 KMP 提供的
+# com.android.kotlin.multiplatform.library 插件（随 AGP 版本分发），
+# app 入口模块则是标准 com.android.application + AGP 内置 Kotlin。
 agp = "9.2.1"
 compose-multiplatform = "1.12.1"
 jdk = "21"
@@ -62,4 +61,4 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
 android-application = { id = "com.android.application", version.ref = "agp" }
-android-library = { id = "com.android.library", version.ref = "agp" }
+android-kmp-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }

@@ -398,9 +398,7 @@ flow**，保证 `info.coordinateSpace` 与动作数据始终一致。
 * **应用私有目录存储**：导入/导出通过 SAF 完成，脚本本体存于 `filesDir/scripts`，卸载即清除。
 * **桌面 target** 仅用于编译校验、单元测试与 UI 预览，不提供手势回放与悬浮窗能力。
 * MIUIX 仍处于快速迭代阶段，项目锁定 `0.9.4`，升级前请先跑通全部测试。
-* **AGP 9.x 临时兼容开关**：AGP 9.0 起 `com.android.application` / `com.android.library` 不再与 KMP 插件同模块兼容，
-  当前通过 `gradle.properties` 里的 `android.builtInKotlin=false` 与 `android.newDsl=false` 临时绕过。这两个开关会在
-  AGP 10 移除，届前需迁移到 `com.android.kotlin.multiplatform.library` 并拆分 Android 入口模块。
+* **AGP 9 兼容架构**：AGP 9.0 起 `com.android.application` / `com.android.library` 不再与 KMP 插件同模块兼容。本项目中 `autorunner-core` / `autorunner-gamepad` / `autorunner-ui` 统一使用 AGP 专为 KMP 提供的 `com.android.kotlin.multiplatform.library` 插件（`androidLibrary {}` 配置块），`autorunner-app` 则是只保留 `com.android.application` 的标准 Android 入口模块（AGP 9 内置 Kotlin，无需 `kotlin-android`）；共享模块的测试在 desktop 与 Android 主机两个目标上各运行一次。
 
 ---
 

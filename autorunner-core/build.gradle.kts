@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.android.kmp.library)
 }
 
 // 应用版本来自根 gradle.properties 的单一来源，生成 BuildInfo.kt 供 commonMain 使用
@@ -39,8 +39,14 @@ val generateBuildInfo = tasks.register("generateBuildInfo") {
 kotlin {
     jvmToolchain(libs.versions.jdk.get().toInt())
 
-    androidTarget {
+    androidLibrary {
+        namespace = "com.autorunner.core"
+        compileSdk = libs.versions.compileSdk.get().toInt()
+        minSdk = libs.versions.minSdk.get().toInt()
         compilerOptions { jvmTarget.set(JvmTarget.JVM_21) }
+        // commonTest 同时作为 Android 主机测试运行（不只是 desktop 目标），
+        // 消除「commonTest 存在但未启用 android host test」的构建告警。
+        withHostTest { }
     }
 
     jvm("desktop") {
@@ -63,17 +69,5 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
         }
-    }
-}
-
-android {
-    namespace = "com.autorunner.core"
-    compileSdk = libs.versions.compileSdk.get().toInt()
-    defaultConfig {
-        minSdk = libs.versions.minSdk.get().toInt()
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
     }
 }

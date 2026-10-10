@@ -36,6 +36,17 @@ interface RootInputBackend {
      */
     fun repairAccessibility(): Boolean = false
 
+    /**
+     * 按需请求补授运行所需权限（Root 模式自愈）。
+     *
+     * App 被重装或更新后，`POST_NOTIFICATIONS` 等运行时权限与 `SYSTEM_ALERT_WINDOW`
+     * 等 appop 会被系统重置为默认值，而模块只在开机时授一次。检测到权限缺失时
+     * 下发此请求，由守护进程立即重新授予（MIUI 上还包含自启动 / 后台弹出界面）。
+     *
+     * @return 请求是否已成功下发（并不代表权限已生效）。
+     */
+    fun repairPermissions(): Boolean = false
+
     /** 执行一步动作；不支持的步骤返回 [ActionResult.Unsupported]。 */
     suspend fun perform(step: ActionStep): ActionResult
 }

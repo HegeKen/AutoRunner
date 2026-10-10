@@ -156,6 +156,45 @@ class AndroidRootInputBackend(
         return write("a11y") == ActionResult.Success
     }
 
+    /**
+     * 按需补授通知 / 悬浮窗等权限，两条路径双写：
+     * 装了模块 → 下发 `perms` 由守护进程执行 grant_permissions.sh；
+     * root 已授权 → 再经 su 内联执行同一套命令（模块脚本未更新 / 旧守护进程
+     * 不认识 perms 时由此兜底，两边都新时只是幂等重放）。
+     */
+    override fun repairPermissions(): Boolean {
+        var dispatched = false
+        if (moduleInstalled) {
+            // 文件桥：装了新模块时由守护进程执行；旧模块上的旧守护进程不认识
+            // perms（会记 unknown command），此时靠下面的 su 内联兜底。
+            dispatched = write("perms") == ActionResult.Success
+        }
+        if (suGranted) {
+            // 双写内联：旧守护进程 / 模块脚本未更新时仍能即时补授；
+            // 两边都新时只是一次无害的幂等重放。
+            if (execPermissionsInline()) dispatched = true
+        }
+        return dispatched
+    }
+
+    /** 直接经 su 执行整套授权命令；单条失败不中断，命令全部退出即视为已尽力。 */
+    private fun execPermissionsInline(): Boolean {
+        val su = suPath ?: return false
+        return runCatching {
+            val joined = SU_PERMISSION_COMMANDS.joinToString("; ")
+            val process = ProcessBuilder(su, "-c", joined)
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText().trim()
+            val code = process.waitFor()
+            Log.i(AutoRunnerApplication.TAG, "root perms inline exit=$code out=$output")
+            code == 0
+        }.getOrElse { error ->
+            Log.w(AutoRunnerApplication.TAG, "root perms inline failed", error)
+            false
+        }
+    }
+
     private fun write(line: String): ActionResult = runCatching {
         FileOutputStream(File(context.filesDir, COMMAND_FILE), true).use { out ->
             out.write((line + "\n").toByteArray())
@@ -219,6 +258,24 @@ class AndroidRootInputBackend(
         /** 内置模块（assets）与导出后的文件名；版本与内置模块一致。 */
         const val MODULE_ASSET = "autorunner_root.zip"
         val MODULE_FILE = "autorunner_root-v${BuildInfo.VERSION_NAME}.zip"
+
+        /**
+         * 未装模块时直接经 su 执行的授权命令，须与 root-module 里
+         * grant_permissions.sh 的内容保持一致（单条失败不中断后续）。
+         */
+        private val SU_PERMISSION_COMMANDS = listOf(
+            "pm grant $PACKAGE android.permission.POST_NOTIFICATIONS",
+            "appops set $PACKAGE SYSTEM_ALERT_WINDOW allow",
+            "appops set $PACKAGE 10008 allow",
+            "appops set $PACKAGE 10021 allow",
+            "dumpsys deviceidle whitelist +$PACKAGE",
+            "appops set $PACKAGE RUN_IN_BACKGROUND allow",
+            "appops set $PACKAGE RUN_ANY_IN_BACKGROUND allow",
+            "appops set $PACKAGE START_FOREGROUND allow",
+            "am set-inactive $PACKAGE false",
+        )
+
+        private const val PACKAGE = "cn.helilab.autorunner"
     }
 }
 

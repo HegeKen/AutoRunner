@@ -15,36 +15,16 @@ import org.gradle.process.ExecOperations
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.compose.compiler)
-    alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.android.application)
+    alias(libs.plugins.compose.compiler)
 }
 
+// AGP 9 内置 Kotlin 支持：无需 org.jetbrains.kotlin.android，也无需 KMP 插件
+// （本模块只有 Android 一个目标）。仅声明工具链与编译选项。
 kotlin {
     jvmToolchain(libs.versions.jdk.get().toInt())
-
-    androidTarget {
-        compilerOptions { jvmTarget.set(JvmTarget.JVM_21) }
-    }
-
-    sourceSets {
-        androidMain.dependencies {
-            implementation(project(":autorunner-core"))
-            implementation(project(":autorunner-ui"))
-            implementation(project(":autorunner-gamepad"))
-
-            implementation(libs.compose.runtime)
-            implementation(libs.compose.foundation)
-            implementation(libs.compose.ui)
-
-            implementation(libs.androidx.activity.compose)
-            implementation(libs.androidx.core.ktx)
-            implementation(libs.kotlinx.coroutines.android)
-        }
-        androidUnitTest.dependencies {
-            implementation(kotlin("test"))
-        }
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_21)
     }
 }
 
@@ -123,25 +103,19 @@ android {
         versionCode = providers.gradleProperty("autorunner.versionCode").get().toInt()
         versionName = providers.gradleProperty("autorunner.versionName").get()
 
-        // The adb debug command receiver only exists in debug builds.
+        // adb 调试命令接收器只存在于 debug 构建。
         manifestPlaceholders["debugReceiverEnabled"] = "false"
     }
 
-    buildTypes {
-        getByName("debug") {
-            manifestPlaceholders["debugReceiverEnabled"] = "true"
-        }
+    buildFeatures {
+        compose = true
     }
 
-    // AutoRunner is a KMP module: Android sources live in src/androidMain.
-    sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")
-    sourceSets["main"].res.srcDirs("src/androidMain/res")
-    sourceSets["main"].assets.srcDirs("src/androidMain/assets")
+    // 代码、清单、资源与 assets 都已回到标准 src/main 布局，无需再重映射源集。
 
-    // A project local debug key is used instead of `~/.android/debug.keystore` so
-    // that `assembleDebug` also works in sandboxed/CI environments where the home
-    // directory is not writable. It is a throwaway key with the well known
-    // "android" password and must never be used for a release build.
+    // 使用项目内 debug 密钥而非 `~/.android/debug.keystore`，使 `assembleDebug` 在
+    // 主目录不可写的沙盒 / CI 环境同样可用。这是密码为众所周知的 "android" 的一次性
+    // 密钥，绝不能用于正式发布构建。
     signingConfigs {
         getByName("debug") {
             storeFile = file("debug.keystore")
@@ -184,10 +158,15 @@ android {
         // 未提供 ANDROID_KEYSTORE_* 变量时 release signingConfig 会回退到项目内
         // debug.keystore，因此本地无变量时的行为与以前完全一致。
         getByName("debug") {
+            manifestPlaceholders["debugReceiverEnabled"] = "true"
             signingConfig = signingConfigs.getByName("release")
         }
         release {
-            isMinifyEnabled = false
+            // R8 裁剪未使用代码 + 资源压缩：Compose / MIUIX 等框架此前整包打入，
+            // 开启后只保留实际引用到的类与资源。项目无反射调用，.arscript 的
+            // kotlinx.serialization 走编译期代码生成，无需大范围 keep。
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("release")
         }
@@ -201,6 +180,24 @@ android {
     packaging {
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
     }
+}
+
+dependencies {
+    implementation(project(":autorunner-core"))
+    implementation(project(":autorunner-ui"))
+    implementation(project(":autorunner-gamepad"))
+
+    implementation(libs.compose.runtime)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.ui)
+
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.kotlinx.coroutines.android)
+
+    // 内置 Kotlin 的纯 Android 模块不会像 KMP 那样把 kotlin("test") 自动映射到
+    // junit 变体，必须显式声明，否则缺 kotlin.test.Test 注解；JUnit 4 由其传递引入。
+    testImplementation(kotlin("test-junit"))
 }
 
 // 把生成的 root-module zip 目录注册为 assets 的「生成源目录」。

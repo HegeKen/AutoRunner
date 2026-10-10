@@ -8,6 +8,8 @@
 #   key KEYCODE
 #   text STRING
 #   a11y            （幂等补回无障碍服务条目，供 App 在检测到缺失时按需触发）
+#   perms           （按需重新授予通知 / 悬浮窗等权限：App 重装或更新后这些
+#                     授权会被系统重置，不能只等下次开机）
 #
 # 安全模型：
 #   * 命令文件位于 AutoRunner 的私有目录（0700，只有该 App 与 root 可读写），
@@ -56,6 +58,9 @@ while true; do
       a11y)
         sh "$SCRIPT_DIR/enable_accessibility.sh" >> "$ROOTDIR/service.log" 2>&1 && \
           echo "[daemon] accessibility restored on demand at $(date)" ;;
+      perms)
+        sh "$SCRIPT_DIR/grant_permissions.sh" >> "$ROOTDIR/service.log" 2>&1 && \
+          echo "[daemon] permissions re-granted on demand at $(date)" ;;
       *)
         echo "[daemon] unknown command: $1" ;;
     esac

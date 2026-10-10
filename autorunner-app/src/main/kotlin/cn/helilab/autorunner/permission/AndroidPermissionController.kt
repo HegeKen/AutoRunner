@@ -43,8 +43,11 @@ class AndroidPermissionController(
 
     override val status: StateFlow<PermissionStatus> = _status.asStateFlow()
 
-    /** 本轮「缺失」是否已下发过修复请求，避免反复触发。 */
+    /** 本轮「无障碍缺失」是否已下发过修复请求，避免反复触发。 */
     private var repairRequested = false
+
+    /** 本轮「通知 / 悬浮窗缺失」是否已下发过补授请求。 */
+    private var permRepairRequested = false
 
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
@@ -52,6 +55,7 @@ class AndroidPermissionController(
         val status = readStatus()
         _status.value = status
         requestAccessibilityRepairIfNeeded(status)
+        requestPermissionRepairIfNeeded(status)
     }
 
     /**
@@ -75,6 +79,31 @@ class AndroidPermissionController(
             )
         } else {
             repairRequested = false
+        }
+    }
+
+    /**
+     * Root 模式下按需补授通知 / 悬浮窗权限：App 被重装或更新后这些授权会被系统
+     * 重置，而模块只在开机时授予一次。这里在检测到「缺失 + Root 可用」时下发一次
+     * 补授请求（装模块走守护进程，未装模块走 su 直连），稍后重读状态刷新 UI。
+     * 两个权限都到位后重置标志位，允许后续轮缺失再次补授；同一轮缺失只请求一次。
+     */
+    private fun requestPermissionRepairIfNeeded(status: PermissionStatus) {
+        if (status.notificationGranted && status.overlayGranted) {
+            permRepairRequested = false
+            return
+        }
+        val backend = rootInputBackend ?: return
+        if (!backend.isAvailable || permRepairRequested) return
+        permRepairRequested = true
+        if (backend.repairPermissions()) {
+            // 守护进程 / appops 写入与系统生效需要一点时间，延后重读。
+            mainHandler.postDelayed(
+                { _status.value = readStatus() },
+                PERMISSION_RECHECK_DELAY_MS,
+            )
+        } else {
+            permRepairRequested = false
         }
     }
 
@@ -280,6 +309,9 @@ class AndroidPermissionController(
     private companion object {
         /** 下发修复请求后等待守护进程/系统生效，再重读状态刷新 UI。 */
         const val REPAIR_RECHECK_DELAY_MS = 800L
+
+        /** 下发权限补授后等待 appops / pm 生效，再重读状态。 */
+        const val PERMISSION_RECHECK_DELAY_MS = 1_500L
     }
 }
 

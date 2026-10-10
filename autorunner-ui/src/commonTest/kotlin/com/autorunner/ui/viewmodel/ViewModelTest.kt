@@ -6,6 +6,7 @@ import com.autorunner.core.platform.ActionResult
 import com.autorunner.core.model.ActionStep
 import com.autorunner.core.model.CoordinateSpace
 import com.autorunner.core.model.ExecutionMode
+import com.autorunner.core.model.GamepadButton
 import com.autorunner.core.model.ScreenMetrics
 import com.autorunner.core.model.ScriptModel
 import com.autorunner.core.model.TapStep
@@ -383,6 +384,50 @@ class ViewModelTest {
         list.delete(list.visibleScripts.value.first { it.name == "签到" }.id)
         advanceUntilIdle()
         assertEquals(2, list.visibleScripts.value.size)
+    }
+
+    // ------------------------------------------------------------- 手柄标定
+
+    @Test
+    fun calibrationSavesPerButtonPressDurations() = runTest {
+        val container = container(FakeAccessibilityController())
+        val calibration = GamepadCalibrationViewModel(container)
+        calibration.ensureLayout(1080f, 2400f)
+        advanceUntilIdle()
+
+        // 初始为默认按压时长。
+        assertEquals(
+            GamepadCalibrationViewModel.DEFAULT_PRESS_DURATION_MS,
+            calibration.targets.value.first { it.button == GamepadButton.A }.durationMs,
+        )
+
+        // 调整 A 键的按压时长；过小的值被夹取到下限。
+        calibration.setTargetDuration(GamepadButton.A.serialName, 260L)
+        calibration.setTargetDuration(GamepadButton.B.serialName, 5L)
+        calibration.save()
+        advanceUntilIdle()
+
+        val mode = container.settingsRepository.current.gamepadMode
+        val mappings = container.settingsRepository.current.gamepadMappingsFor(mode)
+        assertEquals(260L, mappings.mappingFor(GamepadButton.A)?.durationMs)
+        assertEquals(
+            GamepadCalibrationViewModel.MIN_PRESS_DURATION_MS,
+            mappings.mappingFor(GamepadButton.B)?.durationMs,
+        )
+        assertTrue(mappings.mappingFor(GamepadButton.A)?.configured == true)
+    }
+
+    @Test
+    fun calibrationIgnoresDurationEditsOnStickCenter() = runTest {
+        val container = container(FakeAccessibilityController())
+        val calibration = GamepadCalibrationViewModel(container)
+        calibration.ensureLayout(1080f, 2400f)
+        advanceUntilIdle()
+
+        // 摇杆中心不是按键，时长编辑必须被忽略。
+        calibration.setTargetDuration(GamepadCalibrationViewModel.STICK_CENTER_ID, 500L)
+        val stickCenter = calibration.targets.value.first { it.isStickCenter }
+        assertEquals(GamepadCalibrationViewModel.DEFAULT_PRESS_DURATION_MS, stickCenter.durationMs)
     }
 
     // --------------------------------------------------------------- 设置

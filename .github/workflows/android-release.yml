@@ -2,11 +2,10 @@ name: Android Release
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
-  # 在 GitHub 上「创建/发布 Release」不会触发 push 的 tag 事件（UI 建 tag 不发 push，
-  # 且本项目 Release tag 为 1.0.0 并不匹配 v*），因此必须显式订阅 release 事件。
+  # 只订阅 release 事件，单一触发源：同一版本「推 tag」与「发布 Release」各触发一次
+  # 会把同一个 Release 打两遍。发布 Release 时 GITHUB_REF 即对应 tag，构建与挂附件
+  # 都能正常定位；单纯推 tag 不再打包，需要打包时在 GitHub 上发布 Release 或手动
+  # workflow_dispatch。
   release:
     types: [published]
 
@@ -63,12 +62,16 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       # 发布前必须通过单元测试：防止带回归 bug 的 APK 被发出。
+      # 共享模块（core/gamepad/ui）在 desktop 与 Android 主机两个目标上各跑一遍。
       - name: Run unit tests
         run: >
           ./gradlew
           :autorunner-core:desktopTest
           :autorunner-gamepad:desktopTest
           :autorunner-ui:desktopTest
+          :autorunner-core:testAndroidHostTest
+          :autorunner-gamepad:testAndroidHostTest
+          :autorunner-ui:testAndroidHostTest
           :autorunner-app:testDebugUnitTest
           --console=plain
 
@@ -104,11 +107,10 @@ jobs:
           retention-days: 7
 
       # 把 APK 作为附件挂到对应 Release 上，附件名带版本号（与 artifact 命名一致）。
-      # 触发场景：release 事件（Release 已存在），或 push tag（tag 已存在但可能尚无 Release，
-      # 此时先自动创建再上传）。workflow_dispatch 不带 tag，跳过该步骤避免误建 Release。
-      # --clobber 允许重跑覆盖同名附件。
+      # 仅 release 事件执行：此时 Release 已存在，直接上传即可（GITHUB_REF 即 release 的 tag）；
+      # workflow_dispatch 不带 tag，跳过该步骤。--clobber 允许重跑覆盖同名附件。
       - name: Attach APK to release
-        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -118,8 +120,6 @@ jobs:
           SRC=autorunner-app/build/outputs/apk/release/autorunner-app-release.apk
           APK=autorunner-app/build/outputs/apk/release/autorunner-${VERSION}.apk
           cp "$SRC" "$APK"
-          gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" --title "$TAG" --generate-notes
           # 清掉可能存在的无版本号旧附件，避免同一 Release 下重复。
           gh release delete-asset "$TAG" autorunner-app-release.apk --yes >/dev/null 2>&1 || true
           gh release upload "$TAG" "$APK" --clobber

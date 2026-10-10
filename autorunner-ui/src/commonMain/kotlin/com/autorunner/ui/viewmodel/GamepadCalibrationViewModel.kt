@@ -19,6 +19,8 @@ data class CalibrationTarget(
     val button: GamepadButton?,
     val x: Float,
     val y: Float,
+    /** 合成按下保持的时长（毫秒）；摇杆中心无意义。 */
+    val durationMs: Long = GamepadCalibrationViewModel.DEFAULT_PRESS_DURATION_MS,
 ) {
     val isStickCenter: Boolean get() = button == null
 }
@@ -75,6 +77,22 @@ class GamepadCalibrationViewModel(
         }
     }
 
+    /**
+     * 设置一个按键节点的按压时长；摇杆中心忽略。
+     *
+     * 不同设备 / 游戏对点击、按压的识别时长不同（有的 60ms 即可触发，有的需要
+     * 200ms 以上），因此允许在标定页逐个按键手动调整。范围与设置持久化时的
+     * 夹取一致（[MIN_PRESS_DURATION_MS]..[MAX_PRESS_DURATION_MS]）。
+     */
+    fun setTargetDuration(id: String, durationMs: Long) {
+        val target = _targets.value.firstOrNull { it.id == id && it.button != null } ?: return
+        val coerced = durationMs.coerceIn(MIN_PRESS_DURATION_MS, MAX_PRESS_DURATION_MS)
+        if (coerced == target.durationMs) return
+        _targets.value = _targets.value.map { node ->
+            if (node.id == id) node.copy(durationMs = coerced) else node
+        }
+    }
+
     /** 把当前拖拽结果写入当前手柄类型对应的那一份标定，并启用模拟手柄。 */
     fun save() {
         val targets = _targets.value
@@ -94,14 +112,13 @@ class GamepadCalibrationViewModel(
                         stickCenterConfigured = true,
                     )
                 } else {
-                    val duration = mappings.buttons
-                        .firstOrNull { it.button == button }?.durationMs ?: 60L
                     mappings = mappings.withMapping(
                         GamepadButtonMapping(
                             button = button,
                             x = target.x,
                             y = target.y,
-                            durationMs = duration,
+                            durationMs = target.durationMs
+                                .coerceIn(MIN_PRESS_DURATION_MS, MAX_PRESS_DURATION_MS),
                             configured = true,
                         ),
                     )
@@ -138,6 +155,7 @@ class GamepadCalibrationViewModel(
                 button = node.button,
                 x = configured?.first ?: (fraction.first * widthPx),
                 y = configured?.second ?: (fraction.second * heightPx),
+                durationMs = configured?.third ?: DEFAULT_PRESS_DURATION_MS,
             )
         }
     }
@@ -175,16 +193,16 @@ class GamepadCalibrationViewModel(
     private fun resolveConfigured(
         button: GamepadButton?,
         mappings: com.autorunner.core.model.GamepadMappings,
-    ): Pair<Float, Float>? {
+    ): Triple<Float, Float, Long>? {
         if (button == null) {
             return if (mappings.stickCenterConfigured) {
-                Pair(mappings.stickCenterX, mappings.stickCenterY)
+                Triple(mappings.stickCenterX, mappings.stickCenterY, DEFAULT_PRESS_DURATION_MS)
             } else {
                 null
             }
         }
         val mapping = mappings.mappingFor(button) ?: return null
-        return Pair(mapping.x, mapping.y)
+        return Triple(mapping.x, mapping.y, mapping.durationMs)
     }
 
     private data class NodeSpec(
@@ -195,6 +213,13 @@ class GamepadCalibrationViewModel(
 
     companion object {
         const val STICK_CENTER_ID = "STICK_CENTER"
+
+        /** 按键默认按压时长（毫秒），与 [com.autorunner.core.model.GamepadButtonMapping] 默认值一致。 */
+        const val DEFAULT_PRESS_DURATION_MS = 60L
+
+        /** 按压时长允许的最小值 / 最大值，与设置持久化时的夹取范围一致。 */
+        const val MIN_PRESS_DURATION_MS = 20L
+        const val MAX_PRESS_DURATION_MS = 10_000L
 
         /** 摇杆中心默认比例，与左摇杆（L3）的物理位置一致。 */
         private val STICK_CENTER_FRACTION = 0.317f to 0.785f

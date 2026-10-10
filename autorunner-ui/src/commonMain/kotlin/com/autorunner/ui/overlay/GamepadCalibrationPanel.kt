@@ -3,12 +3,17 @@ package com.autorunner.ui.overlay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -34,8 +39,10 @@ import com.autorunner.ui.theme.Dimens
 import com.autorunner.ui.viewmodel.CalibrationTarget
 import com.autorunner.ui.viewmodel.GamepadCalibrationViewModel
 import kotlin.math.roundToInt
+import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import com.autorunner.ui.components.CenteredText
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
@@ -46,6 +53,21 @@ import kotlinx.coroutines.delay
 
 /** 顶部提示 Toast 的停留时长：到点自动消失，避免常驻遮挡按键。 */
 private const val HintToastDurationMs = 5_000L
+
+/** 按压时长编辑器气泡的固定宽度。 */
+private val DurationPopoverWidth = 248.dp
+
+/** 气泡首次布局前用于定位的预估高度，实测尺寸就绪后即被替换。 */
+private val DurationPopoverEstimatedHeight = 112.dp
+
+/** 按压时长滑块的取值范围（毫秒），与设置持久化的夹取范围下限一致。 */
+private val DurationSliderRange = 20f..2_000f
+
+/** 滑块按 20ms 步进时的离散点数：(2000-20)/20 - 1 = 98。 */
+private const val DurationSliderSteps = 98
+
+/** 常用按压时长快捷值（毫秒）：覆盖多数设备的识别阈值区间。 */
+private val DurationPresets = listOf(60L, 150L, 300L)
 
 /**
  * 手柄按键标定悬浮层。
@@ -84,6 +106,7 @@ fun GamepadCalibrationPanel(
     var chipsVisible by remember { mutableStateOf(true) }
     var hintVisible by remember { mutableStateOf(true) }
     var menuOpen by remember { mutableStateOf(false) }
+    var durationEditorId by remember { mutableStateOf<String?>(null) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
     var menuSize by remember { mutableStateOf(IntSize.Zero) }
     var ballX by remember { mutableStateOf(0f) }
@@ -126,9 +149,17 @@ fun GamepadCalibrationPanel(
                     target = target,
                     size = chipSize,
                     onDrag = { dx, dy ->
-                        // 用户一旦开始拖拽就收起提示，直到不再干扰标定。
+                        // 用户一旦开始拖拽就收起提示与时长编辑器，直到不再干扰标定。
                         hintVisible = false
+                        durationEditorId = null
                         viewModel.moveTarget(target.id, dx, dy)
+                    },
+                    onClick = {
+                        if (!target.isStickCenter) {
+                            hintVisible = false
+                            durationEditorId =
+                                if (durationEditorId == target.id) null else target.id
+                        }
                     },
                     modifier = Modifier.offset {
                         IntOffset(
@@ -190,6 +221,41 @@ fun GamepadCalibrationPanel(
             )
         }
 
+        // 点按某个按键后，在它附近弹出按压时长编辑器。
+        val durationTarget = targets.firstOrNull { it.id == durationEditorId }
+        if (chipsVisible && durationTarget != null) {
+            var popoverSize by remember { mutableStateOf(IntSize.Zero) }
+            val popoverWidth = with(density) { DurationPopoverWidth.toPx() }
+            val popoverHeight = popoverSize.height.takeIf { it > 0 }?.toFloat()
+                ?: with(density) { DurationPopoverEstimatedHeight.toPx() }
+            val popoverX = (durationTarget.x - popoverWidth / 2f).coerceIn(
+                edgeInsetPx,
+                (canvasSize.width - popoverWidth - edgeInsetPx).coerceAtLeast(edgeInsetPx),
+            )
+            // 优先显示在按键上方，空间不足时落到下方。
+            val popoverY = (durationTarget.y - chipSizePx - menuGapPx - popoverHeight)
+                .takeIf { it >= edgeInsetPx }
+                ?: (durationTarget.y + chipSizePx + menuGapPx)
+            DurationEditorPopover(
+                target = durationTarget,
+                onChange = { duration ->
+                    viewModel.setTargetDuration(durationTarget.id, duration)
+                },
+                onDone = { durationEditorId = null },
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            popoverX.roundToInt(),
+                            popoverY
+                                .coerceAtMost(canvasSize.height - popoverHeight - edgeInsetPx)
+                                .coerceAtLeast(edgeInsetPx)
+                                .roundToInt(),
+                        )
+                    }
+                    .onSizeChanged { popoverSize = it },
+            )
+        }
+
         FloatingBall(
             accent = scheme.primary,
             onClick = {
@@ -222,11 +288,19 @@ private fun CalibrationChip(
     target: CalibrationTarget,
     size: Dp,
     onDrag: (Float, Float) -> Unit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
     val fill = if (target.isStickCenter) scheme.secondaryContainer else scheme.primary
     val labelColor = if (target.isStickCenter) scheme.onSecondaryContainer else scheme.onPrimary
+    // 点按手势单独挂一个 pointerInput：与拖拽手势并存，由触摸斜率自动区分
+    // （位移超过 touch slop 判定为拖拽，松手前未移动判定为点击）。
+    val tapModifier = if (target.isStickCenter) {
+        Modifier
+    } else {
+        Modifier.pointerInput(target.id) { detectTapGestures { onClick() } }
+    }
     Box(
         modifier = modifier
             .size(size)
@@ -238,7 +312,8 @@ private fun CalibrationChip(
                     change.consume()
                     onDrag(drag.x, drag.y)
                 }
-            },
+            }
+            .then(tapModifier),
         contentAlignment = Alignment.Center,
     ) {
         CenteredText(
@@ -246,6 +321,52 @@ private fun CalibrationChip(
             style = MiuixTheme.textStyles.footnote1,
             color = labelColor,
         )
+    }
+}
+
+/** 按压时长编辑器气泡；数值以毫秒为单位，按 20ms 步进。 */
+@Composable
+private fun DurationEditorPopover(
+    target: CalibrationTarget,
+    onChange: (Long) -> Unit,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.width(DurationPopoverWidth),
+        shape = RoundedCornerShape(16.dp),
+        color = MiuixTheme.colorScheme.surface,
+        shadowElevation = 12.dp,
+    ) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "按压时长",
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurface,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "${target.durationMs} ms",
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                )
+            }
+            Slider(
+                value = target.durationMs.toFloat(),
+                onValueChange = { onChange(it.roundToInt().toLong()) },
+                modifier = Modifier.fillMaxWidth(),
+                valueRange = DurationSliderRange,
+                steps = DurationSliderSteps,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                DurationPresets.forEach { preset ->
+                    TextButton(text = "$preset", onClick = { onChange(preset) })
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(text = "完成", onClick = onDone)
+            }
+        }
     }
 }
 
@@ -261,7 +382,7 @@ private fun CalibrationHintToast(
         shadowElevation = 8.dp,
     ) {
         Text(
-            text = "拖拽按键，对齐到游戏中的实际按钮位置；点按悬浮球显示/隐藏按键，长按可重置、取消或保存并退出",
+            text = "拖拽按键对齐游戏按钮；点按按键可设置按压时长（设备不识别时调大）；悬浮球长按可重置、取消或保存并退出",
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier

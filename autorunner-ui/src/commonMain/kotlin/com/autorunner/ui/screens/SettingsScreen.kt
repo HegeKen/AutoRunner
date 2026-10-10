@@ -108,6 +108,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * @param onOpenScriptsDirectoryInfo 打开“脚本目录说明”的回调；为 `null` 时不显示该入口。
  * @param modifier 由外层 Shell 传入的修饰符（一般用于处理内边距）。
  */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
@@ -125,6 +126,13 @@ fun SettingsScreen(
     val expanded = windowSize.layoutMode == LayoutMode.EXPANDED
     val detailPage = page ?: SettingsPage.PERMISSIONS
     val showingMenu = !expanded && page == null
+
+    // 窄屏停留在二级分类页时拦截系统返回键：先回到设置分类列表，而不是把
+    // 返回事件冒泡给外层 Shell 的全局 BackHandler（后者会直接退回脚本库首页）。
+    // Compose 中内层 BackHandler 的回调优先级高于外层，无需手动协调。
+    androidx.compose.ui.backhandler.BackHandler(enabled = !expanded && page != null) {
+        page = null
+    }
 
     // 与录制 / 编辑器共用 PageScaffold：insets 置零与滚动连接只有一份实现。
     PageScaffold(
@@ -215,7 +223,14 @@ fun SettingsScreen(
                         .fillMaxHeight()
                         .overScrollVertical()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = Dimens.ScreenPadding),
+                        // 底部留出与屏幕边距等宽的呼吸位：外层 Scaffold 的 padding
+                        // 只让内容避开底部 tab，最后一项仍会紧贴 tab 上沿。
+                        // 分类落地页与二级页共用本 Column，一次覆盖两种页面。
+                        .padding(
+                            start = Dimens.ScreenPadding,
+                            end = Dimens.ScreenPadding,
+                            bottom = Dimens.ScreenPadding,
+                        ),
                     verticalArrangement = Arrangement.spacedBy(Dimens.SectionSpacing),
                 ) {
                     // 顶部留白由 Column 的 spacing 提供，避免与 Scaffold 的 insets 叠加。

@@ -2,6 +2,28 @@
 
 本文件记录 AutoRunner 的所有重要变更。
 
+## v1.0.4 - 2026-10-10
+
+修复设置二级页面按系统返回键直接回落首页的问题；手柄标定页支持为每个按键单独设置按压时长，适配不同设备的触发阈值；Root 模式下 App 重装/更新后被重置的权限可按需自动补授；构建链迁移至 Gradle 9.8 与 AGP 9 专为 KMP 提供的新插件。
+
+### Added
+
+- **手柄标定页可手动设置按压时长**：点按任意按键圆形节点（与拖拽自动区分）即在该按键附近弹出时长编辑器，含滑块（20–2000ms，20ms 步进）与 60/150/300ms 快捷预设；时长随映射按手柄模式分别保存，回放时各按键按各自时长注入触摸。部分设备 / 游戏对按压识别时长不同（60ms 可触发、部分需 200ms 以上），不触发时可直接在标定页调大。
+- **Root 模式权限按需自愈**：守护进程新增 `perms` 命令，与既有 `a11y` 无障碍自愈同构；授权脚本补授 MIUI 专有 appop（`10008` 自启动、`10021` 后台弹出界面），并对每一项授权做回读校验，不再被命令的假成功蒙蔽。App 在设置页检测到通知 / 悬浮窗权限缺失时自动下发一次补授（事件驱动，无轮询），稍后重读刷新 UI。
+- **共享模块测试在 Android 主机目标运行**：`androidLibrary` 启用 `withHostTest`，commonTest 用例不再只跑 desktop 目标，同时消除「commonTest 存在但未启用 android host test」的构建告警。
+
+### Fixed
+
+- **设置二级页面按系统返回键不再回落首页**：此前设置页只处理了顶栏返回箭头，系统返回键事件冒泡给外层 Shell 的全局 BackHandler，被直接带回脚本库首页；现在窄屏处于权限、外观、执行等二级分类页时，按返回键先回到设置分类列表，再按一次才回首页（内层 BackHandler 优先消费）。宽屏双栏布局行为不变。
+- **Root 模块在 App 重装/更新后无法授予通知、悬浮窗权限**：模块此前只在开机时授权一次，而重装或商店更新会把 `POST_NOTIFICATIONS` 运行时权限与 `SYSTEM_ALERT_WINDOW` appop 重置为默认拒绝（实测为 `granted=false` / `ignore`），须等下次重启才恢复；现由 App 检测缺失后经 `perms` 命令即时补授。另有**双路径兜底**：装了模块走守护进程，同时若 su 已授权再内联直授——用户装了新 APK 但还没重刷模块（旧守护进程不认识 `perms`）时也能立即生效。守护进程路径需在 App 内导出并重刷一次模块（随 APK 打包的 zip 已含新脚本）。
+
+### Changed
+
+- **Release 工作流改为单一触发源**：`android-release.yml` 删除 `push tags` 触发，仅保留「发布 Release」与手动 `workflow_dispatch`；此前推 tag 与发布 Release 会把同一版本各打包一次，挂附件步骤同步去掉不再需要的自动建 Release 兜底。发布流程变为推 tag 后在 GitHub 发布 Release 即触发打包。
+- **构建链迁移至 Gradle 9.8 + AGP 9 新 KMP 插件**：Gradle 9.4.1 升级至 9.8.0；`autorunner-core` / `gamepad` / `ui` 三个共享模块由 `com.android.library` 改为 `com.android.kotlin.multiplatform.library`（`androidTarget {}` → `androidLibrary {}`，删除顶层 `android {}`）；`autorunner-app` 去 KMP 化变为标准 Android 应用（AGP 9 内置 Kotlin，源码目录 `androidMain → main`、`androidUnitTest → test`）；临时兼容开关 `android.builtInKotlin` / `android.newDsl` 随之移除，AGP 废弃告警清零。
+- **设置页底部留白**：分类列表与二级页的滚动内容底部增加 16dp 呼吸位，不再与底部 tab 紧贴；宽屏双栏布局不变。
+- **Release 开启 R8 代码与资源裁剪**：此前 release 关闭混淆（`isMinifyEnabled=false`），Compose / MIUIX / androidx.core 等框架整包打入；现开启 R8 树裁剪与资源压缩，release APK 由 25 MB 降至 3.3 MB（约 −87%），DEX 由 30 MB 降至 3.1 MB。项目无反射调用、序列化走编译期生成，零自定义 keep 规则且 R8 无告警；新增 `proguard-rules.pro` 作为规则入口，debug 构建行为不变。
+
 ## v1.0.3 - 2026-10-09
 
 修复测试审查发现的多处代码缺陷与真机崩溃隐患，循环任务通知新增间隔进度显示，CI 补齐测试与 lint 门禁，全项目注释汉化。
