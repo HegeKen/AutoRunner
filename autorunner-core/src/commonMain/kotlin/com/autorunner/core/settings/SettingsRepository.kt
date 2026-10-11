@@ -74,6 +74,18 @@ class SettingsRepository(
 
     fun setGamepadMode(mode: GamepadMode) = update { it.copy(gamepadMode = mode) }
 
+    /** 平板键盘映射总开关。 */
+    fun setGamepadKeyboardEnabled(enabled: Boolean) =
+        update { it.copy(gamepadKeyboardEnabled = enabled) }
+
+    /** WASD 控制左摇杆开关。 */
+    fun setGamepadKeyboardStickEnabled(enabled: Boolean) =
+        update { it.copy(gamepadKeyboardStickEnabled = enabled) }
+
+    /** 鼠标 / 触控板控制右摇杆开关。 */
+    fun setGamepadMouseStickEnabled(enabled: Boolean) =
+        update { it.copy(gamepadMouseStickEnabled = enabled) }
+
     /** 替换为 [mode] 存储的标定结果（每种模式各存一份）。 */
     fun setGamepadMappings(mode: GamepadMode, mappings: GamepadMappings) = update {
         it.copy(gamepadMappingsByMode = it.gamepadMappingsByMode + (mode to mappings))

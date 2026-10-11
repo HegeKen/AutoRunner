@@ -62,12 +62,17 @@ class MainActivity : ComponentActivity() {
 
         requestedDestination.value = destinationFrom(intent)
 
+        // 设备形态判定（最小宽度 >= 600dp 视为平板）：平板常配键盘保护壳，
+        // 设置页据此展示手柄按键的实体键盘映射；与窗口宽度无关，竖屏横屏都一致。
+        val isTabletDevice = resources.configuration.smallestScreenWidthDp >= 600
+
         setContent {
             AutoRunnerApp(
                 container = container,
                 permissionController = permissions,
                 transferController = transfers,
                 gamepadStatusProvider = AppGraph.gamepad,
+                isTabletDevice = isTabletDevice,
                 initialDestination = requestedDestination.value,
             )
         }

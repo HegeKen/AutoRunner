@@ -108,6 +108,33 @@ data class AppSettings(
     /** 每个手柄按键在屏幕上的位置以及虚拟摇杆中心，按模式区分。 */
     @SerialName("gamepadMappingsByMode") val gamepadMappingsByMode: Map<GamepadMode, GamepadMappings> = emptyMap(),
     /**
+     * 平板键盘映射总开关（仅平板设备展示入口）。
+     *
+     * 开启后，连接物理键盘时按下手柄按键所绑定的键，会在该按键
+     * 标定的屏幕位置上注入一次点击；键位保存在各按键的
+     * [GamepadButtonMapping.keyCode] 中，由无障碍服务拦截键盘事件。
+     */
+    @SerialName("gamepadKeyboardEnabled") val gamepadKeyboardEnabled: Boolean = false,
+    /**
+     * WASD 控制左摇杆开关（独立开关，仅依赖 [gamepadEnabled]）。
+     *
+     * 开启后，W/A/S/D 键不再查找逐键标定，而是合成为一个指向
+     * 虚拟左摇杆（[GamepadMappings.stickCenterX/Y] + [GamepadMappings.stickRadius]）
+     * 边缘的方向向量并按住注入手势：单键=上下左右，相邻两键=对角，
+     * 松开所有键后摇杆回中。
+     */
+    @SerialName("gamepadKeyboardStickEnabled") val gamepadKeyboardStickEnabled: Boolean = false,
+    /**
+     * 鼠标 / 触控板控制右摇杆开关（需 Android 14+，仅依赖 [gamepadEnabled]）。
+     *
+     * 开启后，无障碍服务通过 `AccessibilityServiceInfo.motionEventSources`
+     * 接管鼠标与触控板事件：指针位移按增益换算为指向
+     * [GamepadMappings.rightStickCenterX/Y] + [GamepadMappings.stickRadius]
+     * 边缘的推杆向量，指针停移后摇杆自动回中抬起。注意被接管的来源事件
+     * 不会再分发给其他应用——本功能的语义就是「把鼠标当成右摇杆」。
+     */
+    @SerialName("gamepadMouseStickEnabled") val gamepadMouseStickEnabled: Boolean = false,
+    /**
      * 校准按模式拆分之前写入的旧版单手柄校准。
      *
      * 之所以保留为可空字段，只是为了让旧设置能无损解码；[sanitized] 会把它

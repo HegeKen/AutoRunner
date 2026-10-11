@@ -14,6 +14,9 @@
  */
 package com.autorunner.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,10 +28,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import top.yukonga.miuix.kmp.icon.extended.Location
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -37,11 +42,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import com.autorunner.core.BuildInfo
 import com.autorunner.core.model.AppSettings
 import com.autorunner.core.model.GamepadButton
 import com.autorunner.core.model.GamepadButtonMapping
+import com.autorunner.core.model.GamepadKeyLabels
 import com.autorunner.core.model.GamepadMode
 import com.autorunner.core.model.ThemeMode
 import com.autorunner.core.platform.DockEdge
@@ -62,12 +73,14 @@ import com.autorunner.ui.components.parseNumberInput
 import com.autorunner.ui.platform.AutoRunnerPermission
 import com.autorunner.ui.platform.OemGuidanceStep
 import com.autorunner.ui.platform.PermissionStatus
+import com.autorunner.ui.platform.platformNativeKeyCode
 import com.autorunner.ui.theme.AutoRunnerColors
 import com.autorunner.ui.theme.Dimens
 import com.autorunner.ui.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -822,6 +835,7 @@ private fun GamepadSection(
     var editingButton by remember { mutableStateOf<GamepadButton?>(null) }
     var mappingDialogVisible by remember { mutableStateOf(false) }
     var editingStick by remember { mutableStateOf(false) }
+    var editingStickRight by remember { mutableStateOf(false) }
 
     SectionCard(
         title = "手柄模拟（本机输入）",
@@ -867,6 +881,38 @@ private fun GamepadSection(
             },
         )
 
+        // ------------------------------------------------------ 平板键盘映射
+        // 逐键点击入口只在平板（sw >= 600dp）展示：平板常配键盘保护壳，
+        // 按下绑定的实体键即在对应按键的屏幕位置上触发一次点击。
+        if (viewModel.isTabletDevice) {
+            val keyBoundCount = mappings.buttons.count { it.configured && it.keyCode != null }
+            SwitchPreference(
+                checked = settings.gamepadKeyboardEnabled,
+                onCheckedChange = viewModel::setGamepadKeyboardEnabled,
+                title = "键盘映射",
+                summary = if (mappings.configuredCount > 0) {
+                    "连接实体键盘后，按下绑定的键即在对应按键位置触发点击；已绑定 $keyBoundCount / ${mappings.configuredCount} 个"
+                } else {
+                    "先完成手柄标定；再在下方按键对话框里逐个绑定键盘键位"
+                },
+            )
+        }
+
+        // ---------------------------------------------------- WASD 左摇杆
+        // 独立开关：键位固定无需逐键绑定，也不依赖平板判定与「键盘映射」，
+        // 手机外接实体键盘同样可用。W/A/S/D 合成方向，按住即持续按住摇杆，
+        // 松开回中；方向位置由已标定的摇杆中心 + 半径自动算出。
+        SwitchPreference(
+            checked = settings.gamepadKeyboardStickEnabled,
+            onCheckedChange = viewModel::setGamepadKeyboardStickEnabled,
+            title = "WASD 控制左摇杆",
+            summary = if (mappings.stickCenterConfigured) {
+                "W上 A左 S下 D右，同时按相邻两键为对角；按住持续推杆，松开回中"
+            } else {
+                "需先在下方标定虚拟摇杆中心，才能计算四个方向的位置"
+            },
+        )
+
         OverlayDropdownPreference(
             items = GamepadMode.entries.map { it.displayName },
             selectedIndex = GamepadMode.entries.indexOf(settings.gamepadMode),
@@ -875,6 +921,24 @@ private fun GamepadSection(
             onSelectedIndexChange = { index ->
                 GamepadMode.entries.getOrNull(index)?.let(viewModel::setGamepadMode)
             },
+        )
+
+        // ------------------------------------------------------ 整体按压时长
+        // 一键统一：拖一次滑块，当前手柄类型的全部已映射按键立即改为该时长。
+        // 设备 / 游戏对按压的识别阈值不同（60ms 可触发、部分需 200ms 以上），
+        // 比逐个按键进对话框改省事；单个按键仍可在下方列表里单独覆盖。
+        SliderPreference(
+            title = "整体按压时长",
+            summary = if (mappings.configuredCount > 0) {
+                "拖动一次即应用到全部 ${mappings.configuredCount} 个已映射按键；设备不识别点击时调大"
+            } else {
+                "完成手柄标定后可用：拖动一次即统一全部按键的按压时长"
+            },
+            value = (mappings.buttons.firstOrNull { it.configured }?.durationMs ?: 60L).toFloat(),
+            onValueChange = { viewModel.setAllGamepadDurations(it.toLong()) },
+            valueRange = 20f..2_000f,
+            steps = 98,
+            valueLabel = { "${it.toInt()} ms" },
         )
 
         // ------------------------------------------------------ 虚拟摇杆
@@ -900,23 +964,75 @@ private fun GamepadSection(
             onClick = { editingStick = true },
         )
 
+        // ---------------------------------------------------- 右摇杆中心
+        // 「鼠标 / 触控板控制右摇杆」注入手势的起点；与左中心各自独立标定，
+        // 脚本 stick 动作仍固定用左中心（脚本只有单摇杆语义）。
+        PreferenceRow(
+            title = "右摇杆中心",
+            summary = if (mappings.rightStickCenterConfigured) {
+                "(${mappings.rightStickCenterX.toInt()}, ${mappings.rightStickCenterY.toInt()})"
+            } else {
+                "未设置：鼠标 / 触控板控制右摇杆需要它计算推杆位置"
+            },
+            icon = MiuixIcons.Location,
+            iconTint = if (mappings.rightStickCenterConfigured) {
+                AutoRunnerColors.Running
+            } else {
+                MiuixTheme.colorScheme.onSurfaceVariantSummary
+            },
+            endActions = {
+                TextButton(
+                    text = "拾取",
+                    onClick = { viewModel.pickGamepadPoint(null, rightStickCenter = true) },
+                )
+            },
+            onClick = { editingStickRight = true },
+        )
+
         SliderPreference(
             title = "摇杆半径",
             value = mappings.stickRadius,
             onValueChange = viewModel::setStickRadius,
-            summary = "摇杆满偏时拖动的像素距离",
+            summary = "摇杆满偏时拖动的像素距离（左右摇杆共用）",
             valueRange = 40f..600f,
             valueLabel = { "${it.toInt()} px" },
+        )
+
+        // ------------------------------------------ 鼠标 / 触控板控制右摇杆
+        // 开启后无障碍服务接管鼠标 / 触控板的移动事件（需 Android 14+），
+        // 指针位移换算成右摇杆偏转，停移约 100ms 自动回中抬起。
+        SwitchPreference(
+            checked = settings.gamepadMouseStickEnabled,
+            onCheckedChange = viewModel::setGamepadMouseStickEnabled,
+            title = "鼠标 / 触控板控制右摇杆",
+            summary = if (mappings.rightStickCenterConfigured) {
+                "移动鼠标 / 触控板即推动右摇杆，位移越快推杆越大，停移自动回中；需 Android 14+"
+            } else {
+                "需先标定上方的右摇杆中心；需 Android 14+"
+            },
         )
 
         // ------------------------------------------------------------ 按键
         GamepadButton.entries.forEach { button ->
             val mapping = mappings.buttons.firstOrNull { it.button == button }
             val configured = mapping?.configured == true
+            val keySummary = mapping?.keyCode?.let {
+                " · 键盘「${GamepadKeyLabels.labelFor(it)}」"
+            }.orEmpty()
+            val keyOnlyLabel = mapping?.keyCode?.let {
+                "已绑定键盘「${GamepadKeyLabels.labelFor(it)}」，尚未拾取屏幕位置"
+            }
             PreferenceRow(
                 title = button.labelFor(settings.gamepadMode),
                 summary = if (mapping != null && configured) {
-                    "(${mapping.x.toInt()}, ${mapping.y.toInt()}) · ${mapping.durationMs}ms"
+                    if (mapping.holdMode) {
+                        // 长按按键的按压时长不生效（按住时长由物理键决定）。
+                        "(${mapping.x.toInt()}, ${mapping.y.toInt()}) · 长按$keySummary"
+                    } else {
+                        "(${mapping.x.toInt()}, ${mapping.y.toInt()}) · ${mapping.durationMs}ms$keySummary"
+                    }
+                } else if (keyOnlyLabel != null) {
+                    keyOnlyLabel
                 } else {
                     "未映射：脚本中的该按键会被跳过"
                 },
@@ -955,9 +1071,12 @@ private fun GamepadSection(
         button = editingButton,
         current = editingButton?.let { button -> mappings.buttons.firstOrNull { it.button == button } },
         label = editingButton?.labelFor(settings.gamepadMode).orEmpty(),
+        isTablet = viewModel.isTabletDevice,
         onPick = { onPicked -> editingButton?.let { viewModel.pickGamepadPoint(it, onPicked) } },
-        onSave = { x, y, duration ->
-            editingButton?.let { viewModel.setGamepadMapping(it, x, y, duration) }
+        onBindKey = { keyCode -> editingButton?.let { viewModel.bindGamepadKey(it, keyCode) } },
+        onClearKey = { editingButton?.let(viewModel::clearGamepadKey) },
+        onSave = { x, y, duration, hold ->
+            editingButton?.let { viewModel.setGamepadMapping(it, x, y, duration, holdMode = hold) }
             mappingDialogVisible = false
         },
         onClear = {
@@ -970,6 +1089,7 @@ private fun GamepadSection(
 
     StickCenterDialog(
         show = editingStick,
+        title = "虚拟摇杆中心",
         currentX = mappings.stickCenterX,
         currentY = mappings.stickCenterY,
         configured = mappings.stickCenterConfigured,
@@ -980,6 +1100,20 @@ private fun GamepadSection(
         },
         onDismiss = { editingStick = false },
     )
+
+    StickCenterDialog(
+        show = editingStickRight,
+        title = "右摇杆中心",
+        currentX = mappings.rightStickCenterX,
+        currentY = mappings.rightStickCenterY,
+        configured = mappings.rightStickCenterConfigured,
+        onPick = { onPicked -> viewModel.pickGamepadPoint(null, onPicked, rightStickCenter = true) },
+        onSave = { x, y ->
+            viewModel.setRightStickCenter(x, y)
+            editingStickRight = false
+        },
+        onDismiss = { editingStickRight = false },
+    )
 }
 
 /** 单个按键位置的编辑器；数值为本设备的绝对像素。 */
@@ -989,8 +1123,11 @@ private fun GamepadButtonMappingDialog(
     button: GamepadButton?,
     current: GamepadButtonMapping?,
     label: String,
+    isTablet: Boolean,
     onPick: ((Float, Float) -> Unit) -> Unit,
-    onSave: (Float, Float, Long) -> Unit,
+    onBindKey: (Int) -> Unit,
+    onClearKey: () -> Unit,
+    onSave: (Float, Float, Long, Boolean) -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit,
     onDismissFinished: () -> Unit,
@@ -1002,6 +1139,14 @@ private fun GamepadButtonMappingDialog(
         var x by remember { mutableStateOf((current?.x ?: 0f).toInt().toString()) }
         var y by remember { mutableStateOf((current?.y ?: 0f).toInt().toString()) }
         var duration by remember { mutableStateOf((current?.durationMs ?: 60L).toString()) }
+        // 长按模式：按下即按住、物理键抬起才松开（仅对绑定键盘键位的按键生效）。
+        var holdMode by remember { mutableStateOf(current?.holdMode ?: false) }
+        // 平板键盘映射：true 时下一次实体键按下即被捕获为绑定键位。
+        var capturingKey by remember { mutableStateOf(false) }
+        val keyFocusRequester = remember { FocusRequester() }
+        LaunchedEffect(capturingKey) {
+            if (capturingKey) keyFocusRequester.requestFocus()
+        }
 
         val parsedX = parseNumberInput(x)
         val parsedY = parseNumberInput(y)
@@ -1015,7 +1160,7 @@ private fun GamepadButtonMappingDialog(
             confirmEnabled = valid,
             onConfirm = {
                 if (parsedX != null && parsedY != null && parsedDuration != null) {
-                    onSave(parsedX, parsedY, parsedDuration.toLong())
+                    onSave(parsedX, parsedY, parsedDuration.toLong(), holdMode)
                 }
             },
             onDismiss = onDismiss,
@@ -1054,6 +1199,101 @@ private fun GamepadButtonMappingDialog(
                     }
                 },
             )
+
+            // ------------------------------------------------ 平板键盘键位
+            // 把一个实体键盘键绑给当前手柄按键：开启「键盘映射」后，
+            // 在任意界面按下该键即在本按键拾取的屏幕位置上触发一次点击。
+            if (isTablet) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                val boundKeyLabel = current?.keyCode?.let { GamepadKeyLabels.labelFor(it) }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(keyFocusRequester)
+                        .focusable()
+                        .onPreviewKeyEvent { event ->
+                            if (capturingKey && event.type == KeyEventType.KeyDown) {
+                                // common KeyEvent 不直接暴露 Android 键码，
+                                // 经 expect/actual 下探；合法性与查重统一交给
+                                // ViewModel 校验并弹消息。
+                                onBindKey(event.platformNativeKeyCode())
+                                capturingKey = false
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        .then(
+                            if (capturingKey) {
+                                Modifier.border(
+                                    width = 1.dp,
+                                    color = MiuixTheme.colorScheme.primary,
+                                    shape = RoundedCornerShape(12.dp),
+                                )
+                            } else {
+                                Modifier.border(
+                                    width = 1.dp,
+                                    color = MiuixTheme.colorScheme.outline,
+                                    shape = RoundedCornerShape(12.dp),
+                                )
+                            },
+                        )
+                        .background(
+                            color = if (capturingKey) {
+                                MiuixTheme.colorScheme.primary.copy(alpha = 0.08f)
+                            } else {
+                                MiuixTheme.colorScheme.surface
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                        )
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                ) {
+                    Text(
+                        text = when {
+                            capturingKey -> "请按下要绑定的实体键（系统按键不可绑定）"
+                            boundKeyLabel != null -> "已绑定键盘键位：$boundKeyLabel"
+                            else -> "未绑定键盘键位"
+                        },
+                        color = if (capturingKey) {
+                            MiuixTheme.colorScheme.primary
+                        } else {
+                            MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        },
+                        style = MiuixTheme.textStyles.footnote1,
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TextButton(
+                        text = if (boundKeyLabel != null) "重新绑定键位" else "绑定键盘键位",
+                        onClick = { capturingKey = true },
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (boundKeyLabel != null) {
+                        TextButton(
+                            text = "清除键位",
+                            onClick = {
+                                onClearKey()
+                                capturingKey = false
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                // 长按模式：该键按下即注入按住手势，物理键抬起才松开；
+                // 按住时长由按住时间决定，上方「按压时长」对长按按键不生效。
+                SwitchPreference(
+                    checked = holdMode,
+                    onCheckedChange = { holdMode = it },
+                    title = "长按（按住到松开）",
+                    summary = "按下即按住该按钮，抬起实体键才松开；按压时长仅对未开启长按的按键生效",
+                )
+            }
+
             TextButton(text = "清除该按键映射", onClick = onClear)
         }
     }
@@ -1063,6 +1303,7 @@ private fun GamepadButtonMappingDialog(
 @Composable
 private fun StickCenterDialog(
     show: Boolean,
+    title: String,
     currentX: Float,
     currentY: Float,
     configured: Boolean,
@@ -1080,7 +1321,7 @@ private fun StickCenterDialog(
 
         FormDialog(
             show = show,
-            title = "虚拟摇杆中心",
+            title = title,
             summary = if (configured) "当前 (${currentX.toInt()}, ${currentY.toInt()})" else "尚未设置",
             confirmEnabled = parsedX != null && parsedY != null,
             onConfirm = {

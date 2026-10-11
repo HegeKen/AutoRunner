@@ -8,10 +8,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * 一个可拖拽的标定节点：要么是一个手柄按键，要么是虚拟摇杆的中心。
+ * 一个可拖拽的标定节点：要么是一个手柄按键，要么是左/右虚拟摇杆的中心。
  *
  * [x] / [y] 是该节点中心在屏幕上的绝对像素坐标，与录制输出的坐标系一致。
- * [button] 为 `null` 时表示摇杆中心。
+ * [button] 为 `null` 时表示摇杆中心，此时靠 [id] 区分左（◎）还是右（◎右）。
  */
 data class CalibrationTarget(
     val id: String,
@@ -23,12 +23,16 @@ data class CalibrationTarget(
     val durationMs: Long = GamepadCalibrationViewModel.DEFAULT_PRESS_DURATION_MS,
 ) {
     val isStickCenter: Boolean get() = button == null
+
+    /** 是右摇杆中心芯片（否则为左摇杆中心）。 */
+    val isRightStickCenter: Boolean
+        get() = button == null && id == GamepadCalibrationViewModel.RIGHT_STICK_CENTER_ID
 }
 
 /**
  * 手柄按键标定的状态持有者。
  *
- * 用户进入实际游戏页面后，悬浮层把全部按键（17 个 + 摇杆中心，共 18 个）铺在屏幕上，
+ * 用户进入实际游戏页面后，悬浮层把全部按键（17 个 + 左/右摇杆中心，共 19 个）铺在屏幕上，
  * 用户把它们拖到游戏里真实按钮的位置，保存后写入当前手柄类型对应的那一份标定
  * (`AppSettings.gamepadMappingsByMode`)，之后新增/编辑同类型手柄动作只需选按键、
  * 无需再输入坐标。
@@ -77,22 +81,6 @@ class GamepadCalibrationViewModel(
         }
     }
 
-    /**
-     * 设置一个按键节点的按压时长；摇杆中心忽略。
-     *
-     * 不同设备 / 游戏对点击、按压的识别时长不同（有的 60ms 即可触发，有的需要
-     * 200ms 以上），因此允许在标定页逐个按键手动调整。范围与设置持久化时的
-     * 夹取一致（[MIN_PRESS_DURATION_MS]..[MAX_PRESS_DURATION_MS]）。
-     */
-    fun setTargetDuration(id: String, durationMs: Long) {
-        val target = _targets.value.firstOrNull { it.id == id && it.button != null } ?: return
-        val coerced = durationMs.coerceIn(MIN_PRESS_DURATION_MS, MAX_PRESS_DURATION_MS)
-        if (coerced == target.durationMs) return
-        _targets.value = _targets.value.map { node ->
-            if (node.id == id) node.copy(durationMs = coerced) else node
-        }
-    }
-
     /** 把当前拖拽结果写入当前手柄类型对应的那一份标定，并启用模拟手柄。 */
     fun save() {
         val targets = _targets.value
@@ -106,12 +94,27 @@ class GamepadCalibrationViewModel(
             targets.forEach { target ->
                 val button = target.button
                 if (button == null) {
-                    mappings = mappings.copy(
-                        stickCenterX = target.x,
-                        stickCenterY = target.y,
-                        stickCenterConfigured = true,
-                    )
+                    // 摇杆中心：按 id 区分左 / 右，分别写入对应字段。
+                    mappings = if (target.id == RIGHT_STICK_CENTER_ID) {
+                        mappings.copy(
+                            rightStickCenterX = target.x,
+                            rightStickCenterY = target.y,
+                            rightStickCenterConfigured = true,
+                        )
+                    } else {
+                        mappings.copy(
+                            stickCenterX = target.x,
+                            stickCenterY = target.y,
+                            stickCenterConfigured = true,
+                        )
+                    }
                 } else {
+                    // 键盘键位不在标定层编辑，保存拖坐标时必须原样保留，
+                    // 否则重新标定一次就会清空平板键盘映射。注意不能用
+                    // mappingFor（只返回 configured=true），否则「先绑键、
+                    // 后标定坐标」的占位映射会在这里丢失键位。
+                    val boundKeyCode = mappings.buttons
+                        .firstOrNull { it.button == button }?.keyCode
                     mappings = mappings.withMapping(
                         GamepadButtonMapping(
                             button = button,
@@ -120,6 +123,7 @@ class GamepadCalibrationViewModel(
                             durationMs = target.durationMs
                                 .coerceIn(MIN_PRESS_DURATION_MS, MAX_PRESS_DURATION_MS),
                             configured = true,
+                            keyCode = boundKeyCode,
                         ),
                     )
                 }
@@ -144,11 +148,12 @@ class GamepadCalibrationViewModel(
         val mode = settings.gamepadMode
         val nodes = GamepadButton.entries.map { button ->
             NodeSpec(id = button.serialName, label = button.labelFor(mode), button = button)
-        } + NodeSpec(id = STICK_CENTER_ID, label = "◎", button = null)
+        } + NodeSpec(id = STICK_CENTER_ID, label = "◎左", button = null) +
+            NodeSpec(id = RIGHT_STICK_CENTER_ID, label = "◎右", button = null)
 
         return nodes.map { node ->
-            val configured = resolveConfigured(node.button, existing)
-            val fraction = defaultFraction(node.button)
+            val configured = resolveConfigured(node, existing)
+            val fraction = defaultFraction(node)
             CalibrationTarget(
                 id = node.id,
                 label = node.label,
@@ -169,8 +174,11 @@ class GamepadCalibrationViewModel(
      * 三个手柄模式共用同一套物理位置——屏幕上的落点由 Remote Play 的虚拟手柄覆盖层
      * 决定，与手柄品牌无关；品牌差异只体现在标签上，由 [GamepadButton.labelFor] 给出。
      */
-    private fun defaultFraction(button: GamepadButton?): Pair<Float, Float> = when (button) {
-        null -> STICK_CENTER_FRACTION
+    private fun defaultFraction(node: NodeSpec): Pair<Float, Float> = when {
+        // 摇杆中心默认落在各自摇杆按键（L3 / R3）上，与手柄物理位置一致。
+        node.id == RIGHT_STICK_CENTER_ID -> RIGHT_STICK_CENTER_FRACTION
+        node.button == null -> STICK_CENTER_FRACTION
+        else -> when (node.button) {
         GamepadButton.LT -> 0.137f to 0.142f
         GamepadButton.RT -> 0.918f to 0.142f
         GamepadButton.LB -> 0.203f to 0.264f
@@ -188,14 +196,27 @@ class GamepadCalibrationViewModel(
         GamepadButton.BACK -> 0.426f to 0.958f
         GamepadButton.GUIDE -> 0.523f to 0.955f
         GamepadButton.START -> 0.631f to 0.931f
+        }
     }
 
     private fun resolveConfigured(
-        button: GamepadButton?,
+        node: NodeSpec,
         mappings: com.autorunner.core.model.GamepadMappings,
     ): Triple<Float, Float, Long>? {
+        val button = node.button
         if (button == null) {
-            return if (mappings.stickCenterConfigured) {
+            // 摇杆中心按 id 区分左 / 右读取各自标定。
+            return if (node.id == RIGHT_STICK_CENTER_ID) {
+                if (mappings.rightStickCenterConfigured) {
+                    Triple(
+                        mappings.rightStickCenterX,
+                        mappings.rightStickCenterY,
+                        DEFAULT_PRESS_DURATION_MS,
+                    )
+                } else {
+                    null
+                }
+            } else if (mappings.stickCenterConfigured) {
                 Triple(mappings.stickCenterX, mappings.stickCenterY, DEFAULT_PRESS_DURATION_MS)
             } else {
                 null
@@ -214,6 +235,9 @@ class GamepadCalibrationViewModel(
     companion object {
         const val STICK_CENTER_ID = "STICK_CENTER"
 
+        /** 右摇杆中心芯片 id；与 [STICK_CENTER_ID] 一样用 `button == null` + id 区分。 */
+        const val RIGHT_STICK_CENTER_ID = "RIGHT_STICK_CENTER"
+
         /** 按键默认按压时长（毫秒），与 [com.autorunner.core.model.GamepadButtonMapping] 默认值一致。 */
         const val DEFAULT_PRESS_DURATION_MS = 60L
 
@@ -221,7 +245,10 @@ class GamepadCalibrationViewModel(
         const val MIN_PRESS_DURATION_MS = 20L
         const val MAX_PRESS_DURATION_MS = 10_000L
 
-        /** 摇杆中心默认比例，与左摇杆（L3）的物理位置一致。 */
+        /** 左摇杆中心默认比例，与左摇杆（L3）的物理位置一致。 */
         private val STICK_CENTER_FRACTION = 0.317f to 0.785f
+
+        /** 右摇杆中心默认比例，与右摇杆（R3）的物理位置一致。 */
+        private val RIGHT_STICK_CENTER_FRACTION = 0.712f to 0.788f
     }
 }

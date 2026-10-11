@@ -389,45 +389,24 @@ class ViewModelTest {
     // ------------------------------------------------------------- 手柄标定
 
     @Test
-    fun calibrationSavesPerButtonPressDurations() = runTest {
+    fun calibrationSavesDefaultPressDuration() = runTest {
         val container = container(FakeAccessibilityController())
         val calibration = GamepadCalibrationViewModel(container)
         calibration.ensureLayout(1080f, 2400f)
         advanceUntilIdle()
 
-        // 初始为默认按压时长。
+        // 标定页不再提供时长编辑，保存时按键沿用默认按压时长。
         assertEquals(
             GamepadCalibrationViewModel.DEFAULT_PRESS_DURATION_MS,
             calibration.targets.value.first { it.button == GamepadButton.A }.durationMs,
         )
-
-        // 调整 A 键的按压时长；过小的值被夹取到下限。
-        calibration.setTargetDuration(GamepadButton.A.serialName, 260L)
-        calibration.setTargetDuration(GamepadButton.B.serialName, 5L)
         calibration.save()
         advanceUntilIdle()
 
         val mode = container.settingsRepository.current.gamepadMode
         val mappings = container.settingsRepository.current.gamepadMappingsFor(mode)
-        assertEquals(260L, mappings.mappingFor(GamepadButton.A)?.durationMs)
-        assertEquals(
-            GamepadCalibrationViewModel.MIN_PRESS_DURATION_MS,
-            mappings.mappingFor(GamepadButton.B)?.durationMs,
-        )
+        assertEquals(GamepadCalibrationViewModel.DEFAULT_PRESS_DURATION_MS, mappings.mappingFor(GamepadButton.A)?.durationMs)
         assertTrue(mappings.mappingFor(GamepadButton.A)?.configured == true)
-    }
-
-    @Test
-    fun calibrationIgnoresDurationEditsOnStickCenter() = runTest {
-        val container = container(FakeAccessibilityController())
-        val calibration = GamepadCalibrationViewModel(container)
-        calibration.ensureLayout(1080f, 2400f)
-        advanceUntilIdle()
-
-        // 摇杆中心不是按键，时长编辑必须被忽略。
-        calibration.setTargetDuration(GamepadCalibrationViewModel.STICK_CENTER_ID, 500L)
-        val stickCenter = calibration.targets.value.first { it.isStickCenter }
-        assertEquals(GamepadCalibrationViewModel.DEFAULT_PRESS_DURATION_MS, stickCenter.durationMs)
     }
 
     // --------------------------------------------------------------- 设置
@@ -461,5 +440,113 @@ class ViewModelTest {
         settings.resetSettings()
         advanceUntilIdle()
         assertEquals(com.autorunner.core.model.AppSettings.Default, container.settingsRepository.current)
+    }
+
+    @Test
+    fun setAllGamepadDurationsUnifiesEveryMappedButton() = runTest {
+        val container = container(FakeAccessibilityController())
+        val settings = SettingsViewModel(container)
+
+        settings.setGamepadMapping(GamepadButton.A, 100f, 200f, durationMs = 60L)
+        settings.setGamepadMapping(GamepadButton.B, 300f, 400f, durationMs = 300L)
+        advanceUntilIdle()
+
+        // 一键统一：全部已映射按键改为同一个时长；低于下限的值被夹取。
+        settings.setAllGamepadDurations(260L)
+        settings.setAllGamepadDurations(5L)
+        advanceUntilIdle()
+
+        val mappings = container.settingsRepository.current.currentGamepadMappings
+        assertEquals(20L, mappings.mappingFor(GamepadButton.A)?.durationMs)
+        assertEquals(20L, mappings.mappingFor(GamepadButton.B)?.durationMs)
+    }
+
+    // ---------------------------------------------------- 平板键盘映射
+
+    private fun AppContainer.keyOf(button: GamepadButton): Int? =
+        settingsRepository.current.currentGamepadMappings.buttons
+            .firstOrNull { it.button == button }?.keyCode
+
+    @Test
+    fun tabletFlagIsExposedOnlyWhenRequested() = runTest {
+        val container = container(FakeAccessibilityController())
+        assertFalse(SettingsViewModel(container).isTabletDevice)
+        assertTrue(SettingsViewModel(container, isTabletDevice = true).isTabletDevice)
+    }
+
+    @Test
+    fun keyboardBindingIsStoredThenCleared() = runTest {
+        val container = container(FakeAccessibilityController())
+        val settings = SettingsViewModel(container, isTabletDevice = true)
+
+        settings.setGamepadMapping(GamepadButton.A, 100f, 200f, durationMs = 60L)
+        settings.bindGamepadKey(GamepadButton.A, 29) // KEYCODE_A
+        advanceUntilIdle()
+        assertEquals(29, container.keyOf(GamepadButton.A))
+
+        settings.clearGamepadKey(GamepadButton.A)
+        advanceUntilIdle()
+        assertNull(container.keyOf(GamepadButton.A))
+        // 清键位不影响已拾取的坐标
+        assertTrue(
+            container.settingsRepository.current.currentGamepadMappings
+                .mappingFor(GamepadButton.A)?.configured == true,
+        )
+    }
+
+    @Test
+    fun theSameKeyCannotBeBoundToTwoButtons() = runTest {
+        val container = container(FakeAccessibilityController())
+        val settings = SettingsViewModel(container, isTabletDevice = true)
+
+        settings.setGamepadMapping(GamepadButton.A, 100f, 200f, durationMs = 60L)
+        settings.bindGamepadKey(GamepadButton.A, 29)
+        advanceUntilIdle()
+
+        // 同一个键（29=A）再绑给 B：拒绝并保留原有归属。
+        settings.setGamepadMapping(GamepadButton.B, 300f, 400f, durationMs = 60L)
+        settings.bindGamepadKey(GamepadButton.B, 29)
+        advanceUntilIdle()
+
+        assertNotNull(settings.message.value)
+        assertEquals(29, container.keyOf(GamepadButton.A))
+        assertNull(container.keyOf(GamepadButton.B))
+    }
+
+    @Test
+    fun systemKeysAreRejectedAsBindings() = runTest {
+        val container = container(FakeAccessibilityController())
+        val settings = SettingsViewModel(container, isTabletDevice = true)
+
+        settings.setGamepadMapping(GamepadButton.A, 100f, 200f, durationMs = 60L)
+        settings.bindGamepadKey(GamepadButton.A, 3) // KEYCODE_HOME
+        advanceUntilIdle()
+
+        assertNotNull(settings.message.value)
+        assertNull(container.keyOf(GamepadButton.A))
+    }
+
+    @Test
+    fun keyCanBeBoundBeforePickingCoordinatesAndSurvivesLaterSave() = runTest {
+        val container = container(FakeAccessibilityController())
+        val settings = SettingsViewModel(container, isTabletDevice = true)
+
+        // 允许先绑键（此时尚无屏幕位置，运行时不会触发点击）。
+        settings.bindGamepadKey(GamepadButton.X, 30) // KEYCODE_B
+        advanceUntilIdle()
+        assertEquals(30, container.keyOf(GamepadButton.X))
+        assertTrue(
+            container.settingsRepository.current.currentGamepadMappings
+                .mappingFor(GamepadButton.X) == null,
+        )
+
+        // 之后在对话框保存坐标：键位必须原样保留。
+        settings.setGamepadMapping(GamepadButton.X, 500f, 900f, durationMs = 120L)
+        advanceUntilIdle()
+        val saved = container.settingsRepository.current.currentGamepadMappings
+            .mappingFor(GamepadButton.X)
+        assertNotNull(saved)
+        assertEquals(30, saved.keyCode)
+        assertTrue(saved.configured)
     }
 }

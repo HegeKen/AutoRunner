@@ -2,6 +2,7 @@ package com.autorunner.core.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.math.sqrt
 
 /**
  * 模拟手柄暴露的按键。`serialName` 是存储在 `.arscript` 文件里的跨厂商中立
@@ -142,6 +143,18 @@ data class GamepadButtonMapping(
     val durationMs: Long = 60L,
     /** 用户为该按键选定位置之前为 `false`。 */
     val configured: Boolean = false,
+    /**
+     * 平板键盘映射：绑定的物理键盘按键码（Android `KeyEvent.KEYCODE_*`，
+     * 平台无关地以纯 Int 存储）。开启键盘映射后，按下该键等价于在
+     * [x]/[y] 位置点击一次；未绑定为 `null`。
+     */
+    val keyCode: Int? = null,
+    /**
+     * 键盘映射长按模式：为 `true` 时按下该键注入按住手势并保持指针按下，
+     * 直到物理键抬起才收笔抬起（按住时长由实际按住时间决定，不再使用
+     * [durationMs]）；为 `false` 时保持原有的固定时长一次性点击。
+     */
+    val holdMode: Boolean = false,
 )
 
 /** 完整的本地手柄配置。 */
@@ -154,6 +167,10 @@ data class GamepadMappings(
     val stickCenterConfigured: Boolean = false,
     /** 满偏时的行程像素数（`x`/`y` = ±1）。 */
     val stickRadius: Float = 220f,
+    /** 右摇杆中心（供「鼠标 / 触控板控制右摇杆」计算注入手势的起点）。 */
+    val rightStickCenterX: Float = 0f,
+    val rightStickCenterY: Float = 0f,
+    val rightStickCenterConfigured: Boolean = false,
     /**
      * 用户在本设备上完成过一次性整柄校准后为 `true`。按键位置是设备的
      * 属性，之后脚本编辑器不再要求校准。
@@ -175,6 +192,132 @@ data class GamepadMappings(
 
     companion object {
         val Empty = GamepadMappings()
+    }
+}
+
+/**
+ * 允许绑定到手柄按键的物理键盘按键（键码取自 Android `KeyEvent.KEYCODE_*`，
+ * 数值自 API 1 起即稳定，因此 common 层直接镜像常量、不依赖 Android 类型）。
+ *
+ * 只收录游戏常用键；HOME / BACK / 电源 / 音量等系统键刻意不在集合内，
+ * 这样键盘桥接即便被打开也永远不会吞掉系统按键。
+ */
+object GamepadKeyLabels {
+
+    /** [keyCode] 是否允许绑定（系统键会被拒绝）。 */
+    fun isBindable(keyCode: Int): Boolean = labels.containsKey(keyCode)
+
+    /** 键位的展示名；未知键码回退为中性描述。 */
+    fun labelFor(keyCode: Int): String = labels[keyCode] ?: "按键 $keyCode"
+
+    // Android KeyEvent 键码：数字 0=7..9=16；字母 A=29..Z=54；
+    // 其余为游戏常用控制键（键码与 android.view.KeyEvent 常量一一对应）。
+    private val labels: Map<Int, String> = mapOf(
+        7 to "0", 8 to "1", 9 to "2", 10 to "3", 11 to "4",
+        12 to "5", 13 to "6", 14 to "7", 15 to "8", 16 to "9",
+        29 to "A", 30 to "B", 31 to "C", 32 to "D", 33 to "E", 34 to "F",
+        35 to "G", 36 to "H", 37 to "I", 38 to "J", 39 to "K", 40 to "L",
+        41 to "M", 42 to "N", 43 to "O", 44 to "P", 45 to "Q", 46 to "R",
+        47 to "S", 48 to "T", 49 to "U", 50 to "V", 51 to "W", 52 to "X",
+        53 to "Y", 54 to "Z",
+        19 to "方向键 ↑",
+        20 to "方向键 ↓",
+        21 to "方向键 ←",
+        22 to "方向键 →",
+        24 to "音量 +",
+        25 to "音量 -",
+        55 to ", 逗号",
+        56 to ". 句点",
+        57 to "左 Alt",
+        58 to "右 Alt",
+        59 to "左 Shift",
+        60 to "右 Shift",
+        61 to "Tab",
+        62 to "空格",
+        66 to "回车",
+        67 to "退格",
+        68 to "` 反引号",
+        69 to "- 减号",
+        70 to "= 等号",
+        71 to "[ 左括号",
+        72 to "] 右括号",
+        73 to "\\ 反斜杠",
+        74 to "; 分号",
+        75 to "' 单引号",
+        76 to "/ 斜杠",
+        77 to "@ At",
+        81 to "+ 加号",
+        92 to "Page Up",
+        93 to "Page Down",
+        111 to "Esc",
+        112 to "Delete",
+        113 to "左 Ctrl",
+        114 to "右 Ctrl",
+        115 to "Caps Lock",
+        116 to "Scroll Lock",
+        121 to "Pause/Break",
+        123 to "End",
+        125 to "Forward Delete",
+        131 to "F1", 132 to "F2", 133 to "F3", 134 to "F4",
+        135 to "F5", 136 to "F6", 137 to "F7", 138 to "F8",
+        139 to "F9", 140 to "F10", 141 to "F11", 142 to "F12",
+        143 to "? 问号",
+        144 to "小键盘 0", 145 to "小键盘 1", 146 to "小键盘 2",
+        147 to "小键盘 3", 148 to "小键盘 4", 149 to "小键盘 5",
+        150 to "小键盘 6", 151 to "小键盘 7", 152 to "小键盘 8",
+        153 to "小键盘 9",
+        154 to "小键盘 /",
+        155 to "小键盘 *",
+        156 to "小键盘 -",
+        157 to "小键盘 +",
+        158 to "小键盘 .",
+        159 to "小键盘 ,",
+        160 to "小键盘回车",
+    )
+}
+
+/**
+ * 「WASD 控制左摇杆」的固定键位与方向合成。
+ *
+ * 键位固定无需逐键标定：W/A/S/D 按下集合被合成为一个**归一化**方向向量
+ * （x 向右、y 向下，与屏幕坐标一致），调用方再用
+ * [GamepadMappings.stickCenterX/Y] + [GamepadMappings.stickRadius]
+ * 换算出摇杆边缘的目标位置。相邻两键（如 W+D）自然得到 45° 对角，
+ * 相反两键（如 W+S）互相抵消。
+ */
+object GamepadStickKeys {
+
+    /** Android `KeyEvent.KEYCODE_W`。 */
+    const val KEY_W = 51
+
+    /** Android `KeyEvent.KEYCODE_A`。 */
+    const val KEY_A = 29
+
+    /** Android `KeyEvent.KEYCODE_S`。 */
+    const val KEY_S = 47
+
+    /** Android `KeyEvent.KEYCODE_D`。 */
+    const val KEY_D = 32
+
+    /** 参与摇杆合成的全部键码。 */
+    val All: Set<Int> = setOf(KEY_W, KEY_A, KEY_S, KEY_D)
+
+    /**
+     * 把当前按住的键合成为归一化方向向量。
+     *
+     * @return `x ∈ [-1, 1]`、`y ∈ [-1, 1]` 的单位向量（对角分量各约 ±0.707）；
+     *   没有按键、全部相反抵消或集合里没有 WASD 任一键时返回 `null`（摇杆回中）。
+     */
+    fun directionOf(heldKeys: Set<Int>): Pair<Float, Float>? {
+        var x = 0f
+        var y = 0f
+        if (KEY_W in heldKeys) y -= 1f
+        if (KEY_S in heldKeys) y += 1f
+        if (KEY_A in heldKeys) x -= 1f
+        if (KEY_D in heldKeys) x += 1f
+        if (x == 0f && y == 0f) return null
+        val length = sqrt(x * x + y * y)
+        return (x / length) to (y / length)
     }
 }
 

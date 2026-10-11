@@ -5,12 +5,15 @@
   `canPerformGestures`  — required for GestureDescription replay (§6.1.2)
   `canRetrieveWindowContent` — declared for future element based actions
   `flagRetrieveInteractiveWindows` — required by the design document (§6.1.3)
+  `canRequestFilterKeyEvents` — tablet keyboard mapping: bound physical keys
+      are turned into taps at the calibrated gamepad button position
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeAllMask"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagIncludeNotImportantViews|flagReportViewIds"
     android:canPerformGestures="true"
+    android:canRequestFilterKeyEvents="true"
     android:canRetrieveWindowContent="true"
     android:description="@string/accessibility_service_description"
     android:notificationTimeout="100"

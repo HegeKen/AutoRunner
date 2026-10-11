@@ -105,6 +105,8 @@ fun AutoRunnerApp(
     transferController: ScriptTransferController? = null,
     gamepadStatusProvider: GamepadStatusProvider? = null,
     windowSizeClass: WindowSizeClass = currentWindowAdaptiveInfo().windowSizeClass,
+    /** 设备本身是否为平板（最小宽度 >= 600dp）；用于展示平板专属的键盘映射。 */
+    isTabletDevice: Boolean = false,
     /** 让自动化 UI 检查（或分享 Intent）能直接打开指定页面。 */
     initialDestination: Destination = Destination.Scripts,
 ) {
@@ -123,8 +125,8 @@ fun AutoRunnerApp(
         val scriptListViewModel = remember(container) { ScriptListViewModel(container, transferController) }
         val editorViewModel = remember(container) { ScriptEditorViewModel(container) }
         val recordingViewModel = remember(container) { RecordingViewModel(container) }
-        val settingsViewModel = remember(container) {
-            SettingsViewModel(container, permissionController, gamepadStatusProvider)
+        val settingsViewModel = remember(container, isTabletDevice) {
+            SettingsViewModel(container, permissionController, gamepadStatusProvider, isTabletDevice)
         }
         val executionViewModel = remember(container) { ExecutionViewModel(container) }
 
