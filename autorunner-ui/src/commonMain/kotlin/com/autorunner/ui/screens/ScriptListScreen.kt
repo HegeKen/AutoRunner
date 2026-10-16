@@ -101,6 +101,7 @@ private fun ScriptListContent(
     onSelect: (String) -> Unit = onOpen,
 ) {
     val scripts by viewModel.visibleScripts.collectAsState()
+    val debugIds by viewModel.debugScriptIds.collectAsState()
     val query by viewModel.query.collectAsState()
     val message by viewModel.message.collectAsState()
     val busy by viewModel.busy.collectAsState()
@@ -165,6 +166,8 @@ private fun ScriptListContent(
                                 deleteTarget = record
                                 deleteVisible = true
                             },
+                            debugEnabled = record.id in debugIds,
+                            onToggleDebug = { viewModel.setScriptDebug(record.id, it) },
                         )
                     }
                 }

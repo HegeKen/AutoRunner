@@ -96,6 +96,13 @@ class SettingsRepository(
 
     fun setSkipOemGuidance(skip: Boolean) = update { it.copy(skipOemGuidance = skip) }
 
+    /** 开 / 关指定脚本的「调试」开关（运行时逐步 Toast 提示）。 */
+    fun setScriptDebugEnabled(scriptId: String, enabled: Boolean) = update {
+        it.copy(
+            debugScriptIds = if (enabled) it.debugScriptIds + scriptId else it.debugScriptIds - scriptId,
+        )
+    }
+
     fun reset() = update { AppSettings.Default }
 
     private fun read(): AppSettings {

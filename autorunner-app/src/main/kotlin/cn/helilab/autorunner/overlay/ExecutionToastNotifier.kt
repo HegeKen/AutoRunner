@@ -19,10 +19,15 @@ import kotlinx.coroutines.launch
  *    排队阻塞；每次用新实例渲染（HyperOS 上复用实例无法即时刷新文字）；
  * 2. **循环进度限频**：两次循环提示至少间隔 [MIN_LOOP_INTERVAL_MS]；状态变化
  *    （暂停、继续）和结束报告不受限频影响，保证重要提示不丢。
+ *
+ * 此外，脚本卡片上打开「调试」开关的脚本（见 [isScriptDebugEnabled]）在运行时
+ * 会逐步 Toast 提示当前步骤序号与内容，便于在编辑 / 创建脚本时精准定位；
+ * 调试提示不受 `executionReminder` 总开关约束，也不参与循环限频。
  */
 class ExecutionToastNotifier(
     private val context: Context,
     private val isReminderEnabled: () -> Boolean,
+    private val isScriptDebugEnabled: (String?) -> Boolean = { false },
 ) {
 
     private var toast: Toast? = null
@@ -36,6 +41,12 @@ class ExecutionToastNotifier(
     private var latestProgress: ExecutionProgress? = null
 
     private var lastReport: ExecutionReport? = null
+
+    /**
+     * 上一条调试提示的指纹（脚本 + 循环 + 步骤序号 + 文案）；变化时才发新
+     * 提示，避免 StateFlow 合并出的同一快照重复刷 Toast。
+     */
+    private var lastDebugKey: String? = null
 
     /**
      * 为 `true` 表示发生了一次启动状态切换，但其 Toast 因首个进度快照（携带
@@ -94,6 +105,9 @@ class ExecutionToastNotifier(
             }
         }
 
+        // 放在「开始执行」提示之后：同一帧里调试步骤提示应当胜出。
+        notifyDebugStep(progress)
+
         val completed = progress.completedLoops
 
         // 新的一次运行（循环计数归零）：重置跟踪，不提示。
@@ -120,13 +134,55 @@ class ExecutionToastNotifier(
     }
 
     /**
+     * 「调试」逐步提示：脚本处于调试模式且动作边界发生变化（新脚本 / 新循环 /
+     * 新步骤 / 新的失败原因）时，Toast 显示当前步骤序号与内容。
+     */
+    private fun notifyDebugStep(progress: ExecutionProgress) {
+        if (progress.state != ExecutionState.RUNNING) return
+        if (progress.currentActionIndex < 0) return
+        if (!isScriptDebugEnabled(progress.scriptId)) return
+
+        val key = listOf(
+            progress.scriptId.orEmpty(),
+            progress.completedLoops.toString(),
+            progress.currentActionIndex.toString(),
+            progress.currentActionLabel,
+            progress.message.orEmpty(),
+        ).joinToString("|")
+        if (key == lastDebugKey) return
+        lastDebugKey = key
+
+        val position = if (progress.totalActions > 0) {
+            "${progress.currentActionIndex + 1}/${progress.totalActions}"
+        } else {
+            "${progress.currentActionIndex + 1}"
+        }
+        val text = buildString {
+            append("步骤 ")
+            append(position)
+            if (progress.currentActionLabel.isNotBlank()) {
+                append("：")
+                append(progress.currentActionLabel)
+            }
+            progress.message?.takeIf { it.isNotBlank() }?.let {
+                append("（")
+                append(it)
+                append("）")
+            }
+        }
+        show(text, force = true)
+    }
+
+    /**
      * 显示 [text]；先取消上一条 Toast，确保消息不会排队堆积。每次都会创建
      * 全新的 [Toast] 实例：在部分 ROM（实测 HyperOS）上，复用同一实例调用
      * `setText` —— 即便先 `cancel()` —— 也不会刷新可见的提示窗口，而新实例
      * 能立即渲染。
+     *
+     * @param force `true` 时忽略 `executionReminder` 总开关（调试提示专用）。
      */
-    private fun show(text: String) {
-        if (!isReminderEnabled()) return
+    private fun show(text: String, force: Boolean = false) {
+        if (!force && !isReminderEnabled()) return
         toast?.cancel()
         toast = Toast.makeText(context, text, Toast.LENGTH_SHORT).also { it.show() }
     }

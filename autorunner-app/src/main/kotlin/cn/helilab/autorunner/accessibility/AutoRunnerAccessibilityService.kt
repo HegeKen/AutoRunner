@@ -27,6 +27,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
 
@@ -54,6 +55,17 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
 
     private var settingsJob: Job? = null
 
+    /**
+     * 键盘 / 鼠标映射是否处于监听窗口内：仅当有脚本「待运行」
+     * （ExecutionController.armed）或正在运行 / 暂停（state.isActive）时为 `true`。
+     *
+     * 空闲时为 `false`：[onKeyEvent] 一律返回 `false` 放行按键，
+     * motionEventSources 保持 0（鼠标 / 触控板事件照常下发系统）——
+     * 即「正常情况下不再监听输入」，只有脚本待运行 / 运行期间才接管。
+     * 仅主线程读写（onKeyEvent / onMotionEvent / 手势回调 / 设置收集都在主 Looper）。
+     */
+    private var inputListeningActive = false
+
     // 触摸采集刻意*不*使用 `AccessibilityServiceInfo.motionEventSources`。
     // 平台文档写明“来自 getMotionEventSources() 中来源的 MotionEvent
     // 不会被发送到系统的其余部分”，也就是说请求 SOURCE_TOUCHSCREEN 会让
@@ -78,8 +90,9 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
                 AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS or
                 AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
                 // 平板键盘映射：请求系统把物理键盘事件先交给本服务的
-                // onKeyEvent。只有用户在设置里显式开启键盘映射、且按键命中
-                // 已绑定键位时才会吞键，其余事件一律放行。
+                // onKeyEvent。只有用户在设置里显式开启键盘映射、处于脚本
+                // 待运行 / 运行的监听窗口内、且按键命中已绑定键位时才会吞键，
+                // 其余事件一律放行。
                 AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
             notificationTimeout = 100
             // 防御性重置：清除之前版本可能注册过的动作事件来源，
@@ -123,8 +136,9 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * 订阅设置变化，实时开关鼠标 / 触控板事件捕获（[applyMotionEventSources]）
-     * 并收尾右摇杆——设置页开关切换时无需重启无障碍服务即可生效。
+     * 订阅设置变化与执行状态，实时计算「监听窗口」（有脚本待运行 / 正在运行），
+     * 并据此开关鼠标 / 触控板事件捕获（[applyMotionEventSources]）、收尾残留
+     * 的按住状态——设置页开关切换、脚本启停、悬浮球关闭都无需重启服务即生效。
      *
      * [AppGraph.containerOrNull] 在 Application 创建时即初始化，这里仍做一次
      * 轮询兜底，避免极端时序下订阅永远丢失。
@@ -132,23 +146,38 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     private fun startSettingsObserver() {
         settingsJob?.cancel()
         settingsJob = serviceScope.launch {
-            var repository = AppGraph.containerOrNull?.settingsRepository
-            while (repository == null) {
+            var container = AppGraph.containerOrNull
+            while (container == null) {
                 delay(200)
-                repository = AppGraph.containerOrNull?.settingsRepository
+                container = AppGraph.containerOrNull
             }
-            repository.settings.collect { settings ->
+            val repository = container.settingsRepository
+            val controller = container.executionController
+            combine(
+                repository.settings,
+                controller.armed,
+                controller.state,
+            ) { settings, armed, state ->
+                Triple(settings, armed, state.isActive)
+            }.collect { (settings, armed, running) ->
+                inputListeningActive = armed || running
                 applyMotionEventSources(settings)
-                if (!settings.gamepadEnabled || !settings.gamepadMouseStickEnabled) {
-                    // 功能中途关闭：停掉闲置计时并把可能按住的右摇杆收回中心。
-                    mainHandler.removeCallbacks(mouseStickIdle)
-                    mouseDeflection = null
-                    syncSticks()
-                }
-                if (!settings.gamepadEnabled || !settings.gamepadKeyboardEnabled) {
-                    // 键盘映射中途关闭：此前按住的长按键再也收不到 UP 回调，
-                    // 全部收笔抬起，避免指针卡在屏幕上。
-                    releaseHeldKeys()
+                if (!inputListeningActive) {
+                    // 监听窗口关闭（空闲）：抬起所有按住的指针、清掉排队点击，
+                    // 此后到达的键盘 / 鼠标事件全部穿透给前台应用。
+                    releaseAllInput()
+                } else {
+                    if (!settings.gamepadEnabled || !settings.gamepadMouseStickEnabled) {
+                        // 功能中途关闭：停掉闲置计时并把可能按住的右摇杆收回中心。
+                        mainHandler.removeCallbacks(mouseStickIdle)
+                        mouseDeflection = null
+                        syncSticks()
+                    }
+                    if (!settings.gamepadEnabled || !settings.gamepadKeyboardEnabled) {
+                        // 键盘映射中途关闭：此前按住的长按键再也收不到 UP 回调，
+                        // 全部收笔抬起，避免指针卡在屏幕上。
+                        releaseHeldKeys()
+                    }
                 }
             }
         }
@@ -157,13 +186,15 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     /**
      * 按设置请求 / 释放鼠标、触控板事件来源（API 34+，其余版本为无操作）。
      *
-     * 只有「手柄模拟 + 鼠标/触控板右摇杆 + 右摇杆中心已标定」三者齐备才捕获——
-     * 半开状态捕获只会白白吞掉指针事件。**绝不**在这里请求 SOURCE_TOUCHSCREEN。
+     * 只有「监听窗口内（脚本待运行 / 运行）+ 手柄模拟 + 鼠标/触控板右摇杆 +
+     * 右摇杆中心已标定」四者齐备才捕获——半开状态捕获只会白白吞掉指针事件，
+     * 空闲时尤其不能让鼠标在别的应用里失灵。**绝不**在这里请求 SOURCE_TOUCHSCREEN。
      */
     private fun applyMotionEventSources(settings: AppSettings) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
         val mappings = settings.gamepadMappingsFor(settings.gamepadMode)
-        val capture = settings.gamepadEnabled &&
+        val capture = inputListeningActive &&
+            settings.gamepadEnabled &&
             settings.gamepadMouseStickEnabled &&
             mappings.rightStickCenterConfigured
         val want = if (capture) {
@@ -178,7 +209,8 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * 键盘输入映射（仅在设置里开启「手柄模拟」时生效）。
+     * 键盘输入映射（仅在设置里开启「手柄模拟」、且处于脚本待运行 / 运行的
+     * 监听窗口内时生效；窗口外一律返回 `false`，按键照常分发给前台应用）。
      *
      * 三条互斥的路径：
      * * **WASD 左摇杆**（额外开启「WASD 控制左摇杆」且摇杆中心已标定时）：
@@ -190,11 +222,14 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
      * * **逐键点击**（需要「键盘映射」开关）：命中已绑定键位时，在标定坐标上
      *   排队派发一次点击手势并返回 `true` 吞掉本次按键。
      *
-     * 其余所有情况返回 `false`，按键照常分发给前台应用——因此开关关闭时
-     * 实体键盘行为完全不受影响。
+     * 其余所有情况返回 `false`，按键照常分发给前台应用——因此监听窗口外
+     * （包括开关关闭时）实体键盘行为完全不受影响。
      */
     override fun onKeyEvent(event: KeyEvent?): Boolean {
         if (event == null) return false
+        // 监听窗口外（无脚本待运行 / 运行）：完全不拦截，按键穿透给前台应用；
+        // 窗口关闭时收集器已做过收尾，这里不存在残留的按住状态。
+        if (!inputListeningActive) return false
         val settings = AppGraph.containerOrNull?.settingsRepository?.current ?: AppSettings.Default
         if (!settings.gamepadEnabled) {
             // 总开关中途关闭时，清掉可能残留的按住状态（此前按下的 WASD
@@ -286,7 +321,7 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
                 lastMousePoint = PointF(event.x, event.y)
                 if (last == null) return
                 val settings = AppGraph.containerOrNull?.settingsRepository?.current ?: AppSettings.Default
-                if (!settings.gamepadEnabled || !settings.gamepadMouseStickEnabled) return
+                if (!inputListeningActive || !settings.gamepadEnabled || !settings.gamepadMouseStickEnabled) return
                 val mappings = settings.gamepadMappingsFor(settings.gamepadMode)
                 if (!mappings.rightStickCenterConfigured) return
                 var dx = (event.x - last.x) * MOUSE_STICK_GAIN
@@ -434,6 +469,21 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
         syncSticks()
     }
 
+    /**
+     * 监听窗口关闭（无脚本待运行 / 运行）时的收尾：
+     * 双侧摇杆与所有长按键全部标记松开收笔、清掉排队点击与鼠标状态。
+     * 此后 [onKeyEvent] 一律返回 `false`，事件穿透给前台应用。
+     */
+    private fun releaseAllInput() {
+        mainHandler.removeCallbacks(mouseStickIdle)
+        mouseDeflection = null
+        lastMousePoint = null
+        heldStickKeys.clear()
+        pendingKeyTaps.clear()
+        heldKeySlots.values.forEach { it.desired = false }
+        syncSticks()
+    }
+
     /** 该侧摇杆中心（按下起点 / 收笔回中的目标）；未标定返回 `null`。 */
     private fun centerOf(slot: StickSlot, mappings: GamepadMappings): PointF? {
         val configured = if (slot === rightStick) {
@@ -458,7 +508,8 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     private fun syncSticks() {
         val settings = AppGraph.containerOrNull?.settingsRepository?.current ?: AppSettings.Default
         val mappings = settings.gamepadMappingsFor(settings.gamepadMode)
-        val handoffOn = settings.gamepadEnabled
+        // 监听窗口外视为整体关闭：目标全部落空，残留的按住状态走收笔路径。
+        val handoffOn = inputListeningActive && settings.gamepadEnabled
         val leftOpen = handoffOn && settings.gamepadKeyboardStickEnabled
         val rightOpen = handoffOn && settings.gamepadMouseStickEnabled
         if (leftOpen && mappings.stickCenterConfigured) leftStick.snapshot = mappings

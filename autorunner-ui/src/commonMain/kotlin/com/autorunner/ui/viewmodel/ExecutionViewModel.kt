@@ -145,6 +145,17 @@ class ExecutionViewModel(
     val armed: kotlinx.coroutines.flow.StateFlow<Boolean> = _armed.asStateFlow()
 
     /**
+     * 把进程级「待运行」标记置位 / 清除（[ExecutionController.armed]）。
+     *
+     * 与上面的 VM 级 [_armed] 不同，这个标记跨 ViewModel 实例共享，
+     * 无障碍服务据此决定键盘 / 鼠标映射是否监听输入：
+     * 悬浮服务消费「运行脚本 X」请求时置位，悬浮球被关闭时清除。
+     */
+    fun markArmed() = controller.markArmed()
+
+    fun disarm() = controller.disarm()
+
+    /**
      * 列表点「运行」：不立刻执行，而是显示悬浮窗并回到桌面，让用户先打开目标页面，
      * 再由用户在悬浮窗上点「运行」真正开始（图标随运行状态变成停止）。
      */

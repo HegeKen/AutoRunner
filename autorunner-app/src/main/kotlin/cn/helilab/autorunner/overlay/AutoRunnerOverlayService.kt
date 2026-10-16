@@ -81,9 +81,14 @@ class AutoRunnerOverlayService : Service() {
         executionViewModel = ExecutionViewModel(container)
         recordingViewModel = RecordingViewModel(container)
 
-        toastNotifier = ExecutionToastNotifier(this) {
-            container.settingsRepository.current.executionReminder
-        }.also { it.bind(scope, executionViewModel) }
+        toastNotifier = ExecutionToastNotifier(
+            context = this,
+            isReminderEnabled = { container.settingsRepository.current.executionReminder },
+            // 脚本卡片上的「调试」开关：开启的脚本运行时逐步提示步骤序号与内容。
+            isScriptDebugEnabled = { id ->
+                id != null && id in container.settingsRepository.current.debugScriptIds
+            },
+        ).also { it.bind(scope, executionViewModel) }
 
         startForegroundSafely()
         attachOverlay()
@@ -112,6 +117,9 @@ class AutoRunnerOverlayService : Service() {
 
     override fun onDestroy() {
         _isRunning.value = false
+        // 悬浮球被关闭：尚未启动的「待运行」一并作废，
+        // 让无障碍服务停止监听键盘 / 鼠标输入。
+        if (::executionViewModel.isInitialized) executionViewModel.disarm()
         progressJob?.cancel()
         recordingJob?.cancel()
         pendingJob?.cancel()
@@ -227,6 +235,9 @@ class AutoRunnerOverlayService : Service() {
                         if (!pending.scriptId.isNullOrBlank()) {
                             executionViewModel.selectScript(pending.scriptId)
                         }
+                        // 悬浮球已进入「待运行」：放行键盘 / 鼠标映射监听，
+                        // 直到脚本启动（由运行状态接管）或悬浮球被关闭。
+                        executionViewModel.markArmed()
                     }
                     PendingOverlayAction.Mode.RECORD -> {
                         recordingViewModel.markArmed()

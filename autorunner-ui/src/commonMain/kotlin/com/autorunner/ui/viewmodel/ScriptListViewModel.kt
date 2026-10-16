@@ -6,8 +6,11 @@ import com.autorunner.core.script.ImportResult
 import com.autorunner.core.script.ScriptRecord
 import com.autorunner.ui.platform.ScriptTransferController
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -26,6 +29,18 @@ class ScriptListViewModel(
 
     /** 全部已存储的脚本，最新的排在前面。 */
     val scripts: StateFlow<List<ScriptRecord>> = repository.scripts
+
+    /**
+     * 开启了「调试」开关的脚本 id 集合（见 [AppSettings.debugScriptIds]）。
+     * 卡片上的开关状态由它驱动。
+     */
+    val debugScriptIds: StateFlow<Set<String>> = container.settingsRepository.settings
+        .map { it.debugScriptIds }
+        .stateIn(
+            scope = scope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = container.settingsRepository.current.debugScriptIds,
+        )
 
     private val _query = MutableStateFlow("")
 
@@ -87,6 +102,11 @@ class ScriptListViewModel(
 
     fun select(id: String?) {
         _selectedId.value = id
+    }
+
+    /** 开 / 关指定脚本卡片上的「调试」开关。 */
+    fun setScriptDebug(id: String, enabled: Boolean) {
+        container.settingsRepository.setScriptDebugEnabled(id, enabled)
     }
 
     fun dismissMessage() {

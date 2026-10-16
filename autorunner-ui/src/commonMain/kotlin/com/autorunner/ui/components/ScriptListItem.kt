@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Copy
@@ -42,11 +43,12 @@ import com.autorunner.ui.theme.Dimens
 /**
  * 脚本库卡片。
  *
- * 固定三行，让每个条目保持同样的节奏：
+ * 固定四行，让每个条目保持同样的节奏：
  *
  * 1. 脚本名（脚本驱动手柄时附带手柄类型徽标），
  * 2. 已有描述（步数 / 执行模式 / 创建日期），
- * 3. 脚本级操作图标按钮 —— 运行、编辑、创建副本、导出、分享、
+ * 3. 「调试」开关 —— 打开后运行该脚本时逐步 Toast 提示步骤序号与内容，
+ * 4. 脚本级操作图标按钮 —— 运行、编辑、创建副本、导出、分享、
  *    重命名、删除 —— 而不是藏进「更多」面板里。
  *
  * 点按卡片本身打开编辑器。操作按钮使用统一的方框（见 [RowAction]），
@@ -65,6 +67,8 @@ fun ScriptListItem(
     onShare: (() -> Unit)? = null,
     onRename: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
+    debugEnabled: Boolean = false,
+    onToggleDebug: ((Boolean) -> Unit)? = null,
 ) {
     Card(
         modifier = modifier,
@@ -124,7 +128,36 @@ fun ScriptListItem(
                 overflow = TextOverflow.Ellipsis,
             )
 
-            // 3 — 操作按钮
+            // 3 — 「调试」开关：运行时逐步 Toast 提示步骤序号与内容，
+            // 便于在编辑 / 创建脚本时精准定位需要修改的动作。
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "调试",
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                )
+                Text(
+                    text = "运行时提示步骤序号与内容",
+                    modifier = Modifier.weight(1f),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Switch(
+                    checked = debugEnabled,
+                    onCheckedChange = onToggleDebug,
+                    enabled = onToggleDebug != null,
+                )
+            }
+
+            // 4 — 操作按钮
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

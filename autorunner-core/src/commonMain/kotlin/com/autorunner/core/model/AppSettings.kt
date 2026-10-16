@@ -149,6 +149,14 @@ data class AppSettings(
     @SerialName("inputMode") val inputMode: InputMode = InputMode.Default,
     /** 脚本保留的天数；`0` 表示不清理。 */
     @SerialName("scriptRetentionDays") val scriptRetentionDays: Int = 0,
+
+    /**
+     * 开启了「调试」开关的脚本 id 集合。
+     *
+     * 运行这些脚本时，Toast 会在每个动作边界提示当前步骤序号与内容，
+     * 便于在编辑 / 创建脚本时精准定位需要修改的位置。
+     */
+    @SerialName("debugScriptIds") val debugScriptIds: Set<String> = emptySet(),
 ) {
     fun sanitized(): AppSettings {
         val folded = legacyGamepadMappings
