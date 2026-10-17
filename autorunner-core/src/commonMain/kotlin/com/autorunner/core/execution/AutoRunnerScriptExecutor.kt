@@ -87,6 +87,9 @@ class AutoRunnerScriptExecutor(
         var executedActions: Int = 0
         var skippedActions: Int = 0
         var startMs: Long = 0L
+
+        /** 暂停时记录此刻挂钟；恢复时据此把暂停段从 [startMs] 中扣除。 */
+        var pauseAt: Long? = null
     }
 
     /** 最近一次 run 的计数；供 pause/resume/emitStoppedReport 等外部入口读取。 */
@@ -305,7 +308,7 @@ class AutoRunnerScriptExecutor(
             totalLoops = totalLoops,
             currentActionIndex = -1,
             totalActions = steps.size,
-            elapsedMs = elapsedSince(counters.startMs),
+            elapsedMs = elapsedSince(counters),
             skippedActions = counters.skippedActions,
             message = failureMessage,
         )
@@ -322,7 +325,7 @@ class AutoRunnerScriptExecutor(
             totalLoops = totalLoops,
             executedActions = counters.executedActions,
             skippedActions = counters.skippedActions,
-            elapsedMs = elapsedSince(counters.startMs),
+            elapsedMs = elapsedSince(counters),
             failureMessage = failureMessage,
         )
         if (isCurrentRun) _reports.tryEmit(report)
@@ -333,6 +336,7 @@ class AutoRunnerScriptExecutor(
     fun pause() {
         if (_state.value == ExecutionState.RUNNING) {
             _state.value = ExecutionState.PAUSED
+            activeCounters?.pauseAt = clock.nowMs()
             _progress.value = _progress.value.copy(state = ExecutionState.PAUSED, elapsedMs = elapsedMs())
         }
     }
@@ -340,6 +344,14 @@ class AutoRunnerScriptExecutor(
     /** 恢复已暂停的运行。 */
     fun resume() {
         if (_state.value == ExecutionState.PAUSED) {
+            // 把暂停段从计时中扣除：startMs 后移暂停时长，恢复后 elapsedMs
+            // 从中断点继续增长，而不是把暂停时间也算进总耗时。
+            activeCounters?.let { c ->
+                c.pauseAt?.let { pa ->
+                    c.startMs += clock.nowMs() - pa
+                    c.pauseAt = null
+                }
+            }
             _state.value = ExecutionState.RUNNING
             _progress.value = _progress.value.copy(state = ExecutionState.RUNNING, elapsedMs = elapsedMs())
         }
@@ -507,7 +519,7 @@ class AutoRunnerScriptExecutor(
             currentActionIndex = index,
             totalActions = totalActions,
             currentActionLabel = label,
-            elapsedMs = elapsedSince(counters.startMs),
+            elapsedMs = elapsedSince(counters),
             skippedActions = counters.skippedActions,
             message = message,
         )
@@ -537,7 +549,7 @@ class AutoRunnerScriptExecutor(
             totalLoops = totalLoops,
             currentActionIndex = -1,
             totalActions = totalActions,
-            elapsedMs = elapsedSince(counters.startMs),
+            elapsedMs = elapsedSince(counters),
             skippedActions = counters.skippedActions,
             intervalTotalMs = intervalTotalMs,
             intervalElapsedMs = intervalElapsedMs,
@@ -547,9 +559,18 @@ class AutoRunnerScriptExecutor(
     }
 
     /** 当前活跃 run 的已耗时；供 pause/resume 等外部入口使用。 */
-    private fun elapsedMs(): Long = elapsedSince(activeCounters?.startMs ?: 0L)
+    private fun elapsedMs(): Long = elapsedSince(activeCounters)
 
-    private fun elapsedSince(startMs: Long): Long = (clock.nowMs() - startMs).coerceAtLeast(0L)
+    /**
+     * 已耗时：用 [RunCounters.pauseAt]（若处于暂停态）或当前挂钟作为终点，
+     * 再减去 [RunCounters.startMs]。这样暂停期间 elapsedMs 固定不变，
+     * 不会因为挂钟继续走而偷偷增长。
+     */
+    private fun elapsedSince(counters: RunCounters?): Long {
+        if (counters == null) return 0L
+        val end = counters.pauseAt ?: clock.nowMs()
+        return (end - counters.startMs).coerceAtLeast(0L)
+    }
 
     private companion object {
         const val RECONNECT_POLL_MS = 250L

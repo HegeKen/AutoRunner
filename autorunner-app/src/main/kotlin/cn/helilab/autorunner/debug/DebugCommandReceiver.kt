@@ -136,6 +136,13 @@ class DebugCommandReceiver : BroadcastReceiver() {
 
             "overlay_collapse" -> container.overlayManager.collapse()
 
+            "black_screen" -> {
+                val enabled = intent.getBooleanExtra("enabled", true)
+                cn.helilab.autorunner.overlay.AutoRunnerOverlayService
+                    .setBlackScreen(context, enabled)
+                Log.i(AutoRunnerApplication.TAG, "debug black_screen -> $enabled")
+            }
+
             "run_repeat" -> {
                 val requested = intent.getStringExtra(EXTRA_SCRIPT_ID)
                 val count = intent.getStringExtra("count")?.toIntOrNull() ?: 3

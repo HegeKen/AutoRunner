@@ -12,9 +12,11 @@ import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.AppRecording
 import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Hide
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Pause
 import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Show
 import com.autorunner.core.model.ExecutionState
 import com.autorunner.ui.theme.AutoRunnerColors
 import com.autorunner.ui.theme.accentColor
@@ -34,6 +36,8 @@ import com.autorunner.ui.theme.accentColor
  *   避免空白区域吞掉游戏里的触摸。
  * @param onPrimaryAction 单击球：空闲→开始执行，运行中→暂停，已暂停→恢复，
  *   已就绪→开始采集，录制中→停止录制，已完成→复位。
+ * @param blackScreen 黑屏挂机覆盖层是否正在显示；菜单里用「隐藏 / 显示」图标表示。
+ * @param onToggleBlackScreen 切换黑屏挂机模式。
  */
 @Composable
 fun FloatingControlPanel(
@@ -50,6 +54,8 @@ fun FloatingControlPanel(
     recording: Boolean = false,
     recordingArmed: Boolean = false,
     isLandscape: Boolean = false,
+    blackScreen: Boolean = false,
+    onToggleBlackScreen: () -> Unit = {},
     onContentSizeChanged: (IntSize) -> Unit = {},
     dragModifier: Modifier = Modifier,
 ) {
@@ -71,6 +77,14 @@ fun FloatingControlPanel(
 
     // 菜单里的动作全部统一成与主球（运行）同款的圆形图标按钮，不再有文字提示。
     val closeAction = MiniAction(onClick = onClose, glyph = MiuixIcons.Close, iconOnly = true)
+
+    // 黑屏挂机：显示时用「眼睛」图标提示可以恢复，隐藏时用「划掉的眼睛」。
+    val blackScreenAction = MiniAction(
+        label = if (blackScreen) "退出黑屏" else "黑屏挂机",
+        onClick = onToggleBlackScreen,
+        glyph = if (blackScreen) MiuixIcons.Show else MiuixIcons.Hide,
+        iconOnly = true,
+    )
 
     val menuActions = when {
         recording -> listOf(
@@ -94,10 +108,11 @@ fun FloatingControlPanel(
                 iconOnly = true,
             ),
             MiniAction(label = "停止", onClick = onStop, glyph = null, danger = true, iconOnly = true),
+            blackScreenAction,
             closeAction,
         )
 
-        else -> listOf(closeAction)
+        else -> listOf(blackScreenAction, closeAction)
     }
 
     Column(

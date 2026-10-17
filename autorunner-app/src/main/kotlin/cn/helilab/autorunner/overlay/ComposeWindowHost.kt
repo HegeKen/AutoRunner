@@ -157,6 +157,25 @@ class ComposeWindowHost(
         layoutParams = null
     }
 
+    /**
+     * 把悬浮窗重新移到窗口栈顶。
+     *
+     * 黑屏挂机层是后加入的全屏覆盖窗口，会盖住悬浮球；重新添加一次悬浮窗即可
+     * 回到最上层，保证用户仍能长按悬浮球退出黑屏。延迟到下一次主线程循环执行，
+     * 避免在正在处理该窗口点击事件时移除自身窗口。
+     */
+    fun bringToFront() {
+        val view = composeView ?: return
+        view.post {
+            if (composeView !== view) return@post
+            val params = layoutParams ?: return@post
+            runCatching {
+                windowManager?.removeViewImmediate(view)
+                windowManager?.addView(view, params)
+            }
+        }
+    }
+
     private fun applyLayoutParams() {
         val params = layoutParams ?: return
         val metrics = context.resources.displayMetrics

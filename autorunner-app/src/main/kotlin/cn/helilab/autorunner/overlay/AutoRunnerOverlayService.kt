@@ -9,6 +9,7 @@ import android.os.IBinder
 import android.util.Log
 import cn.helilab.autorunner.AppGraph
 import cn.helilab.autorunner.AutoRunnerApplication
+import cn.helilab.autorunner.accessibility.AccessibilityServiceHolder
 import cn.helilab.autorunner.notification.ExecutionNotifications
 import com.autorunner.core.model.ExecutionState
 import com.autorunner.core.platform.DockEdge
@@ -60,6 +61,11 @@ class AutoRunnerOverlayService : Service() {
     /** 屏幕方向：横屏时悬浮球菜单排成一行，竖屏排成一列。在 [onCreate] 中初始化。 */
     private val isLandscape = mutableStateOf(false)
 
+    /** 黑屏挂机覆盖层是否正在显示（驱动菜单图标重组）。 */
+    private val blackScreen = mutableStateOf(false)
+
+    private var idleScreenOverlay: IdleScreenOverlay? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -71,6 +77,7 @@ class AutoRunnerOverlayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         // 属性初始化阶段 base context 尚未附加，resources 会为 null，故在此读取方向。
         isLandscape.value =
             resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -110,12 +117,15 @@ class AutoRunnerOverlayService : Service() {
                 // HID 配置在注册时即已固定；这里除了更新持久化的偏好设置
                 // （由设置页处理）之外无事可做。
             }
+            ACTION_SET_BLACK_SCREEN ->
+                setBlackScreenEnabled(intent.getBooleanExtra(EXTRA_BLACK_SCREEN, false))
         }
         OverlayStateHolder.update { it.copy(menuOpen = host?.menuOpen?.value ?: false, visible = true) }
         return START_STICKY
     }
 
     override fun onDestroy() {
+        if (instance === this) instance = null
         _isRunning.value = false
         // 悬浮球被关闭：尚未启动的「待运行」一并作废，
         // 让无障碍服务停止监听键盘 / 鼠标输入。
@@ -123,6 +133,10 @@ class AutoRunnerOverlayService : Service() {
         progressJob?.cancel()
         recordingJob?.cancel()
         pendingJob?.cancel()
+        idleScreenOverlay?.hide()
+        idleScreenOverlay = null
+        AccessibilityServiceHolder.current()?.hideIdleScreen()
+        blackScreen.value = false
         host?.remove()
         host = null
         OverlayStateHolder.update { it.copy(visible = false) }
@@ -161,6 +175,8 @@ class AutoRunnerOverlayService : Service() {
                     recording = recording,
                     recordingArmed = recordingArmed,
                     isLandscape = isLandscape.value,
+                    blackScreen = blackScreen.value,
+                    onToggleBlackScreen = { setBlackScreenEnabled(!blackScreen.value) },
                     onContentSizeChanged = { windowHost.setContentSize(it) },
                     onPrimaryAction = {
                         when {
@@ -199,6 +215,43 @@ class AutoRunnerOverlayService : Service() {
         observeProgress()
         observeRecording()
         observePending()
+    }
+
+    /**
+     * 打开 / 关闭黑屏挂机层。
+     *
+     * 覆盖层让 display 保持 ON 但整屏纯黑，脚本注入的触摸因为
+     * `FLAG_NOT_TOUCHABLE` 继续落到下层游戏，从而绕开「display OFF 时
+     * InputDispatcher 丢弃注入触摸」的问题。层内文字缓慢反弹，避免烧屏。
+     */
+    private fun setBlackScreenEnabled(enabled: Boolean) {
+        if (enabled == blackScreen.value) return
+        if (enabled) {
+            // 先收起菜单：洞口只需覆盖悬浮球，避免菜单里的操作被误触。
+            host?.setMenuOpen(false)
+            // 优先由无障碍服务添加 TYPE_ACCESSIBILITY_OVERLAY：MIUI 会把第三方
+            // 全屏 TYPE_APPLICATION_OVERLAY 强制压到 80% 不透明度，无法纯黑。
+            // 无障碍服务未启用时退回普通悬浮窗（会略微透出下层画面）。
+            val accessibility = AccessibilityServiceHolder.current()
+            val viaAccessibility = accessibility?.showIdleScreen() == true
+            if (!viaAccessibility) {
+                val overlay = IdleScreenOverlay(this)
+                if (!overlay.show()) {
+                    Log.w(AutoRunnerApplication.TAG, "black screen overlay could not be attached")
+                    return
+                }
+                idleScreenOverlay = overlay
+            }
+            blackScreen.value = true
+            // 回退路径用的是同层 APPLICATION_OVERLAY，重新添加才能盖住黑层；
+            // 无障碍层永远在本层之上，无需（也无法）置顶。
+            if (!viaAccessibility) host?.bringToFront()
+        } else {
+            AccessibilityServiceHolder.current()?.hideIdleScreen()
+            idleScreenOverlay?.hide()
+            idleScreenOverlay = null
+            blackScreen.value = false
+        }
     }
 
     /** 保持前台通知与执行器状态同步。 */
@@ -291,6 +344,14 @@ class AutoRunnerOverlayService : Service() {
 
     companion object {
 
+        /**
+         * 当前运行中的服务实例（仅主线程访问）。
+         *
+         * 无障碍服务收到「长按音量减键退出黑屏」时需要立即关闭黑屏层；
+         * 直接调用已运行的实例可以避开 Android 12+ 的后台服务启动限制。
+         */
+        private var instance: AutoRunnerOverlayService? = null
+
         private val _isRunning = MutableStateFlow(false)
 
         /** 悬浮窗处于附着状态时为 `true`。 */
@@ -300,12 +361,41 @@ class AutoRunnerOverlayService : Service() {
         const val ACTION_COLLAPSE = "cn.helilab.autorunner.action.COLLAPSE_OVERLAY"
         const val ACTION_TOGGLE = "cn.helilab.autorunner.action.TOGGLE_OVERLAY"
         const val ACTION_SET_MODE = "cn.helilab.autorunner.action.SET_OVERLAY_MODE"
+        const val ACTION_SET_BLACK_SCREEN = "cn.helilab.autorunner.action.SET_BLACK_SCREEN"
+        private const val EXTRA_BLACK_SCREEN = "blackScreen"
 
         /** 启动（或重新下达指令给）悬浮层服务。 */
         fun start(context: Context, action: String? = null) {
-            val intent = Intent(context, AutoRunnerOverlayService::class.java).apply {
-                if (action != null) this.action = action
+            start(
+                context,
+                Intent(context, AutoRunnerOverlayService::class.java).apply {
+                    if (action != null) this.action = action
+                },
+            )
+        }
+
+        /** 打开 / 关闭黑屏挂机层（调试与自动化用）。 */
+        fun setBlackScreen(context: Context, enabled: Boolean) {
+            start(
+                context,
+                Intent(context, AutoRunnerOverlayService::class.java).apply {
+                    action = ACTION_SET_BLACK_SCREEN
+                    putExtra(EXTRA_BLACK_SCREEN, enabled)
+                },
+            )
+        }
+
+        /** 由无障碍服务调用（长按音量减键）：立即关闭黑屏挂机层。 */
+        fun requestExitBlackScreen(context: Context) {
+            val running = instance
+            if (running != null) {
+                running.setBlackScreenEnabled(false)
+            } else {
+                setBlackScreen(context, false)
             }
+        }
+
+        private fun start(context: Context, intent: Intent) {
             runCatching {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)

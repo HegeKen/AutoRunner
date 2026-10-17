@@ -8,6 +8,7 @@ import android.graphics.PointF
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -16,6 +17,8 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import cn.helilab.autorunner.AppGraph
 import cn.helilab.autorunner.AutoRunnerApplication
+import cn.helilab.autorunner.overlay.AutoRunnerOverlayService
+import cn.helilab.autorunner.overlay.IdleScreenOverlay
 import com.autorunner.core.model.AppSettings
 import com.autorunner.core.model.GamepadMappings
 import com.autorunner.core.model.GamepadStickKeys
@@ -132,6 +135,8 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         settingsJob?.cancel()
         serviceScope.cancel()
+        // 无障碍服务被停用时窗口会被系统移除，这里只清掉引用。
+        hideIdleScreen()
         super.onDestroy()
     }
 
@@ -227,6 +232,14 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
      */
     override fun onKeyEvent(event: KeyEvent?): Boolean {
         if (event == null) return false
+        // 黑屏挂机期间音量减键是「退出挂机」键：按下过程全部吞掉，避免调音量；
+        // 退出后按键仍被本服务持有到抬起（volumeDownPressedAt 非 0），
+        // 松手前的重复 DOWN / UP 也一并吞掉。
+        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN &&
+            (idleScreenVisible || volumeDownPressedAt != 0L)
+        ) {
+            return handleIdleScreenExitKey(event)
+        }
         // 监听窗口外（无脚本待运行 / 运行）：完全不拦截，按键穿透给前台应用；
         // 窗口关闭时收集器已做过收尾，这里不存在残留的按住状态。
         if (!inputListeningActive) return false
@@ -767,6 +780,95 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     /** 采集层正在消费触摸时为 `true`。 */
     val isCapturing: Boolean get() = captureView != null
 
+    // ------------------------------------------------------------ 黑屏挂机层
+    //
+    // 通过无障碍服务添加 `TYPE_ACCESSIBILITY_OVERLAY` 全屏窗口：MIUI 会把第三方
+    // 全屏 `TYPE_APPLICATION_OVERLAY` 强制压到 80% 不透明度（透出下层画面），
+    // 而由无障碍服务添加的窗口不受该限制，才能得到真正的纯黑。
+
+    private var idleScreenOverlay: IdleScreenOverlay? = null
+
+    /** 黑屏挂机层是否显示（决定音量减键是否作为退出键）。 */
+    private var idleScreenVisible = false
+
+    /** 音量减键按下的时刻（elapsedRealtime）；非 0 表示本次按键由本服务持有。 */
+    private var volumeDownPressedAt = 0L
+
+    /** 本次音量减按键已触发过退出，松开前的其余事件全部吞掉。 */
+    private var volumeDownLongPressTriggered = false
+
+    /** 按住音量减键满 [IDLE_SCREEN_EXIT_LONG_PRESS_MS] 后退出黑屏挂机。 */
+    private val idleScreenExitLongPress = Runnable {
+        if (idleScreenVisible && volumeDownPressedAt != 0L) {
+            volumeDownLongPressTriggered = true
+            exitIdleScreen()
+        }
+    }
+
+    /** 添加黑屏挂机层；无障碍服务不可用（无窗口权限等）时返回 `false`。 */
+    fun showIdleScreen(): Boolean {
+        if (idleScreenOverlay != null) return true
+        val overlay = IdleScreenOverlay(
+            context = this,
+            windowManager = getSystemService(WindowManager::class.java),
+            windowType = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+        )
+        if (!overlay.show()) return false
+        idleScreenOverlay = overlay
+        idleScreenVisible = true
+        if (volumeDownPressedAt == 0L) volumeDownLongPressTriggered = false
+        return true
+    }
+
+    /** 移除黑屏挂机层；未挂载时调用也是安全的。 */
+    fun hideIdleScreen() {
+        idleScreenOverlay?.hide()
+        idleScreenOverlay = null
+        idleScreenVisible = false
+        // 不清理 volumeDownPressedAt：长按退出时按键仍被按住，
+        // 需要继续吞掉它的重复 DOWN / UP 直到用户松手。
+        mainHandler.removeCallbacks(idleScreenExitLongPress)
+    }
+
+    /**
+     * 黑屏挂机期间的音量减键处理：按住满 [IDLE_SCREEN_EXIT_LONG_PRESS_MS] 退出。
+     *
+     * 按下到抬起之间一律返回 `true` 吞掉事件，不会触发系统调音量。
+     */
+    private fun handleIdleScreenExitKey(event: KeyEvent): Boolean {
+        when (event.action) {
+            KeyEvent.ACTION_DOWN -> {
+                if (event.repeatCount == 0) {
+                    volumeDownPressedAt = SystemClock.elapsedRealtime()
+                    volumeDownLongPressTriggered = false
+                    mainHandler.removeCallbacks(idleScreenExitLongPress)
+                    mainHandler.postDelayed(idleScreenExitLongPress, IDLE_SCREEN_EXIT_LONG_PRESS_MS)
+                }
+            }
+
+            KeyEvent.ACTION_UP -> {
+                mainHandler.removeCallbacks(idleScreenExitLongPress)
+                // 兜底：部分设备长按期间不派发重复事件，松手时按实际按住时长再判一次。
+                if (!volumeDownLongPressTriggered &&
+                    idleScreenVisible &&
+                    volumeDownPressedAt != 0L &&
+                    SystemClock.elapsedRealtime() - volumeDownPressedAt >= IDLE_SCREEN_EXIT_LONG_PRESS_MS
+                ) {
+                    volumeDownLongPressTriggered = true
+                    exitIdleScreen()
+                }
+                // 按键已松开，释放所有权，后续音量键恢复系统默认行为。
+                volumeDownPressedAt = 0L
+            }
+        }
+        return true
+    }
+
+    private fun exitIdleScreen() {
+        Log.i(AutoRunnerApplication.TAG, "volume-down long press: exiting black screen")
+        AutoRunnerOverlayService.requestExitBlackScreen(this)
+    }
+
     /**
      * 临时让采集层不可触摸。
      *
@@ -830,5 +932,8 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
 
         /** 鼠标 / 触控板停移多久后推杆自动回中抬起（毫秒）。 */
         const val MOUSE_STICK_IDLE_MS = 100L
+
+        /** 黑屏挂机下按住音量减键多久触发退出（毫秒）。 */
+        const val IDLE_SCREEN_EXIT_LONG_PRESS_MS = 600L
     }
 }

@@ -167,6 +167,14 @@ object AppGraph {
             // 而它们都会读取 `scriptRepository.scripts`。
             built.scope.launch { runCatching { built.scriptRepository.refresh() } }
 
+            // 脚本运行（含暂停）期间保持屏幕常亮：display 熄灭后
+            // InputDispatcher 会丢弃注入的触摸，脚本会一直「空跑」。
+            built.scope.launch {
+                built.executionController.state.collect { state ->
+                    if (state.isActive) ScreenOnGuard.acquire(application) else ScreenOnGuard.release()
+                }
+            }
+
             // 首次启动导入内置示例脚本，让用户装上就有可直接运行的样例。
             seedSampleScripts(application, built)
 
