@@ -1,0 +1,61 @@
+{
+  "_comment": "依据《开发指南》(pId=2131) 第四章「模版接入示例」整理。官方代码块中的键名 'miui.focus.paramtextInfo' 为笔误，此处改为 'textInfo'；其余字段保持原样。本示例用于自测/对照，不代表官方原文逐字一致。",
+  "param_v2": {
+    "protocol": 1,
+    "business": "taxi",
+    "enableFloat": true,
+    "updatable": true,
+    "ticker": "ticker",
+    "tickerPic": "miui.focus.pic_ticker",
+    "aodTitle": "aodTitle",
+    "aodPic": "miui.focus.pic_aod",
+    "param_island": {
+      "islandProperty": 1,
+      "bigIslandArea": {
+        "imageTextInfoLeft": {
+          "type": 1,
+          "picInfo": {
+            "type": 1,
+            "pic": "miui.focus.pic_imageText"
+          },
+          "textInfo": {
+            "frontTitle": "充电中",
+            "title": "24%",
+            "content": "剩5分钟",
+            "useHighLight": false
+          }
+        },
+        "picInfo": {
+          "type": 1,
+          "pic": "miui.focus.pic_imageText"
+        }
+      },
+      "smallIslandArea": {
+        "picInfo": {
+          "type": 1,
+          "pic": "miui.focus.pic_imageText"
+        }
+      },
+      "shareData": {
+        "title": "share_title"
+      }
+    },
+    "baseInfo": {
+      "title": "待取件",
+      "content": "安宁华庭2区8号底商店菜鸟驿站",
+      "colorTitle": "#006EFF",
+      "type": 2
+    },
+    "hintInfo": {
+      "type": 1,
+      "title": "2件包裹",
+      "actionInfo": {
+        "action": "miui.focus.action_test"
+      }
+    },
+    "extraInfo": {
+      "carType": "YU7",
+      "carColor": "白色"
+    }
+  }
+}

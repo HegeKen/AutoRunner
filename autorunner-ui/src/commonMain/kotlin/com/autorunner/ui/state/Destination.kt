@@ -4,12 +4,15 @@ package com.autorunner.ui.state
  * AutoRunner 外壳的顶层导航。
  *
  * 外壳在状态中只保存单个 destination，而不引入导航库：
- * 只有四个页面加一条常驻的导航栏/导航轨，这样做更简单，也更容易适配（§5.2）。
+ * 只有少量固定页面加一条常驻的导航栏/导航轨，这样做更简单，也更容易适配（§5.2）。
  */
 sealed interface Destination {
 
     /** 首页：已录制的脚本库。 */
     data object Scripts : Destination
+
+    /** 组合运行：两段脚本并行，各自按自己的循环间隔执行。 */
+    data object Combo : Destination
 
     /** 脚本编辑器；`scriptId == null` 表示新建一个空脚本。 */
     data class Editor(val scriptId: String? = null) : Destination
@@ -22,10 +25,11 @@ sealed interface Destination {
 
     companion object {
         /** 导航栏 / 导航轨上可达的页面。 */
-        val topLevel: List<Destination> = listOf(Scripts, Record, Settings)
+        val topLevel: List<Destination> = listOf(Scripts, Combo, Record, Settings)
 
         fun labelOf(destination: Destination): String = when (destination) {
             Scripts -> "脚本"
+            Combo -> "组合"
             is Editor -> "编辑"
             Record -> "录制"
             Settings -> "设置"

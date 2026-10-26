@@ -132,6 +132,13 @@ object ScriptValidator {
                 severity = ValidationSeverity.ERROR,
             )
         }
+        if (config.startDelayMs < 0) {
+            issues += ValidationIssue(
+                code = "negative_start_delay",
+                message = "首轮延迟不能为负数",
+                severity = ValidationSeverity.ERROR,
+            )
+        }
         if (config.mode == com.autorunner.core.model.ExecutionMode.ONCE && config.repeatCount > 1) {
             issues += ValidationIssue(
                 code = "repeat_count_ignored",

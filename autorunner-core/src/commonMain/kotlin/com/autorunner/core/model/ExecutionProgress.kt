@@ -28,6 +28,10 @@ data class ExecutionProgress(
     val intervalTotalMs: Long = 0L,
     /** 本段循环间隔已等待的时长（毫秒）。 */
     val intervalElapsedMs: Long = 0L,
+    /** 首轮开始前等待的总时长（毫秒）；`0` 表示没有首轮等待。 */
+    val startDelayTotalMs: Long = 0L,
+    /** 首轮等待已消耗的时长（毫秒）。 */
+    val startDelayElapsedMs: Long = 0L,
 ) {
     val isInfinite: Boolean get() = totalLoops >= ExecutionConfig.INFINITE_LOOPS
 
@@ -67,6 +71,20 @@ data class ExecutionProgress(
                 "${intervalElapsedMs / 60_000}/${intervalTotalMs / 60_000} 分钟"
 
             else -> "${intervalElapsedMs / 1_000}/${intervalTotalMs / 1_000} 秒"
+        }
+
+    /**
+     * `3/10 分钟` 风格的首轮等待进度；不在首轮等待中时为 `null`。
+     *
+     * 组合运行时 B 脚本用它显示「距第一轮开始还有多久」。
+     */
+    val startDelayLabel: String?
+        get() = when {
+            startDelayTotalMs <= 0L -> null
+            startDelayTotalMs >= 60_000L ->
+                "${startDelayElapsedMs / 60_000}/${startDelayTotalMs / 60_000} 分钟"
+
+            else -> "${startDelayElapsedMs / 1_000}/${startDelayTotalMs / 1_000} 秒"
         }
 
     fun formattedState(): String = when (state) {

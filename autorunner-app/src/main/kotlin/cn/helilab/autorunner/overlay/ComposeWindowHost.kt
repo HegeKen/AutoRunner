@@ -36,9 +36,11 @@ import com.autorunner.ui.theme.Dimens
  *
  * 悬浮窗只有两种形态：仅悬浮球（[menuOpen] = false），以及「球 + 迷你菜单」
  * （[menuOpen] = true）。球的屏幕位置以绝对坐标 [ballX]/[ballY] 为真源，可拖动到
- * 任意位置（不做边缘吸附）。两种形态下球的屏幕位置保持一致——窗口高度不加限制，
- * 菜单向下展开，因此 y 不变；菜单态窗口 x 由 [ballX] 按内容宽度回推，使球的位置
- * 不随窗口放宽而跳动。`dockedEdge` 仅表示球位于左/右半屏，用于决定菜单展开方向。
+ * 任意位置（不做边缘吸附）。两种形态下球的屏幕位置保持一致：菜单横向按
+ * [dockedEdge] 决定朝左/右展开，纵向按球所在的上下半屏决定向下/向上展开
+ * （[menuAbove]），窗口坐标再用 [computeOverlayWindowPlacement] 回推并夹取到屏幕内，
+ * 避免球贴近屏幕底部时长按菜单被裁掉。`dockedEdge` 仅表示球位于左/右半屏，用于决定
+ * 菜单展开方向。
  */
 class ComposeWindowHost(
     private val context: Context,
@@ -56,6 +58,18 @@ class ComposeWindowHost(
     /** 最近一次测得的 Compose 内容尺寸（像素），用于收紧菜单态窗口并按球回推 x。 */
     private var contentSize: IntSize = IntSize.Zero
 
+    /**
+     * 上一次菜单展开时测得的内容尺寸。
+     *
+     * 打开菜单的瞬间 [contentSize] 仍是「仅球」的旧尺寸，若直接拿它回推窗口 y，
+     * 菜单会先出现在错误位置再跳一下。保留上一次的结果作为首帧估算，等真实尺寸
+     * 回报后 [menuContentMeasured] 置位，即改用新的测量值。
+     */
+    private var lastMenuSize: IntSize = IntSize.Zero
+
+    /** [contentSize] 是否已经是菜单展开态的测量结果。 */
+    private var menuContentMeasured = false
+
     /** 悬浮球左上角在屏幕上的绝对坐标（像素）；位置的真源，拖动时更新。 */
     private var ballX: Int = 0
     private var ballY: Int = 0
@@ -63,12 +77,20 @@ class ComposeWindowHost(
     /** 首次布局前 [ballX]/[ballY] 尚未初始化，置为默认位置。 */
     private var ballPositionInitialized = false
 
-    /** `true` 时在球下方展开迷你快捷菜单。 */
+    /** `true` 时展开迷你快捷菜单。 */
     val menuOpen: MutableState<Boolean> = mutableStateOf(false)
+
+    /**
+     * 菜单在球的上方展开（球位于屏幕下半部分）。
+     *
+     * 由 [applyLayoutParams] 依据球心位置维护，Compose 内容据此调整球的上下顺序，
+     * 使长按菜单始终朝屏幕空间更大的一侧展开。
+     */
+    val menuAbove: MutableState<Boolean> = mutableStateOf(false)
 
     val isAttached: Boolean get() = composeView != null
 
-    /** 球位于左/右半屏，仅用于决定菜单展开方向（不再吸附边缘）。 */
+    /** 球位于左/右半屏，仅用于决定菜单的横向展开方向（不再吸附边缘）。 */
     var dockedEdge: MutableState<DockEdge> = mutableStateOf(DockEdge.RIGHT)
         private set
 
@@ -110,6 +132,8 @@ class ComposeWindowHost(
         // 不做提前返回：即使状态值恰好未变，窗口尺寸也必须与内容保持一致
         // （初次附着的路径依赖这一点）。
         menuOpen.value = value
+        // 收起菜单后内容会重新测回“仅球”尺寸；下次展开时先用缓存值估算位置。
+        if (!value) menuContentMeasured = false
         applyLayoutParams()
     }
 
@@ -117,11 +141,21 @@ class ComposeWindowHost(
 
     /**
      * 由 Compose 内容在布局结束时回报自身尺寸。菜单态窗口用 `WRAP_CONTENT`
-     * 贴合内容，x 需要按内容宽度回推，才能让球的位置不随窗口放宽而跳动。
+     * 贴合内容，x / y 需要按内容尺寸回推，才能让球的位置不随窗口放宽、菜单展开
+     * 方向变化而跳动。
      */
     fun setContentSize(size: IntSize) {
-        if (size == contentSize) return
+        if (size == contentSize) {
+            // 尺寸未变：若这是切换菜单态后的首次测量（例如两种状态的尺寸恰好相同），
+            // 仍要标记为已测量，后续布局才不会继续用旧缓存。
+            if (menuOpen.value) menuContentMeasured = true
+            return
+        }
         contentSize = size
+        if (menuOpen.value) {
+            lastMenuSize = size
+            menuContentMeasured = true
+        }
         applyLayoutParams()
     }
 
@@ -189,25 +223,46 @@ class ComposeWindowHost(
         ballX = ballX.coerceIn(0, (metrics.widthPixels - ballWindow).coerceAtLeast(0))
         ballY = ballY.coerceIn(0, (metrics.heightPixels - ballWindow).coerceAtLeast(0))
         updateDockedEdge(metrics.widthPixels, ballWindow)
-        if (menuOpen.value) {
+
+        val open = menuOpen.value
+        // 菜单展开的瞬间 Compose 还没重新测量；用上一次菜单态尺寸做首帧估算，
+        // 避免球先跳到错误位置再回弹。
+        val measuredSize = if (menuContentMeasured) contentSize else lastMenuSize
+        val contentWidth = if (open) {
+            measuredSize.width.takeIf { it > 0 } ?: ballWindow
+        } else {
+            ballWindow
+        }
+        val contentHeight = if (open) {
+            measuredSize.height.takeIf { it > 0 } ?: ballWindow
+        } else {
+            ballWindow
+        }
+
+        val placement = computeOverlayWindowPlacement(
+            screenWidth = metrics.widthPixels,
+            screenHeight = metrics.heightPixels,
+            ballWindow = ballWindow,
+            contentWidth = contentWidth,
+            contentHeight = contentHeight,
+            ballX = ballX,
+            ballY = ballY,
+            menuOpen = open,
+            dockedEdge = dockedEdge.value,
+        )
+        // Compose 内容据此决定菜单画在球上方还是下方。
+        menuAbove.value = placement.menuAbove
+
+        if (open) {
             // 内容自适应：窗口贴合 Compose 内容，避免空白区域吞掉游戏触摸。
             params.width = WindowManager.LayoutParams.WRAP_CONTENT
             params.height = WindowManager.LayoutParams.WRAP_CONTENT
-            // 球贴向窗口的哪一侧由半屏位置决定；右半屏时窗口向左展开，
-            // 需把球坐标换算回窗口左上角。
-            val contentWidth = contentSize.width.takeIf { it > 0 } ?: ballWindow
-            params.x = if (dockedEdge.value == DockEdge.RIGHT) {
-                ballX - (contentWidth - ballWindow)
-            } else {
-                ballX
-            }
         } else {
             params.width = ballWindow
             params.height = ballWindow
-            params.x = ballX
         }
-        // 球态与菜单态共用同一套 y，保证切换菜单时球的纵向位置不跳动。
-        params.y = ballY
+        params.x = placement.x
+        params.y = placement.y
         runCatching { windowManager?.updateViewLayout(composeView, params) }
     }
 

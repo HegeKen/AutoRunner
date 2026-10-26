@@ -272,10 +272,26 @@ class AndroidRootInputBackend(
             "appops set $PACKAGE RUN_IN_BACKGROUND allow",
             "appops set $PACKAGE RUN_ANY_IN_BACKGROUND allow",
             "appops set $PACKAGE START_FOREGROUND allow",
+            // 通知使用权：并入 secure settings（保留用户已授权的其它 listener）。
+            // 读不到列表时跳过写入，避免把其它 App 的授权清空。
+            "list=\$(settings get secure enabled_notification_listeners 2>/dev/null); " +
+                "if [ -n \"\$list\" ]; then case \"\$list\" in " +
+                "*\"$NOTIFICATION_LISTENER\"*) ;; " +
+                "null) settings put secure enabled_notification_listeners " +
+                "\"$NOTIFICATION_LISTENER\" ;; " +
+                "*) settings put secure enabled_notification_listeners " +
+                "\"\$list:$NOTIFICATION_LISTENER\" ;; esac; fi",
+            "cmd notification allow_listener $NOTIFICATION_LISTENER 2>/dev/null",
+            // Android 15+ 的敏感通知（验证码等）需要单独 appop 才能读到正文。
+            "appops set $PACKAGE RECEIVE_SENSITIVE_NOTIFICATIONS allow",
             "am set-inactive $PACKAGE false",
         )
 
         private const val PACKAGE = "cn.helilab.autorunner"
+
+        /** 通知监听组件；须与 `AutoRunnerNotificationListener` 的包名 / 类名一致。 */
+        private const val NOTIFICATION_LISTENER =
+            "cn.helilab.autorunner/cn.helilab.autorunner.notification.AutoRunnerNotificationListener"
     }
 }
 

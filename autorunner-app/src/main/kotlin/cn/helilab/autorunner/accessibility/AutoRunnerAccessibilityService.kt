@@ -5,6 +5,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.graphics.PointF
+import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -15,6 +16,9 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
+import android.widget.Toast
 import cn.helilab.autorunner.AppGraph
 import cn.helilab.autorunner.AutoRunnerApplication
 import cn.helilab.autorunner.overlay.AutoRunnerOverlayService
@@ -126,8 +130,19 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // 手势回放不需要事件流；保留这个钩子是为了让服务保持绑定状态，
-        // 不会被系统优化掉。
+        // 手势回放本身不需要事件流；这里只服务于黑屏挂机的「弹窗守护」。
+        // 其余时间保持空转，避免在后台解析整棵无障碍树。
+        val type = event?.eventType ?: return
+        if (!idleScreenVisible || hangDialogTriggered) return
+        when (type) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED,
+            AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
+                val settings = AppGraph.containerOrNull?.settingsRepository?.current ?: return
+                if (settings.hangDialogGuard) scheduleHangDialogCheck()
+            }
+        }
     }
 
     override fun onInterrupt() = Unit
@@ -135,8 +150,10 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         settingsJob?.cancel()
         serviceScope.cancel()
-        // 无障碍服务被停用时窗口会被系统移除，这里只清掉引用。
+        // 无障碍服务被停用时窗口会被系统移除，这里只清掉引用；
+        // 同时把悬浮服务的 blackScreen 状态拉回复位，避免菜单图标停留在「退出黑屏」。
         hideIdleScreen()
+        AutoRunnerOverlayService.notifyBlackScreenHidden()
         super.onDestroy()
     }
 
@@ -791,6 +808,24 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     /** 黑屏挂机层是否显示（决定音量减键是否作为退出键）。 */
     private var idleScreenVisible = false
 
+    /** 进入挂机时前台应用的包名；用于识别「弹窗把前台换成了别的应用」。 */
+    private var hangBaselinePackage: String? = null
+
+    /** 进入挂机时已存在的窗口 id 集合；新的窗口 id 才可能是挂机后弹出的确认框。 */
+    private var hangBaselineWindowIds: Set<Int> = emptySet()
+
+    /** 本次挂机是否已经因为弹窗触发过退出（防止重复弹 Toast / 重复暂停）。 */
+    private var hangDialogTriggered = false
+
+    /** 一次防抖检查是否已排队（事件风暴期间只保留一次）。 */
+    private var hangDialogCheckScheduled = false
+
+    /** 事件稳定 [HANG_DIALOG_SETTLE_MS] 后再扫描，避免读到动画中的半成品窗口。 */
+    private val hangDialogCheck = Runnable {
+        hangDialogCheckScheduled = false
+        inspectHangDialog()
+    }
+
     /** 音量减键按下的时刻（elapsedRealtime）；非 0 表示本次按键由本服务持有。 */
     private var volumeDownPressedAt = 0L
 
@@ -808,6 +843,11 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     /** 添加黑屏挂机层；无障碍服务不可用（无窗口权限等）时返回 `false`。 */
     fun showIdleScreen(): Boolean {
         if (idleScreenOverlay != null) return true
+        // 先记下当前窗口基线，再加入黑屏层：之后新出现的窗口 id 才可能是弹窗。
+        captureHangBaseline()
+        hangDialogTriggered = false
+        mainHandler.removeCallbacks(hangDialogCheck)
+        hangDialogCheckScheduled = false
         val overlay = IdleScreenOverlay(
             context = this,
             windowManager = getSystemService(WindowManager::class.java),
@@ -828,6 +868,186 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
         // 不清理 volumeDownPressedAt：长按退出时按键仍被按住，
         // 需要继续吞掉它的重复 DOWN / UP 直到用户松手。
         mainHandler.removeCallbacks(idleScreenExitLongPress)
+        mainHandler.removeCallbacks(hangDialogCheck)
+        hangDialogCheckScheduled = false
+        hangDialogTriggered = false
+        hangBaselinePackage = null
+        hangBaselineWindowIds = emptySet()
+    }
+
+    // ------------------------------------------------------------ 弹窗守护
+    //
+    // 黑屏层下方的应用若弹出「确认 / 取消」「立即购买」之类的窗口，脚本注入的
+    // 触摸会直接落到这些按钮上。这里在挂机期间监听无障碍事件，发现**挂机后新
+    // 出现的应用窗口**且带有确认类文案时，暂停脚本并退出挂机，让用户接管。
+
+    /** 记录挂机开始时的前台包名与窗口 id 基线。 */
+    private fun captureHangBaseline() {
+        val root = runCatching { rootInActiveWindow }.getOrNull()
+        hangBaselinePackage = root?.packageName?.toString()
+        // 手动把活动窗口的 id 也并进基线：个别 ROM 上 getWindows() 返回空列表，
+        // 只靠它会让游戏主窗口也被当成「挂机后新出现的窗口」。
+        val ids = runCatching { windows.orEmpty().map { it.id }.toMutableSet() }
+            .getOrDefault(mutableSetOf())
+        root?.let { ids += it.windowId }
+        hangBaselineWindowIds = ids
+    }
+
+    private fun scheduleHangDialogCheck() {
+        if (hangDialogCheckScheduled) return
+        hangDialogCheckScheduled = true
+        mainHandler.postDelayed(hangDialogCheck, HANG_DIALOG_SETTLE_MS)
+    }
+
+    /** 扫描当前活动窗口与新出现的应用窗口，命中候选则退出挂机。 */
+    private fun inspectHangDialog() {
+        if (!idleScreenVisible || hangDialogTriggered) return
+        val ownPackage = packageName
+        val wall = runCatching { windows }.getOrNull().orEmpty()
+        val activeRoot = runCatching { rootInActiveWindow }.getOrNull()
+
+        val signals = ArrayList<DialogSignal>(2)
+        if (activeRoot != null && shouldInspectHangWindow(activeRoot)) {
+            val info = wall.firstOrNull { it.id == activeRoot.windowId }
+            buildDialogSignal(activeRoot, info)?.let(signals::add)
+        }
+        // 某些 ROM 的 rootInActiveWindow 不是弹窗（焦点仍在游戏窗口），
+        // 因此再补扫挂机后新出现的应用窗口；基线窗口不再重复解析。
+        wall.forEach { info ->
+            if (info.type != AccessibilityWindowInfo.TYPE_APPLICATION) return@forEach
+            if (info.id == activeRoot?.windowId) return@forEach
+            if (info.id in hangBaselineWindowIds) return@forEach
+            val root = runCatching { info.root }.getOrNull() ?: return@forEach
+            buildDialogSignal(root, info)?.let(signals::add)
+        }
+
+        val hit = signals.firstOrNull {
+            isHangDialogCandidate(it, ownPackage, hangBaselinePackage)
+        } ?: return
+        onHangDialogDetected(hit)
+    }
+
+    /**
+     * 只解析「新的」或「前台包名变了」的窗口，避免每 400ms 重新遍历一遍游戏主界面
+     * 的无障碍树（大场景游戏可能有数百个节点）。
+     */
+    private fun shouldInspectHangWindow(root: AccessibilityNodeInfo): Boolean {
+        val pkg = root.packageName?.toString() ?: return false
+        if (pkg == packageName || isSystemUiPackage(pkg)) return false
+        if (root.windowId !in hangBaselineWindowIds) return true
+        return hangBaselinePackage != null && pkg != hangBaselinePackage
+    }
+
+    private fun buildDialogSignal(
+        root: AccessibilityNodeInfo,
+        info: AccessibilityWindowInfo?,
+    ): DialogSignal? {
+        val pkg = root.packageName?.toString() ?: return null
+        if (pkg == packageName || isSystemUiPackage(pkg)) return null
+        val bounds = Rect()
+        runCatching { root.getBoundsInScreen(bounds) }
+        if (bounds.isEmpty) return null
+        val texts = collectVisibleTexts(root)
+        if (texts.isEmpty()) return null
+        val metrics = resources.displayMetrics
+        val fullscreen = bounds.width() >= metrics.widthPixels * 0.9f &&
+            bounds.height() >= metrics.heightPixels * 0.9f
+        return DialogSignal(
+            packageName = pkg,
+            className = root.className?.toString().orEmpty(),
+            windowId = root.windowId,
+            windowType = info.toDialogWindowType(),
+            isFullscreen = fullscreen,
+            isNewWindow = root.windowId !in hangBaselineWindowIds,
+            confirmTexts = texts.filter(::isConfirmText),
+            titleTexts = texts.filter(::isDialogTitleText),
+        )
+    }
+
+    /** 深度优先收集可见节点的文本，节点数 / 文本数都有上限，避免超大页面拖慢主线程。 */
+    private fun collectVisibleTexts(root: AccessibilityNodeInfo): List<String> {
+        val texts = ArrayList<String>()
+        var visited = 0
+
+        fun visit(node: AccessibilityNodeInfo, depth: Int) {
+            if (visited >= HANG_DIALOG_MAX_NODES || depth > HANG_DIALOG_MAX_DEPTH) return
+            visited++
+            if (node.isVisibleToUser) {
+                node.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let { text ->
+                    if (texts.size < HANG_DIALOG_MAX_TEXTS) {
+                        texts += text.take(HANG_DIALOG_MAX_TEXT_LENGTH)
+                    }
+                }
+                node.contentDescription?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let { text ->
+                    if (texts.size < HANG_DIALOG_MAX_TEXTS) {
+                        texts += text.take(HANG_DIALOG_MAX_TEXT_LENGTH)
+                    }
+                }
+            }
+            for (index in 0 until node.childCount) {
+                val child = runCatching { node.getChild(index) }.getOrNull() ?: continue
+                visit(child, depth + 1)
+            }
+        }
+
+        runCatching { visit(root, 0) }
+        return texts
+    }
+
+    /** 调试通道使用：输出弹窗守护的当前基线，便于在实机上确认检测是否就绪。 */
+    fun debugHangGuardState(): String = buildString {
+        append("idleScreen=").append(idleScreenVisible)
+        append(" dialogTriggered=").append(hangDialogTriggered)
+        append(" baselinePkg=").append(hangBaselinePackage ?: "null")
+        append(" baselineWindows=").append(hangBaselineWindowIds.size)
+        append(" notificationLayer=").append(idleScreenOverlay?.hasNotificationLayer == true)
+        append(" mediaControls=").append(idleScreenOverlay?.hasMediaControls == true)
+        append(" mediaSession=").append(idleScreenOverlay?.debugMediaState() ?: "inactive")
+    }
+
+    private fun onHangDialogDetected(signal: DialogSignal) {
+        hangDialogTriggered = true
+        mainHandler.removeCallbacks(hangDialogCheck)
+        hangDialogCheckScheduled = false
+        Log.i(
+            AutoRunnerApplication.TAG,
+            "hang dialog detected: pkg=${signal.packageName} cls=${signal.className} " +
+                "fullscreen=${signal.isFullscreen} confirm=${signal.confirmTexts.size} " +
+                "title=${signal.titleTexts.size}",
+        )
+        // 先暂停脚本，再撤掉黑屏层：避免撤层瞬间仍有在途手势落到弹窗按钮上。
+        val controller = AppGraph.containerOrNull?.executionController
+        val pausedScript = controller != null && controller.isActive && !controller.isPaused
+        if (pausedScript) {
+            controller.pause()
+            Log.i(AutoRunnerApplication.TAG, "hang dialog guard paused the script")
+        }
+        // 黑屏层由本服务添加，直接撤掉；再同步悬浮服务的 blackScreen 状态
+        // （浮球菜单里的「退出黑屏」图标要跟着变回来）。
+        hideIdleScreen()
+        AutoRunnerOverlayService.notifyBlackScreenHidden()
+        val message = if (pausedScript) {
+            "检测到弹窗，已退出黑屏挂机并暂停脚本"
+        } else {
+            "检测到弹窗，已退出黑屏挂机"
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    }
+
+    /**
+     * 系统 UI（通知栏、音量条、权限框）不参与弹窗判定：它们由用户在系统层操作，
+     * 正文里也可能出现「确定」等字样。部分 ROM 的 `getWindows()` 不返回活动窗口，
+     * 此时按「应用窗口」处理更符合实际（输入法窗口由 className / 类型另行排除）。
+     */
+    private fun isSystemUiPackage(pkg: String): Boolean =
+        pkg == "android" || pkg == "com.android.systemui"
+
+    private fun AccessibilityWindowInfo?.toDialogWindowType(): DialogWindowType = when (this?.type) {
+        null, AccessibilityWindowInfo.TYPE_APPLICATION -> DialogWindowType.APPLICATION
+        AccessibilityWindowInfo.TYPE_INPUT_METHOD -> DialogWindowType.INPUT_METHOD
+        AccessibilityWindowInfo.TYPE_SYSTEM -> DialogWindowType.SYSTEM
+        AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY -> DialogWindowType.ACCESSIBILITY_OVERLAY
+        else -> DialogWindowType.OTHER
     }
 
     /**
@@ -935,5 +1155,14 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
 
         /** 黑屏挂机下按住音量减键多久触发退出（毫秒）。 */
         const val IDLE_SCREEN_EXIT_LONG_PRESS_MS = 600L
+
+        /** 弹窗守护：事件停止后等待多久再扫描（毫秒），避开窗口动画。 */
+        const val HANG_DIALOG_SETTLE_MS = 400L
+
+        /** 弹窗守护：单次扫描最多访问的节点数 / 深度 / 文本条数与长度。 */
+        const val HANG_DIALOG_MAX_NODES = 300
+        const val HANG_DIALOG_MAX_DEPTH = 14
+        const val HANG_DIALOG_MAX_TEXTS = 120
+        const val HANG_DIALOG_MAX_TEXT_LENGTH = 120
     }
 }

@@ -55,6 +55,7 @@ MIME 类型使用 `application/json`。
 | `mode` | String | `"once"` | `"once"` 单次执行；`"repeat"` 重复执行 |
 | `repeatCount` | Int | `1` | 重复次数，仅 `mode="repeat"` 时有效；**`0` 表示无限循环** |
 | `intervalMs` | Long | `0` | 每轮完整执行之间的间隔（毫秒） |
+| `startDelayMs` | Long | `0` | 第一轮开始前的额外等待（毫秒）；组合运行时用于 B 的首轮延迟 |
 | `failureStrategy` | String | `"abort"` | `"skip"` 跳过失败动作 / `"abort"` 终止脚本 |
 | `reconnectTimeoutMs` | Long | `15000` | 无障碍服务断开后的最大重连等待（毫秒） |
 | `restoreDelayMs` | Long | `0` | 每轮开始前的额外稳定等待（毫秒） |

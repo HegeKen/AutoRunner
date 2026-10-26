@@ -159,6 +159,7 @@ class AutoRunnerOverlayService : Service() {
         val attached = windowHost.show {
             val menuOpenState = windowHost.menuOpen
             val dockedEdgeState = windowHost.dockedEdge
+            val menuAboveState = windowHost.menuAbove
             // 响应式读取主题，App 内切换浅色/深色后悬浮窗立即生效。
             val settings by AppGraph.requireContainer().settingsRepository.settings.collectAsState()
             val state by executionViewModel.state.collectAsState()
@@ -171,6 +172,7 @@ class AutoRunnerOverlayService : Service() {
                 FloatingControlPanel(
                     state = state,
                     menuOpen = menuOpenState.value,
+                    menuAbove = menuAboveState.value,
                     alignEnd = dockedEdgeState.value == DockEdge.RIGHT,
                     recording = recording,
                     recordingArmed = recordingArmed,
@@ -197,8 +199,6 @@ class AutoRunnerOverlayService : Service() {
                         OverlayStateHolder.update { it.copy(menuOpen = windowHost.menuOpen.value) }
                     },
                     onStop = { executionViewModel.stop() },
-                    onStopRecording = { recordingViewModel.stop() },
-                    onTogglePause = { executionViewModel.togglePause() },
                     onClose = { stopSelf() },
                     dragModifier = windowHost.dragModifier(),
                 )
@@ -294,6 +294,9 @@ class AutoRunnerOverlayService : Service() {
                     }
                     PendingOverlayAction.Mode.RECORD -> {
                         recordingViewModel.markArmed()
+                    }
+                    PendingOverlayAction.Mode.COMBO -> {
+                        pending.combo?.let { executionViewModel.armCombo(it) }
                     }
                 }
                 host?.setMenuOpen(false)
@@ -393,6 +396,15 @@ class AutoRunnerOverlayService : Service() {
             } else {
                 setBlackScreen(context, false)
             }
+        }
+
+        /**
+         * 无障碍服务已经自行撤掉黑屏层（弹窗守护）时，只同步本服务的
+         * `blackScreen` 状态，不启动服务——黑屏层不存在时再去启动服务只会
+         * 让悬浮球莫名其妙地重新出现。
+         */
+        fun notifyBlackScreenHidden() {
+            instance?.setBlackScreenEnabled(false)
         }
 
         private fun start(context: Context, intent: Intent) {

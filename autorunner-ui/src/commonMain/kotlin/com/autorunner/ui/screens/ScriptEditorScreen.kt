@@ -1,5 +1,6 @@
 package com.autorunner.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +27,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -43,6 +46,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.autorunner.core.model.ActionStep
 import com.autorunner.core.model.CoordinateSpace
 import com.autorunner.core.model.DelayStep
+import com.autorunner.core.model.ExecutionConfig
+import com.autorunner.core.model.ExecutionMode
 import com.autorunner.core.model.displayLabel
 import com.autorunner.core.model.GamepadAction
 import com.autorunner.core.model.GamepadMode
@@ -50,6 +55,7 @@ import com.autorunner.core.model.GamepadStep
 import com.autorunner.core.model.KeyStep
 import com.autorunner.core.model.LongPressStep
 import com.autorunner.core.model.MultiTouchStep
+import com.autorunner.core.model.ScriptModel
 import com.autorunner.core.model.SwipeStep
 import com.autorunner.core.model.TapStep
 import com.autorunner.core.model.TouchPoint
@@ -71,6 +77,7 @@ import com.autorunner.ui.components.SliderPreference
 import com.autorunner.ui.components.StickValueHint
 import com.autorunner.ui.components.TagPill
 import com.autorunner.ui.components.parseNumberInput
+import com.autorunner.ui.format.IntervalUnit
 import com.autorunner.ui.theme.Dimens
 import com.autorunner.ui.viewmodel.ScriptEditorViewModel
 
@@ -391,9 +398,15 @@ private fun ScriptMetaCard(viewModel: ScriptEditorViewModel) {
     val coordinateSpace by viewModel.coordinateSpace.collectAsState()
     val gamepadMode by viewModel.gamepadMode.collectAsState()
     val config by viewModel.execution.collectAsState()
+    val flow by viewModel.flow.collectAsState()
+    val intervalUnit by viewModel.intervalUnit.collectAsState()
     val metrics = viewModel.screenMetrics
     val gamepadModes = GamepadMode.entries
-
+    // 用当前已收集到的 flow / config 重新估算，保证信息卡展示的时长与
+    // 同一帧里的动作列表、循环设置严格对应（不依赖 ViewModel 的另一份快照）。
+    val estimatedScript = remember(flow, config) { ScriptModel(flow = flow, execution = config) }
+    val perLoopMs = estimatedScript.estimatedDurationMs
+    val totalMs = estimatedScript.estimatedTotalDurationMs()
     Card(insideMargin = Dimens.CardContentPadding) {
         TextField(
             value = name,
@@ -434,6 +447,14 @@ private fun ScriptMetaCard(viewModel: ScriptEditorViewModel) {
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         )
+        LoopDurationInfo(
+            config = config,
+            flowSize = flow.size,
+            intervalUnit = intervalUnit,
+            perLoopMs = perLoopMs,
+            totalMs = totalMs,
+        )
+
         Text(
             text = "手柄类型",
             modifier = Modifier.padding(top = 12.dp),
@@ -463,11 +484,92 @@ private fun ScriptMetaCard(viewModel: ScriptEditorViewModel) {
             onRepeatCountChange = viewModel::setRepeatCount,
             onIntervalChange = viewModel::setIntervalMs,
             onFailureStrategyChange = viewModel::setFailureStrategy,
+            intervalUnit = intervalUnit,
+            onIntervalUnitChange = viewModel::setIntervalUnit,
             modifier = Modifier.padding(top = 12.dp),
         )
         Text(
             text = "以整个脚本为循环主体：选择重复执行后可设置循环次数与间隔，运行时作为默认值。",
             modifier = Modifier.padding(top = 6.dp),
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        )
+    }
+}
+
+/**
+ * 顶部信息卡里的「循环任务预计总时长」。
+ *
+ * 总时长 = 首轮延迟 + 单轮耗时 × 循环次数 + 循环间隔 ×（循环次数 - 1），
+ * 按用户当前在循环间隔控件里选中的单位展示；无限循环没有有限总时长，
+ * 只展示每轮耗时并说明会持续到手动停止。
+ */
+@Composable
+private fun LoopDurationInfo(
+    config: ExecutionConfig,
+    flowSize: Int,
+    intervalUnit: IntervalUnit,
+    perLoopMs: Long,
+    totalMs: Long,
+) {
+    val totalText = when {
+        flowSize == 0 -> "—"
+        config.isInfinite -> "无限循环"
+        else -> "约 ${intervalUnit.formatDuration(totalMs)}"
+    }
+    val detail = when {
+        flowSize == 0 -> "添加动作后可按循环次数与间隔估算总时长"
+        config.isInfinite -> "每轮约 ${intervalUnit.formatDuration(perLoopMs)} · 直到手动停止"
+        config.mode == ExecutionMode.ONCE -> "单次执行 · 每轮约 ${intervalUnit.formatDuration(perLoopMs)}"
+        else -> buildString {
+            append("共 ${config.totalLoops} 轮 · 每轮约 ${intervalUnit.formatDuration(perLoopMs)}")
+            if (config.totalLoops > 1) {
+                append(" · ")
+                if (config.intervalMs > 0L) {
+                    append("轮间间隔 ${intervalUnit.formatDuration(config.intervalMs)}")
+                } else {
+                    append("轮间无额外等待")
+                }
+                if (config.restoreDelayMs > 0L) {
+                    append(" · 恢复延迟 ${intervalUnit.formatDuration(config.restoreDelayMs)}")
+                }
+            }
+            if (config.startDelayMs > 0L) {
+                append(" · 首轮延迟 ${intervalUnit.formatDuration(config.startDelayMs)}")
+            }
+        }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp)
+            .background(
+                color = MiuixTheme.colorScheme.surfaceContainerHigh,
+                shape = RoundedCornerShape(12.dp),
+            )
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "循环任务预计总时长",
+                modifier = Modifier.weight(1f),
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+            Text(
+                text = totalText,
+                modifier = Modifier.padding(start = 8.dp),
+                style = MiuixTheme.textStyles.title4,
+                color = MiuixTheme.colorScheme.onSurface,
+            )
+        }
+        Text(
+            text = detail,
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         )
@@ -492,6 +594,7 @@ private fun EditorDetailPane(
     val flow by viewModel.flow.collectAsState()
     val selectedIndex by viewModel.selectedIndex.collectAsState()
     val validation by viewModel.validation.collectAsState()
+    val intervalUnit by viewModel.intervalUnit.collectAsState()
 
     Column(
         modifier = modifier
@@ -540,7 +643,8 @@ private fun EditorDetailPane(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    text = "共 ${flow.size} 个动作，预计单轮耗时 ${viewModel.currentScript.estimatedDurationMs} ms",
+                    text = "共 ${flow.size} 个动作，预计单轮耗时 " +
+                        intervalUnit.formatDuration(viewModel.currentScript.estimatedDurationMs),
                     style = MiuixTheme.textStyles.body2,
                     color = MiuixTheme.colorScheme.onSurfaceSecondary,
                 )

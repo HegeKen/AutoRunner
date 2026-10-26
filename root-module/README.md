@@ -1,11 +1,16 @@
 # AutoRunner Root Bridge（Magisk / KernelSU 模块）
 
-给有 Root 的用户提供两条能力，二选一或同时使用：
+给有 Root 的用户提供以下能力，可按需组合使用：
 
 1. **开机自动启用 AutoRunner 的无障碍服务** —— Root 直接写 `secure settings`，
    绕过 MIUI/HyperOS 的「受限设置」不让第三方 App 打开无障碍开关的问题；
 2. **Root 模式输入注入桥** —— 由 root shell 调用 `input`（具备 `INJECT_EVENTS`），
-   在无障碍服务不可用/被限制的设备上也能做点击、长按、滑动、按键、文本输入。
+   在无障碍服务不可用/被限制的设备上也能做点击、长按、滑动、按键、文本输入；
+3. **自动授予通知使用权** —— 把 `AutoRunnerNotificationListener` 并入
+   `enabled_notification_listeners`，并在 Android 15+ 允许
+   `RECEIVE_SENSITIVE_NOTIFICATIONS`，让黑屏挂机界面能显示手机通知（含验证码正文），
+   同时读取媒体会话以显示歌曲信息与上一首 / 下一首按钮。
+   通知内容只在黑屏层可见时读取与展示，不落盘、不上传。
 
 ## 安装
 
@@ -33,10 +38,11 @@ adb shell su -c 'mkdir -p /data/adb/modules/autorunner_root && \
 
 | 文件 | 作用 |
 |---|---|
-| `service.sh` | 开机等到 `sys.boot_completed` 后：启用无障碍服务 + 启动输入注入守护进程 |
+| `service.sh` | 开机等到 `sys.boot_completed` 后：启用无障碍服务 + 授予权限 + 启动输入注入守护进程 |
 | `scripts/enable_accessibility.sh` | 幂等地把 `cn.helilab.autorunner/...AutoRunnerAccessibilityService` 追加进 `enabled_accessibility_services`（保留其它已启用服务），并置 `accessibility_enabled=1` |
-| `scripts/click_daemon.sh` | 监听命令文件，执行 `input tap/long/swipe/key/text`；收到 `a11y` 命令时即时补回无障碍条目（按需自愈，无轮询） |
-| `uninstall.sh` | 停守护进程、删标记目录、从无障碍列表移除本 App |
+| `scripts/grant_permissions.sh` | 通知 / 悬浮窗 / 电池白名单 / 后台运行权限，以及**通知使用权**（并入 `enabled_notification_listeners`）与 Android 15+ 的敏感通知 appop；收到 `perms` 命令时按需重放 |
+| `scripts/click_daemon.sh` | 监听命令文件，执行 `input tap/long/swipe/key/text`；收到 `a11y` / `perms` 命令时即时补回无障碍条目或权限（按需自愈，无轮询） |
+| `uninstall.sh` | 停守护进程、删标记目录、从无障碍与通知使用权列表中移除本 App |
 
 标记目录 `/data/local/tmp/autorunner_root/`（root 可写、普通 App 只读）：
 
@@ -63,6 +69,7 @@ swipe 200 1800 1000 400 300
 key KEYCODE_BACK
 text hello
 a11y
+perms
 ```
 
 建议 App 侧实现一个 `InputBackend`：检测到 `/data/local/tmp/autorunner_root/mode` 存在且
@@ -74,4 +81,4 @@ a11y
 - 守护进程只接受上述白名单命令，未知命令仅记日志；
 - 模块不修改任何 system 分区文件，不注入系统进程，仅一个常驻 shell 循环
   （约 0.2s 一轮处理注入命令，无常驻轮询）；
-- `uninstall.sh` 会还原无障碍服务列表（移除本 App，保留其它服务）。
+- `uninstall.sh` 会还原无障碍与通知使用权列表（移除本 App，保留其它服务/应用）。

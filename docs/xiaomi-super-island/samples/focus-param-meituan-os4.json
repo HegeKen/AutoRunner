@@ -1,0 +1,38 @@
+{
+  "progressCount": 2,
+  "param_island": {
+    "islandOrder": true,
+    "dismissIsland": false,
+    "highlightColor": "#FFCC33",
+    "bigIslandArea": {
+      "imageTextInfoLeft": {
+        "type": 1,
+        "textInfo": {
+          "title": "已到店",
+          "showHighlightColor": false
+        },
+        "picInfo": {
+          "type": 1
+        }
+      },
+      "textInfo": {
+        "title": "21:07",
+        "content": "送达",
+        "showHighlightColor": true
+      }
+    }
+  },
+  "orderId": "3102357082368272496",
+  "enableFloat": true,
+  "title": "预计21:07送达",
+  "content": "川味特色面馆",
+  "scene": "foodDelivery",
+  "desc1": "商家已出餐，骑手已到店",
+  "sequence": 1792759690279,
+  "protocol": 1,
+  "filterWhenNoPermission": true,
+  "progress": 50,
+  "updatable": true,
+  "colorDesc": "#FF8000",
+  "colorDescDark": "#FFCC33"
+}

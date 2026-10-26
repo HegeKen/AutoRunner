@@ -60,6 +60,11 @@ class AutoRunnerScriptExecutor(
     private val rootBackend: RootInputBackend? = null,
     /** 当前选择的输入方式（设置里可切换）。 */
     private val inputMode: () -> InputMode = { InputMode.ACCESSIBILITY },
+    /**
+     * 与其它执行器共享的动作派发锁；组合运行时由容器传入同一个实例，
+     * 避免两段脚本同时向无障碍服务派发手势而互相取消。
+     */
+    private val dispatchGate: ActionDispatchGate = ActionDispatchGate(),
 ) {
 
     private val _state = MutableStateFlow(ExecutionState.IDLE)
@@ -156,7 +161,33 @@ class AutoRunnerScriptExecutor(
         if (steps.isEmpty()) {
             failureMessage = "脚本不包含任何动作"
         } else {
-            loop@ while (counters.completedLoops < totalLoops) {
+            // 首轮延迟：组合运行时 B 在 A 启动 N 分钟后才开始第一轮。
+            // 与循环间隔共用同一套可被 stop() 打断的等待；期间持续上报进度，
+            // 让面板显示「等待首轮 3/10 分钟」。
+            if (effective.startDelayMs > 0L) {
+                val stoppedDuringStartDelay = awaitGapInterruptedByStop(
+                    millis = effective.startDelayMs,
+                    stopRequested = stopRequested,
+                    tickMs = if (effective.startDelayMs >= 60_000L) 60_000L else GAP_TICK_MS,
+                    onTick = { delayElapsed ->
+                        if (currentRun == runId) {
+                            publishStartDelay(
+                                scriptId = scriptId,
+                                scriptName = scriptName,
+                                totalLoops = totalLoops,
+                                totalActions = steps.size,
+                                counters = counters,
+                                totalMs = effective.startDelayMs,
+                                elapsedMs = delayElapsed,
+                                onProgress = onProgress,
+                            )
+                        }
+                    },
+                )
+                if (stoppedDuringStartDelay) stoppedByUser = true
+            }
+
+            loop@ while (!stoppedByUser && counters.completedLoops < totalLoops) {
                 for ((index, step) in steps.withIndex()) {
                     awaitResumeOrStop()
                     if (stopRequested.isCompleted) {
@@ -469,7 +500,12 @@ class AutoRunnerScriptExecutor(
         return accessibilityController.isConnected
     }
 
-    private suspend fun dispatch(step: ActionStep, gamepadMode: GamepadMode): ActionResult = when (step) {
+    private suspend fun dispatch(step: ActionStep, gamepadMode: GamepadMode): ActionResult =
+        // 组合运行时两个执行器共享同一把锁：一次只让一个手势进入系统，
+        // 其余动作排队。等待间隔不持锁，脚本之间不会互相拖慢。
+        dispatchGate.run { dispatchUngated(step, gamepadMode) }
+
+    private suspend fun dispatchUngated(step: ActionStep, gamepadMode: GamepadMode): ActionResult = when (step) {
         is GamepadStep -> when (val gateway = gamepadGateway) {
             null -> ActionResult.Unsupported("手柄模拟未启用")
             else -> runCatching { gateway.execute(step, gamepadMode) }.fold(
@@ -553,6 +589,38 @@ class AutoRunnerScriptExecutor(
             skippedActions = counters.skippedActions,
             intervalTotalMs = intervalTotalMs,
             intervalElapsedMs = intervalElapsedMs,
+        )
+        _progress.value = snapshot
+        onProgress(snapshot)
+    }
+
+    /**
+     * 首轮等待期间上报一次进度快照，携带 [ExecutionProgress.startDelayTotalMs] /
+     * [ExecutionProgress.startDelayElapsedMs]，让组合页与通知栏显示
+     * 「等待首轮 3/10 分钟」。
+     */
+    private fun publishStartDelay(
+        scriptId: String?,
+        scriptName: String,
+        totalLoops: Int,
+        totalActions: Int,
+        counters: RunCounters,
+        totalMs: Long,
+        elapsedMs: Long,
+        onProgress: (ExecutionProgress) -> Unit,
+    ) {
+        val snapshot = ExecutionProgress(
+            state = _state.value,
+            scriptId = scriptId,
+            scriptName = scriptName,
+            completedLoops = counters.completedLoops,
+            totalLoops = totalLoops,
+            currentActionIndex = -1,
+            totalActions = totalActions,
+            elapsedMs = elapsedSince(counters),
+            skippedActions = counters.skippedActions,
+            startDelayTotalMs = totalMs,
+            startDelayElapsedMs = elapsedMs,
         )
         _progress.value = snapshot
         onProgress(snapshot)

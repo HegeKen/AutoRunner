@@ -114,6 +114,16 @@ ExecutionViewModel.start(scriptId)
                  └─ ExecutionNotifications 更新前台通知
 ```
 
+组合运行走同一条链路，但由 `ExecutionController.startCombo` 拉起两个执行器：
+
+```
+ExecutionController.startCombo(ComboExecution)
+  ├─ executorA.execute(scriptA, configA)   // A 立即开始
+  └─ executorB.execute(scriptB, configB)   // B 先等待 configB.startDelayMs
+       └─ 两个执行器共享 ActionDispatchGate（Mutex）
+            └─ publishComboSnapshot() → state/progress/comboProgress 聚合
+```
+
 状态机：`IDLE → RUNNING ⇄ PAUSED → { COMPLETED | STOPPED }`，
 `stop()` 在动作边界优雅退出，`reset()` 把终态复位为 `IDLE`。
 
@@ -123,6 +133,7 @@ ExecutionViewModel.start(scriptId)
 |------|------|------|
 | 脚本 | `filesDir/scripts/<id>.arscript` | `AndroidScriptStorage` + `FileScriptRepository` |
 | 设置 | `SharedPreferences("autorunner_settings")` 中的一段 JSON | `AndroidKeyValueStore` + `SettingsRepository` |
+| 组合运行配置 | 同一 SharedPreferences 的 `combo.config` | `ComboStore`（只保存脚本 id 与执行参数） |
 | 导入/导出 | SAF（`OpenDocument` / `CreateDocument`） | `AndroidScriptTransferController` |
 
 `ScriptRepository` 通过 `StateFlow<List<ScriptRecord>>` 暴露列表，任何一处保存后

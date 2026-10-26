@@ -145,13 +145,14 @@ class ScriptValidatorTest {
     fun negativeTimingIsAnError() {
         val result = ScriptValidator.validate(
             ScriptModel(
-                execution = ExecutionConfig(intervalMs = -1, reconnectTimeoutMs = -5),
+                execution = ExecutionConfig(intervalMs = -1, startDelayMs = -1, reconnectTimeoutMs = -5),
                 flow = listOf(DelayStep(5, delay = -1)),
             ),
         )
 
         assertFalse(result.isValid)
         assertTrue(result.errors.any { it.code == "negative_interval" })
+        assertTrue(result.errors.any { it.code == "negative_start_delay" })
         assertTrue(result.errors.any { it.code == "negative_reconnect_timeout" })
         assertTrue(result.errors.any { it.code == "negative_delay" })
     }

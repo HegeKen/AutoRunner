@@ -70,6 +70,17 @@ class SettingsRepository(
 
     fun setAutoCollapsePanel(enabled: Boolean) = update { it.copy(autoCollapsePanel = enabled) }
 
+    /** 黑屏挂机期间是否在黑屏层上显示通知。 */
+    fun setIdleNotificationDisplay(enabled: Boolean) =
+        update { it.copy(idleNotificationDisplay = enabled) }
+
+    /** 黑屏挂机期间是否在黑屏层上显示焦点通知（超级岛）状态。 */
+    fun setIdleFocusDisplay(enabled: Boolean) =
+        update { it.copy(idleFocusDisplay = enabled) }
+
+    /** 黑屏挂机期间是否启用弹窗守护（自动退出挂机）。 */
+    fun setHangDialogGuard(enabled: Boolean) = update { it.copy(hangDialogGuard = enabled) }
+
     fun setGamepadEnabled(enabled: Boolean) = update { it.copy(gamepadEnabled = enabled) }
 
     fun setGamepadMode(mode: GamepadMode) = update { it.copy(gamepadMode = mode) }

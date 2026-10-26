@@ -25,7 +25,9 @@ UI 全面采用 **MIUIX**（小米 HyperOS 设计语言）。
 | 脚本格式 | `.arscript`（JSON），含 `version` / `info` / `execution` / `flow` | `ScriptModel`、`ArScriptCodec` |
 | 可视化编辑器 | 动作增删改排序、参数编辑、坐标百分比换算、实时校验、导入导出 | `ScriptEditorScreen`、`ScriptEditorViewModel` |
 | 单次 / 重复执行 | `mode=once` 或 `mode=repeat` + `repeatCount`（`0` = 无限）+ `intervalMs` | `AutoRunnerScriptExecutor`、`ExecutionController` |
+| 组合运行（双脚本并行） | 两段脚本同时进入运行状态，各自按自己的循环间隔推进；可为脚本 B 设置首轮延迟（例如 A 跑 10 分钟后 B 才开始第一轮），首轮之后 B 仍按自己的节奏循环 | `ExecutionController.startCombo`、`ComboViewModel`、`ComboScreen` |
 | 进度反馈 | 循环次数、当前动作、已运行时长、状态，同步到悬浮窗与通知栏 | `ExecutionProgress`、`ExecutionNotifications` |
+| 循环时长估算 | 编辑器顶部信息卡按循环间隔的显示单位（毫秒 / 秒 / 分钟）展示循环任务预计总时长；包含首轮延迟、轮间间隔，无限循环显示「无限循环」与每轮耗时 | `ScriptMetaCard`、`LoopDurationInfo` |
 | 悬浮控制面板 | 可自由拖动悬浮球 + 展开面板：录制、脚本选择、运行/暂停/停止、重复次数输入 | `AutoRunnerOverlayService`、`FloatingControlPanel` |
 | 多设备适配 | WindowSizeClass 驱动，手机底部导航 / 平板侧边导航，List-Detail 与 Supporting Pane | `AutoRunnerApp`、`rememberAutoRunnerWindowSize` |
 | 主题 | 仅浅色 / 深色 / 跟随系统三档（无 Monet 动态取色、无自定义种子色） | `AutoRunnerTheme` |
@@ -33,6 +35,10 @@ UI 全面采用 **MIUIX**（小米 HyperOS 设计语言）。
 | Root 注入（可选） | 设置 → 执行 可切换「无障碍服务 / Root 注入」；Root 下由 `su -c input` 注入，不依赖无障碍；配套 Magisk/KernelSU 模块（开机自动开无障碍 + 默认授权 + 注入守护进程），未装模块时可从应用内导出 zip 到下载目录 | `AndroidRootInputBackend`、`root-module/` |
 | 到位再执行 | 点「运行 / 开始录制」→ 自动回到桌面并显示悬浮窗（此时尚未开始）→ 用户打开目标页面后**单击悬浮球**才开始（图标变为停止），跑完自动结束且不返回应用；长按悬浮球展开面板 | `ExecutionViewModel.armAndGoHome`、`RecordingViewModel.armAndGoHome`、`FloatingControlPanel` |
 | 多重停止入口 | 采集期间屏幕常驻「停止录制」胶囊 + 悬浮球单击 + 通知栏「停止录制」；运行中可由悬浮球/面板/通知停止 | `TouchCaptureView`、`ExecutionNotifications` |
+| 黑屏挂机 | 整屏纯黑但保持屏幕点亮、注入触摸继续穿透给下层游戏；长按音量减键退出。滚动文字面板带**发光圆角边框**（以边框本体为碰撞边界，贴到屏幕边缘才反弹），内部显示**当前时间**（每秒刷新）与**右上角电量 / 充电标识**，随面板移动避免烧屏 | `AutoRunnerOverlayService`、`IdleScreenOverlay`、`IdleBatteryMonitor` |
+| 挂机通知（可选） | 黑屏期间把新到的手机通知以只读卡片显示在黑屏层上；媒体通知不再重复显示（已由面板媒体控制接管）；需要系统「通知使用权」，Root 模块可自动授予 | `AutoRunnerNotificationListener`、`IdleNotificationView` |
+| 挂机媒体控制（可选） | 通过同一份「通知使用权」读取媒体会话：有音乐播放时在滚动文字中加入歌曲信息与**上一首 / 播放暂停 / 下一首**按钮。超长歌名在边框内以省略号截断；按钮位于独立的小窗口并跟随文字面板移动，按钮矩形外的触摸继续穿透给脚本；暂停后按钮保留（可恢复播放） | `IdleMediaMonitor`、`IdleMediaControlWindow` |
+| 弹窗守护 | 挂机期间检测下层应用**新弹出**的确认框 / 异常弹窗，自动退出黑屏并暂停脚本，避免盲点「确认购买」 | `AutoRunnerAccessibilityService`、`HangDialogGuard` |
 | 手柄模拟（可选） | 把脚本中的手柄按键**映射为本机触摸/摇杆拖动**，直接注入当前设备；按键在界面上按脚本的手柄类型显示（§7.8） | `autorunner-gamepad` 模块、`LocalGamepadGateway` |
 
 ---
@@ -45,16 +51,16 @@ AutoRunner/
 │   ├── commonMain         脚本模型、JSON 编解码、校验、手势分类、执行状态机、设置、仓储
 │   ├── androidMain        SharedPreferences / 内部存储 / 时间（actual 实现）
 │   ├── desktopMain        JVM 对应实现（预览与测试用）
-│   └── commonTest         53 个单元测试
+│   └── commonTest         86 个单元测试
 ├── autorunner-gamepad/    手柄「本机注入」模块（LocalGamepadGateway，无蓝牙依赖）
 ├── autorunner-ui/         Compose Multiplatform + MIUIX 界面层
 │   ├── theme              MiuixTheme / ThemeController / 固定品牌色 #2655FF / Dimens 令牌
 │   ├── adaptive           WindowSizeClass → 布局模式
 │   ├── components         设计系统基座（弹窗、脚手架、设置行、数值输入…）
 │   ├── overlay            悬浮控制面板内容（App 内与悬浮窗共用）
-│   ├── screens            脚本列表 / 编辑器 / 录制 / 设置 / 应用外壳
+│   ├── screens            脚本列表 / 编辑器 / 组合运行 / 录制 / 设置 / 应用外壳
 │   ├── viewmodel          平台无关 ViewModel（StateFlow）
-│   └── commonTest         17 个测试（ViewModel + 组件规则）
+│   └── commonTest         31 个测试（ViewModel + 组件规则）
 └── autorunner-app/        Android 应用（KMP androidTarget + com.android.application）
     └── src/androidMain    AndroidManifest、资源、无障碍服务、悬浮窗服务、权限、SAF
 ```
@@ -181,6 +187,7 @@ adb -s <serial> install -r autorunner-app/build/outputs/apk/release/autorunner-a
     "mode": "repeat",
     "repeatCount": 10,
     "intervalMs": 2000,
+    "startDelayMs": 0,
     "failureStrategy": "abort",
     "reconnectTimeoutMs": 15000
   },
@@ -197,6 +204,7 @@ adb -s <serial> install -r autorunner-app/build/outputs/apk/release/autorunner-a
 
 * `flow[].type` 为多态判别字段：`tap` / `longPress` / `swipe` / `multiTouch` / `gamepad` / `delay`。
 * `execution.mode`：`once` 单次执行 / `repeat` 重复执行；`repeatCount` 为 `0` 表示无限循环。
+* `execution.startDelayMs`：第一轮开始前的额外等待（组合运行时 B 的首轮延迟）。
 * `info.coordinateSpace`：`absolute`（录制设备像素）或 `normalized`（`0.0~1.0` 比例），
   编辑器可在两者之间换算，换算后脚本可在不同分辨率设备上复用。
 * 完整规范、字段表与校验规则见 [docs/SCRIPT_FORMAT.md](docs/SCRIPT_FORMAT.md)。
@@ -229,8 +237,10 @@ adb -s <serial> install -r autorunner-app/build/outputs/apk/release/autorunner-a
 | `POST_NOTIFICATIONS` | 执行进度通知 | 运行时申请（API 33+） |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | 长时间循环不被回收 | 设置引导 |
 | `VIBRATE` / `WAKE_LOCK` | 触感反馈、执行期间保持唤醒 | 自动 |
+| 通知使用权（`NotificationListenerService`，可选） | 黑屏挂机时显示手机通知；读取媒体会话以显示歌曲信息与上一首 / 下一首按钮 | 系统「通知使用权」页或 Root 模块自动授予；另需 Android 15+ 的 `RECEIVE_SENSITIVE_NOTIFICATIONS` appop 才能读到验证码正文 |
 
 > 手柄模拟**不需要任何蓝牙权限**：它不模拟蓝牙外设，而是把按键位置映射成本机触摸（见 §7.6）。
+> 通知使用权是**可选**权限：不授予不影响录制 / 回放，只是黑屏挂机时看不到通知，也没有媒体控制按钮。
 
 厂商 ROM 差异（小米 / OPPO / vivo / 华为）的自启动、省电策略、后台弹出界面、悬浮窗路径
 在设置页以引导卡片形式给出，见 `AndroidPermissionController.oemGuidance()`。
@@ -364,6 +374,29 @@ flow**，保证 `info.coordinateSpace` 与动作数据始终一致。
   否则「清空输入框」会被静默写成 `0`。
 * `equalSegments = false` 的分段器只能放在 wrap 容器里（均分模式才可配 `fillMaxWidth`）。
 
+### 7.10 组合运行：两段脚本并行
+
+「组合」页把两段脚本放进同一个运行会话：A 立即开始，B 按配置的**首轮延迟**跟进，
+此后两段脚本各自按自己的循环间隔推进（例如 A 每 14 分钟、B 每 50 分钟）。
+
+* **两个执行器。** `ExecutionController.startCombo` 为 B 槽位创建第二个
+  `AutoRunnerScriptExecutor`；两个执行器各自持有循环计数、暂停与停止信号。
+* **首轮延迟。** B 的 `ExecutionConfig.startDelayMs` 由执行器在进入第一轮之前等待，
+  期间进度上报 `startDelayElapsedMs/startDelayTotalMs`，通知栏显示「首轮等待 3/10 分钟」。
+  延迟只作用于第一轮；之后 B 仍按自己的 `intervalMs` 循环。
+* **动作串行化。** 两个执行器共享一个 `ActionDispatchGate`（`Mutex`），
+  一次只让一个手势进入 `AccessibilityController`，避免并发 `dispatchGesture`
+  互相取消；等待间隔不持锁，脚本之间不会互相拖慢。
+* **启动流程。** 与单脚本一致：先在「组合」页点「开始组合」，应用回到桌面并显示悬浮球；
+  打开目标应用后单击悬浮球，两段脚本才真正开始。悬浮球、通知栏、屏幕常亮与
+  键盘/鼠标映射都读取聚合后的状态，无需区分单脚本还是组合。
+* **状态聚合。** `ExecutionController.state` / `progress` 是两段脚本的聚合快照
+  （标题为「组合：A + B」、循环数为两段之和）；组合页额外读取 `comboProgress`
+  展示每个槽位的循环数、当前动作、首轮等待与循环间隔。
+* **配置持久化。** 两个脚本 id、各自循环次数 / 间隔与 B 的首轮延迟保存在
+  `combo.config`（`ComboStore`），下次打开组合页自动恢复；脚本本身仍以
+  `.arscript` 文件为准。
+
 ---
 
 ## 八、测试与验证
@@ -380,13 +413,19 @@ flow**，保证 `info.coordinateSpace` 与动作数据始终一致。
 | `ArScriptCodecTest` | 8 | 文档示例解析、判别字段、未知字段兼容、往返一致性、损坏载荷 |
 | `ScriptValidatorTest` | 12 | 空 flow、版本、时长、多点触控、模拟量范围、百分比坐标越界、设备信息缺失 |
 | `GestureAnalyzerTest` | 10 | 点击 / 长按 / 滑动 / 多点触控分类、微触摸丢弃、取消、flush、阈值可配 |
-| `AutoRunnerScriptExecutorTest` | 11 | 单次 / 重复 / 无限循环、暂停恢复、重连重试、跳过与终止策略、进度序列、手柄分发 |
+| `FocusPayloadParserTest` | 7 | 焦点通知（超级岛）载荷解析、MiPush 场景模板、取消 / 字段缺失 |
+| `AutoRunnerScriptExecutorTest` | 13 | 单次 / 重复 / 无限循环、首轮延迟、暂停恢复、重连重试、跳过与终止策略、进度序列、手柄分发 |
+| `ActionDispatchGateTest` | 1 | 组合运行的两个执行器共享派发锁，动作不会并发进入输入后端 |
+| `ExecutionControllerComboTest` | 5 | 双脚本并行、B 首轮偏移、等待首轮进度、暂停/停止、无第二执行器时拒绝启动 |
+| `ScriptModelDurationTest` | 5 | 单轮 / 总时长估算（含间隔、恢复延迟与首轮延迟）、无限循环无有限总时长 |
 | `FileScriptRepositoryTest` | 7 | 保存/加载/列表、原地更新、重命名、复制、删除、导入校验、唯一命名、导出 |
+| `ComboStoreTest` | 3 | 组合配置往返、A 首轮延迟归零、损坏配置回退空值 |
+| `GamepadVocabularyTest` | 15 | 三家手柄按键的物理键位换算、肩键/系统键命名、展示文案不得出现中立标识 |
 | `LocalGamepadGatewayTest` | 8 | 按键→本机点击、trigger 时长缩放、摇杆拖动、未映射/未启用/服务断开时的快速失败 |
-| `ViewModelTest` | 12 | 编辑器增删改排序、坐标换算、校验联动、执行控制、列表过滤与导入、设置写穿 |
-| `IntervalUnitTest` | 5 | 循环间隔的单位吸附取整（四舍五入、毫秒/秒/分上限、非正值） |
-| `GamepadVocabularyTest` | 5 | 三家手柄按键的物理键位换算、肩键/系统键命名、展示文案不得出现中立标识 |
-| **合计** | **78** | 全部通过 |
+| `ViewModelTest` | 20 | 编辑器增删改排序、坐标换算、校验联动、执行控制、列表过滤与导入、设置写穿 |
+| `ComboViewModelTest` | 5 | 脚本选择与参数持久化、首轮延迟、武装悬浮球、同脚本拒绝、端到端并行启动 |
+| `IntervalUnitTest` | 6 | 循环间隔的单位吸附取整、时长按单位格式化（毫秒/秒/分钟、两位小数） |
+| **合计** | **125** | 全部通过 |
 
 ---
 

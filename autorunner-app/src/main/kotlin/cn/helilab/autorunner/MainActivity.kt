@@ -87,12 +87,13 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 将 `--es destination scripts|editor|record|settings` 映射到对应页面。
+     * 将 `--es destination scripts|combo|editor|record|settings` 映射到对应页面。
      *
      * MIUI 拒绝 `adb shell input tap`，因此自动化 UI 测试正是通过这种方式
      * 到达应用的每个页面。
      */
     private fun destinationFrom(intent: Intent?): Destination = when (intent?.getStringExtra(EXTRA_DESTINATION)) {
+        "combo" -> Destination.Combo
         "editor" -> Destination.Editor(intent.getStringExtra(EXTRA_SCRIPT_ID))
         "record" -> Destination.Record
         "settings" -> Destination.Settings

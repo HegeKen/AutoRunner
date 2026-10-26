@@ -44,13 +44,20 @@ data class ScriptModel(
             own + step.delay
         }
 
-    /** 整个运行的预估挂钟时长（尽力估算）。 */
+    /**
+     * 整个运行的预估挂钟时长（尽力估算）。
+     *
+     * 每轮结束后执行器会先等待 `restoreDelayMs`，再等待 `intervalMs`；
+     * 两者都只发生在「还有下一轮」时，因此统一乘以 `loops - 1`。
+     */
     fun estimatedTotalDurationMs(): Long {
         val loops = execution.totalLoops
         if (loops == ExecutionConfig.INFINITE_LOOPS) return Long.MAX_VALUE
         val perLoop = estimatedDurationMs
-        val interval = execution.intervalMs.coerceAtLeast(0L)
-        return (perLoop * loops) + (interval * (loops - 1).coerceAtLeast(0))
+        val gap = execution.intervalMs.coerceAtLeast(0L) +
+            execution.restoreDelayMs.coerceAtLeast(0L)
+        val startDelay = execution.startDelayMs.coerceAtLeast(0L)
+        return startDelay + (perLoop * loops) + (gap * (loops - 1).coerceAtLeast(0))
     }
 
     fun withFlow(newFlow: List<ActionStep>): ScriptModel = copy(flow = newFlow)

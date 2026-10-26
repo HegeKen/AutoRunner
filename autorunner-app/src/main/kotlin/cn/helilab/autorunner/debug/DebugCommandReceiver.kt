@@ -4,11 +4,20 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.os.SystemClock
 import android.util.Log
+import androidx.core.app.NotificationManagerCompat
 import cn.helilab.autorunner.AppGraph
 import cn.helilab.autorunner.AutoRunnerApplication
 import cn.helilab.autorunner.accessibility.AccessibilityServiceHolder
 import cn.helilab.autorunner.accessibility.AndroidRecordingController
+import cn.helilab.autorunner.notification.FocusNotification
+import cn.helilab.autorunner.notification.FocusNotificationFeed
+import cn.helilab.autorunner.notification.IdleNotification
+import cn.helilab.autorunner.notification.IdleNotificationFeed
+import com.autorunner.core.execution.ComboExecution
+import com.autorunner.core.execution.ComboScriptSlot
+import com.autorunner.core.model.ComboSlotRole
 import com.autorunner.core.model.ExecutionConfig
 import com.autorunner.core.model.ExecutionMode
 import com.autorunner.core.model.FailureStrategy
@@ -24,9 +33,14 @@ import kotlinx.coroutines.launch
  * ```bash
  * adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND --es command state
  * adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND --es command run
+ * adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND --es command run_combo --es scriptA a --es scriptB b --el intervalA 840000 --el intervalB 3000000 --el delayB 600000
  * adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND --es command record_start
  * adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND --es command record_stop
  * adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND --es command overlay_show
+ * adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND --es command black_screen --ez enabled true
+ * adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND --es command hang_state
+ * adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND --es command fake_notification
+ * adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND --es command fake_focus
  * ```
  *
  * 该接收器通过 `debugReceiverEnabled` 清单占位符在 release 构建中**禁用**，
@@ -74,6 +88,49 @@ class DebugCommandReceiver : BroadcastReceiver() {
                             " plan=${execution.buildConfig().describe()}" +
                             " progress=${execution.progress.value.loopLabel}" +
                             " message=${execution.message.value}",
+                    )
+                }
+            }
+
+            "run_combo" -> {
+                // 组合运行的调试入口：绕过悬浮球直接启动两段脚本，便于在真机上
+                // 验证并行调度与首轮延迟。间隔 / 延迟单位为毫秒。
+                val intervalA = intent.getLongExtra("intervalA", 14 * 60_000L)
+                val intervalB = intent.getLongExtra("intervalB", 50 * 60_000L)
+                val delayB = intent.getLongExtra("delayB", 0L)
+                val repeatA = intent.getIntExtra("repeatA", 0)
+                val repeatB = intent.getIntExtra("repeatB", 0)
+                val idA = intent.getStringExtra("scriptA")
+                val idB = intent.getStringExtra("scriptB")
+                container.scope.launch {
+                    val records = container.scriptRepository.refresh()
+                    val recordA = records.firstOrNull { it.id == idA } ?: records.getOrNull(0)
+                    val recordB = records.firstOrNull { it.id == idB } ?: records.getOrNull(1)
+                    if (recordA == null || recordB == null) {
+                        Log.w(AutoRunnerApplication.TAG, "debug run_combo: need two stored scripts")
+                        return@launch
+                    }
+                    val configA = ExecutionConfig(
+                        mode = ExecutionMode.REPEAT,
+                        repeatCount = repeatA,
+                        intervalMs = intervalA,
+                        failureStrategy = FailureStrategy.SKIP_ACTION,
+                    )
+                    val configB = configA.copy(
+                        repeatCount = repeatB,
+                        intervalMs = intervalB,
+                        startDelayMs = delayB,
+                    )
+                    val started = container.executionController.startCombo(
+                        ComboExecution(
+                            slotA = ComboScriptSlot(ComboSlotRole.A, recordA.id, recordA.script, configA),
+                            slotB = ComboScriptSlot(ComboSlotRole.B, recordB.id, recordB.script, configB),
+                        ),
+                    )
+                    Log.i(
+                        AutoRunnerApplication.TAG,
+                        "debug run_combo -> started=$started A='${recordA.name}'@${intervalA}ms " +
+                            "B='${recordB.name}'@${intervalB}ms delayB=${delayB}ms",
                     )
                 }
             }
@@ -143,6 +200,93 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 Log.i(AutoRunnerApplication.TAG, "debug black_screen -> $enabled")
             }
 
+            "hang_state" -> {
+                val settings = container.settingsRepository.current
+                val listenerGranted = runCatching {
+                    NotificationManagerCompat.getEnabledListenerPackages(context)
+                        .contains(context.packageName)
+                }.getOrDefault(false)
+                // Android 15+ 未授予该 appop 时，短信 / 验证码等敏感通知的正文会被系统清空。
+                // unsafeCheckOpNoThrow 是 API 29 才有的方法，旧系统上直接返回 null。
+                val sensitiveAllowed = if (android.os.Build.VERSION.SDK_INT >=
+                    android.os.Build.VERSION_CODES.Q
+                ) {
+                    runCatching {
+                        context.getSystemService(android.app.AppOpsManager::class.java)
+                            ?.unsafeCheckOpNoThrow(
+                                "android:receive_sensitive_notifications",
+                                android.os.Process.myUid(),
+                                context.packageName,
+                            ) == android.app.AppOpsManager.MODE_ALLOWED
+                    }.getOrNull()
+                } else {
+                    null
+                }
+                val accessibility = AccessibilityServiceHolder.current()
+                    ?.debugHangGuardState()
+                    ?: "accessibility=disconnected"
+                Log.i(
+                    AutoRunnerApplication.TAG,
+                    "HANG_STATE listenerGranted=$listenerGranted " +
+                        "sensitiveNotifications=$sensitiveAllowed " +
+                        "notificationsObserved=${IdleNotificationFeed.isObserved} " +
+                        "showNotifications=${settings.idleNotificationDisplay} " +
+                        "focusObserved=${FocusNotificationFeed.isObserved} " +
+                        "showFocus=${settings.idleFocusDisplay} " +
+                        "focusCount=${FocusNotificationFeed.snapshot().size} " +
+                        "dialogGuard=${settings.hangDialogGuard} $accessibility",
+                )
+            }
+
+            "fake_notification" -> {
+                IdleNotificationFeed.publish(
+                    IdleNotification(
+                        packageName = "com.example.debug",
+                        appLabel = "测试应用",
+                        title = "挂机通知测试",
+                        text = "这是一条用于验证黑屏挂机通知卡片的测试通知",
+                        postedAtMs = SystemClock.elapsedRealtime(),
+                    ),
+                )
+                Log.i(
+                    AutoRunnerApplication.TAG,
+                    "fake_notification -> observed=${IdleNotificationFeed.isObserved} " +
+                        "（需要黑屏挂机层可见）",
+                )
+            }
+
+            "fake_focus" -> {
+                // 不依赖真实外卖 / 打车订单：直接往焦点通知集合里塞一条岛状态，
+                // 用于验证黑屏面板的排版、进度条与自动消失（收到 removed 时清理）。
+                FocusNotificationFeed.upsert(
+                    FocusNotification(
+                        key = "debug|focus",
+                        packageName = "com.example.debug",
+                        appLabel = intent.getStringExtra("app").orEmpty().ifEmpty { "美团外卖" },
+                        title = intent.getStringExtra("title").orEmpty().ifEmpty { "预计 21:07 送达" },
+                        detail = intent.getStringExtra("detail").orEmpty()
+                            .ifEmpty { "商家已出餐，骑手已到店 · 川味特色面馆" },
+                        progress = intent.getStringExtra("progress")?.toIntOrNull() ?: 50,
+                        accentColor = android.graphics.Color.parseColor("#FFCC33"),
+                        postedAtMs = SystemClock.elapsedRealtime(),
+                    ),
+                )
+                Log.i(
+                    AutoRunnerApplication.TAG,
+                    "fake_focus -> observed=${FocusNotificationFeed.isObserved} " +
+                        "count=${FocusNotificationFeed.snapshot().size}（需要黑屏挂机层可见）",
+                )
+            }
+
+            "clear_focus" -> {
+                // 只清掉 fake_focus 注入的那条，真实岛状态保持不动。
+                FocusNotificationFeed.remove("debug|focus")
+                Log.i(
+                    AutoRunnerApplication.TAG,
+                    "clear_focus -> count=${FocusNotificationFeed.snapshot().size}",
+                )
+            }
+
             "run_repeat" -> {
                 val requested = intent.getStringExtra(EXTRA_SCRIPT_ID)
                 val count = intent.getStringExtra("count")?.toIntOrNull() ?: 3
@@ -210,6 +354,14 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 append(container.executionController.state.value)
                 append(" progress=")
                 append(container.executionController.progress.value.loopLabel)
+                append(" combo=")
+                append(
+                    container.executionController.comboProgress.value?.let { combo ->
+                        combo.slots.joinToString("/") {
+                            "${it.role.name}:${it.progress.completedLoops}/${it.progress.totalLoops}"
+                        }
+                    } ?: "none",
+                )
                 append(" gamepad=")
                 append(container.gamepadGateway?.javaClass?.simpleName ?: "none")
             },

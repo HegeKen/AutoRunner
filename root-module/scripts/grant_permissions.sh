@@ -55,4 +55,39 @@ pm grant "$PKG" android.permission.READ_EXTERNAL_STORAGE 2>/dev/null
 
 # 7) 撤销系统的"未使用应用休眠"，避免脚本被限制
 am set-inactive "$PKG" false >/dev/null 2>&1
+
+# 8) 通知使用权（NotificationListenerService）：系统把已授权的组件以冒号分隔存
+#    在 secure settings 里。Root 直接并入列表后系统会自动绑定，用户无需去
+#    「通知使用权」页面手动勾选；App 被重装/更新后经 `perms` 命令按需补回。
+NL_COMPONENT="$PKG/$PKG.notification.AutoRunnerNotificationListener"
+NL_LIST="$(settings get secure enabled_notification_listeners 2>/dev/null)"
+# 读不到列表时不要写：空列表会被写成「只有本应用」，反而清掉其它 App 的授权。
+if [ -z "$NL_LIST" ]; then
+  log "notification listener list unreadable; fallback to allow_listener"
+  cmd notification allow_listener "$NL_COMPONENT" >/dev/null 2>&1
+else
+  case "$NL_LIST" in
+    *"$NL_COMPONENT"*) log "notification listener already enabled" ;;
+    *)
+      case "$NL_LIST" in
+        "null") NL_NEW="$NL_COMPONENT" ;;
+        *)      NL_NEW="$NL_LIST:$NL_COMPONENT" ;;
+      esac
+      settings put secure enabled_notification_listeners "$NL_NEW" 2>/dev/null
+      # 部分 ROM 由 NotificationManagerService 的 allowlist 控制，再走一次 shell
+      # 命令兜底；旧系统没有该子命令，失败忽略。
+      cmd notification allow_listener "$NL_COMPONENT" >/dev/null 2>&1
+      if settings get secure enabled_notification_listeners 2>/dev/null | grep -qF "$NL_COMPONENT"; then
+        log "notification listener enabled"
+      else
+        log "notification listener NOT persisted (将在 App 侧重试)"
+      fi
+      ;;
+  esac
+fi
+
+# 9) Android 15+：通知监听默认读不到短信验证码等「敏感通知」的正文，
+#    需要单独允许这个 appop。旧系统上命令会失败，忽略即可。
+set_op RECEIVE_SENSITIVE_NOTIFICATIONS
+
 log "done"

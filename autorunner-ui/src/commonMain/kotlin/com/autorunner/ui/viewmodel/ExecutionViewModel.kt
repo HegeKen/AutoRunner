@@ -1,7 +1,11 @@
 package com.autorunner.ui.viewmodel
 
 import com.autorunner.core.di.AppContainer
+import com.autorunner.core.execution.ComboExecution
 import com.autorunner.core.execution.ExecutionController
+import com.autorunner.core.execution.resolve
+import com.autorunner.core.model.ComboConfig
+import com.autorunner.core.model.ComboSlotRole
 import com.autorunner.core.model.ExecutionConfig
 import com.autorunner.core.model.InputMode
 import com.autorunner.core.model.ExecutionMode
@@ -156,6 +160,14 @@ class ExecutionViewModel(
     fun disarm() = controller.disarm()
 
     /**
+     * 由悬浮服务在收到「组合运行」武装请求时调用：只登记配置，
+     * 真正的启动发生在用户单击悬浮球时（[startFirstAvailable]）。
+     */
+    fun armCombo(config: ComboConfig) {
+        controller.armCombo(config)
+    }
+
+    /**
      * 列表点「运行」：不立刻执行，而是显示悬浮窗并回到桌面，让用户先打开目标页面，
      * 再由用户在悬浮窗上点「运行」真正开始（图标随运行状态变成停止）。
      */
@@ -241,10 +253,60 @@ class ExecutionViewModel(
         }
     }
 
-    /** 悬浮球使用的快捷操作：运行第一个可用脚本。 */
+    /**
+     * 悬浮球使用的快捷操作：优先启动已武装的组合，否则运行当前 / 第一个可用脚本。
+     */
     fun startFirstAvailable() {
+        if (controller.armedCombo.value != null) {
+            startArmedCombo()
+            return
+        }
         val id = _selectedScriptId.value ?: scripts.value.firstOrNull()?.id
         start(id)
+    }
+
+    /**
+     * 把已武装的组合配置解析成两段真实脚本并交给控制器并行执行。
+     *
+     * 解析时重新读取脚本，避免悬浮球长时间停留期间脚本被删除 / 清空之后
+     * 仍按旧内容运行。
+     */
+    private fun startArmedCombo() {
+        val config = controller.armedCombo.value ?: return
+        if (controller.isActive) {
+            _message.value = "已有任务正在执行"
+            return
+        }
+        scope.launch {
+            if (!accessibilityConnected && !rootInputAvailable) {
+                _message.value = "无障碍服务未连接，无法执行"
+                controller.disarm()
+                return@launch
+            }
+            val recordA = config.slotA.scriptId
+                .takeIf { it.isNotBlank() }
+                ?.let { repository.load(it) }
+            val recordB = config.slotB.scriptId
+                .takeIf { it.isNotBlank() }
+                ?.let { repository.load(it) }
+            if (recordA == null || recordB == null) {
+                _message.value = "组合中的脚本不存在，请重新配置"
+                controller.disarm()
+                return@launch
+            }
+            if (recordA.script.flow.isEmpty() || recordB.script.flow.isEmpty()) {
+                _message.value = "组合中的脚本不包含任何动作"
+                controller.disarm()
+                return@launch
+            }
+            val execution = ComboExecution(
+                slotA = config.slotA.resolve(ComboSlotRole.A, recordA.script),
+                slotB = config.slotB.resolve(ComboSlotRole.B, recordB.script),
+            )
+            if (!controller.startCombo(execution)) {
+                _message.value = "启动失败：已有任务正在执行"
+            }
+        }
     }
 
     fun pause() = controller.pause()

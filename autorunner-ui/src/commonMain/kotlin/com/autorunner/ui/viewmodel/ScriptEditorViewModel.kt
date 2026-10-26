@@ -16,6 +16,7 @@ import com.autorunner.core.script.ScriptRecord
 import com.autorunner.core.serialization.ScriptValidator
 import com.autorunner.core.serialization.ValidationResult
 import com.autorunner.core.util.currentIsoTimestamp
+import com.autorunner.ui.format.IntervalUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -54,6 +55,17 @@ class ScriptEditorViewModel(
     private val _execution = MutableStateFlow(ExecutionConfig())
 
     val execution: StateFlow<ExecutionConfig> = _execution.asStateFlow()
+
+    /**
+     * 循环间隔在编辑器里使用的显示单位。
+     *
+     * 只影响展示：间隔本身始终以毫秒保存。把它提升到 ViewModel，是因为顶部
+     * 信息卡需要按同一单位显示「循环任务预计总时长」，而单位选择器位于
+     * 执行配置控件内部。
+     */
+    private val _intervalUnit = MutableStateFlow(IntervalUnit.forValue(0L))
+
+    val intervalUnit: StateFlow<IntervalUnit> = _intervalUnit.asStateFlow()
 
     private val _coordinateSpace = MutableStateFlow(CoordinateSpace.ABSOLUTE)
 
@@ -123,6 +135,7 @@ class ScriptEditorViewModel(
                 _description.value = ""
                 _flow.value = emptyList()
                 _execution.value = settings.defaultExecution
+                _intervalUnit.value = IntervalUnit.forValue(settings.defaultExecution.intervalMs)
                 _coordinateSpace.value = CoordinateSpace.ABSOLUTE
                 _gamepadMode.value = settings.gamepadMode
                 _selectedIndex.value = null
@@ -140,6 +153,7 @@ class ScriptEditorViewModel(
             _description.value = record.script.info.description
             _flow.value = record.script.flow
             _execution.value = record.script.execution
+            _intervalUnit.value = IntervalUnit.forValue(record.script.execution.intervalMs)
             _coordinateSpace.value = record.script.info.coordinateSpace
             _gamepadMode.value = record.script.info.gamepadMode
             // 先展示动作/步骤列表，由用户点选某个动作后再进入参数详情；
@@ -257,6 +271,11 @@ class ScriptEditorViewModel(
         _execution.value = _execution.value.copy(intervalMs = intervalMs.coerceAtLeast(0)).sanitized()
         _dirty.value = true
         revalidate()
+    }
+
+    /** 用户在间隔控件里切换显示单位；仅影响编辑器的展示单位。 */
+    fun setIntervalUnit(unit: IntervalUnit) {
+        _intervalUnit.value = unit
     }
 
     fun setFailureStrategy(strategy: FailureStrategy) {

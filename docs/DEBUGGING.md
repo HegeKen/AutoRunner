@@ -49,7 +49,7 @@ adb uninstall com.autorunner.app
 
 ```bash
 adb shell am start -n cn.helilab.autorunner/.MainActivity --es destination scripts
-#   destination: scripts | record | settings | editor
+#   destination: scripts | combo | record | settings | editor
 adb shell am start -n cn.helilab.autorunner/.MainActivity --es destination editor --es scriptId "测试"
 ```
 
@@ -64,14 +64,81 @@ release 包不含该通道（manifest 占位符 `debugReceiverEnabled`）。
 B="adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND -n cn.helilab.autorunner/.debug.DebugCommandReceiver --es command"
 $B state          # 打印无障碍连接、悬浮窗、脚本数量、执行状态（自动机友好）
 $B run            # 按"列表 ▶"的同一条路径运行最近脚本
-$B stop           # 停止执行
+$B run_combo --es scriptA a --es scriptB b --el intervalA 840000 --el intervalB 3000000 --el delayB 600000
+                  # 直接启动组合运行（绕过悬浮球），便于验证并行调度与首轮延迟
+$B stop           # 停止执行（组合运行时同时停止两段脚本）
 $B pause          # 暂停/继续
 $B tap --es x 540 --es y 1200     # 通过无障碍注入一次点击（脚本调试用）
 $B record_start / record_stop     # 直接开始/结束录制
 $B overlay_show / overlay_hide / overlay_expand / overlay_collapse
 $B import                         # 拉起导入文件选择器（等价点击右下"导入"）
 $B flush / pick_action            # 刷新脚本缓存 / 进入"从实际操作录入"
+$B black_screen --ez enabled true # 直接开关黑屏挂机层（也可以传 false 退出）
+$B hang_state                     # 通知使用权、通知看板、弹窗守护基线、媒体会话与黑屏状态
+$B fake_notification              # 向可见黑屏层投递一条测试通知（验证卡片渲染）
+$B fake_focus                     # 注入一条假的焦点通知（岛状态行），可用 --es app/title/detail/progress 覆盖文案
+$B clear_focus                    # 移除 fake_focus 注入的那条（真实岛状态不受影响）
 ```
+
+### 4.1 黑屏挂机：时钟、通知、媒体控制与弹窗守护验证
+
+```bash
+# 通知使用权是否已被 Root 模块授予（应包含 cn.helilab.autorunner/...NotificationListener）
+adb shell settings get secure enabled_notification_listeners
+# Android 15+：敏感通知（验证码正文）需要这个 appop
+adb shell cmd appops get cn.helilab.autorunner RECEIVE_SENSITIVE_NOTIFICATIONS
+
+# 打开黑屏挂机，并在 设置 → 悬浮窗 → 黑屏挂机 打开「显示手机通知」
+adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND \
+  -n cn.helilab.autorunner/.debug.DebugCommandReceiver --es command black_screen --ez enabled true
+# 先确认看板在接收（notificationsObserved=true），再让另一台设备发消息 / 用 fake_notification
+adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND \
+  -n cn.helilab.autorunner/.debug.DebugCommandReceiver --es command hang_state
+```
+
+黑屏层上的滚动文字每秒刷新 `HH:mm:ss`；字体等宽，秒数跳动时文字面板宽度不变。
+文字面板带发光圆角边框，最大宽度 430dp：超长歌名会在边框内以省略号截断，不会撑大面板。
+边框本体就是反弹的碰撞边界，面板会贴到屏幕边缘才反向；贴边时外层泛光被屏幕裁切是预期效果。
+面板右上角显示电量与电池图标；电池按电量填充，插上充电器后填充变绿并出现闪电标识，
+拔掉后恢复白色，电量 ≤15% 时变红。电量来自 `ACTION_BATTERY_CHANGED` 粘性广播，
+只在黑屏层可见期间注册监听。
+
+媒体控制同样依赖上面的「通知使用权」。验证时先让任意播放器开始播放，再进入黑屏挂机，
+`hang_state` 应出现 `mediaControls=true` 且 `mediaSession=started=true ... media=<包名>
+playing=true title=<歌名>`；此时滚动文字会多出「♫ 歌名 · 歌手」与上一首 / 播放暂停 / 下一首按钮。
+暂停后按钮保留（中间图标变为播放），会话彻底消失后按钮自动移除。
+媒体通知不会再以通知卡片的形式重复出现在黑屏层上；过滤命中时日志为
+`idle notification dropped: media notification (<包名>)`。
+
+> 按钮位于一个只有按钮大小的独立可触摸窗口，并跟随文字块移动。落在按钮矩形内的
+> 触摸会被按钮消费（脚本注入的点击也一样），矩形之外仍照常穿透给下层游戏。
+
+### 4.2 黑屏挂机：焦点通知（小米超级岛）状态
+
+挂机期间，`AutoRunnerNotificationListener` 会额外识别带 `miui.focus.param` 的通知
+（外卖、打车、计时等仍在进行的服务），把 `NotificationListenerService` 收到的
+`miui.focus.param` JSON 解析成「应用名 · 主文案 / 补充说明 / 进度条」，常驻显示在
+时钟下方。它和 8 秒通知卡片是两条独立链路：通知卡片由「显示手机通知」控制，
+岛状态由「显示焦点通知」控制（默认开启，同样依赖「通知使用权」）。
+
+```bash
+# 不需要真实订单：注入一条岛状态，验证排版 / 进度条
+adb shell am broadcast -p cn.helilab.autorunner -a cn.helilab.autorunner.DEBUG_COMMAND \
+  --es command fake_focus --es app "滴滴出行" --es title "司机 2 分钟后到达" \
+  --es detail "车牌 京A·88888 · 白色比亚迪" --es progress 20
+# 状态行应出现，且 hang_state 里 focusCount >= 1
+adb shell am broadcast -p cn.helilab.autorunner -a cn.helilab.autorunner.DEBUG_COMMAND --es command hang_state
+# 清理注入项
+adb shell am broadcast -p cn.helilab.autorunner -a cn.helilab.autorunner.DEBUG_COMMAND --es command clear_focus
+```
+
+实机验证时也可以直接下单外卖 / 打车：`hang_state` 里 `focusCount` 会随服务状态变化，
+真正送达 / 结束后该行自动消失（通知被移除或 `param_v2.cancel=true`）。
+日志里可直接看到被跳过的重复卡片：`idle notification dropped: focus notification (<包名>)`。
+
+弹窗守护命中时日志为 `hang dialog detected: pkg=... cls=... fullscreen=... confirm=... title=...`，
+并且脚本会暂停、黑屏层撤掉、弹一条 Toast。如果目标应用用的是 Canvas / Unity 自绘弹窗
+（无障碍树里没有独立窗口），守护不会触发——这是当前方案的能力边界。
 
 例：
 

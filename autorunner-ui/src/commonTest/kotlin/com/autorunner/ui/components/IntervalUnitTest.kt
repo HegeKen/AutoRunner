@@ -1,5 +1,7 @@
 package com.autorunner.ui.components
 
+import com.autorunner.ui.format.IntervalUnit
+
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -39,6 +41,17 @@ class IntervalUnitTest {
     fun nonPositiveValuesStayDisabled() {
         assertEquals(0L, IntervalUnit.SECONDS.snap(0L))
         assertEquals(0L, IntervalUnit.MINUTES.snap(-1_000L))
+    }
+
+    @Test
+    fun durationIsFormattedInTheSelectedUnit() {
+        assertEquals("0 毫秒", IntervalUnit.MILLIS.formatDuration(0L))
+        assertEquals("1500 毫秒", IntervalUnit.MILLIS.formatDuration(1_500L))
+        assertEquals("1.5 秒", IntervalUnit.SECONDS.formatDuration(1_500L))
+        assertEquals("90 秒", IntervalUnit.SECONDS.formatDuration(90_000L))
+        assertEquals("1.5 分钟", IntervalUnit.MINUTES.formatDuration(90_000L))
+        assertEquals("28.1 分钟", IntervalUnit.MINUTES.formatDuration(1_686_000L))
+        assertEquals("0.01 分钟", IntervalUnit.MINUTES.formatDuration(500L))
     }
 
     @Test

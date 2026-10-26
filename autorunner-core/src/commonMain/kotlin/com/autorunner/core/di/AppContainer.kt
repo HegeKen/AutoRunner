@@ -1,5 +1,6 @@
 package com.autorunner.core.di
 
+import com.autorunner.core.execution.ActionDispatchGate
 import com.autorunner.core.execution.AutoRunnerScriptExecutor
 import com.autorunner.core.execution.ExecutionController
 import com.autorunner.core.model.AppSettings
@@ -16,6 +17,7 @@ import com.autorunner.core.platform.createRecordingController
 import com.autorunner.core.script.FileScriptRepository
 import com.autorunner.core.script.ScriptRepository
 import com.autorunner.core.serialization.ArScriptCodec
+import com.autorunner.core.settings.ComboStore
 import com.autorunner.core.settings.SettingsRepository
 import com.autorunner.core.storage.KeyValueStore
 import com.autorunner.core.storage.ScriptStorage
@@ -38,6 +40,8 @@ class AppContainer(
     val settingsRepository: SettingsRepository,
     /** 通用键值存储；除设置外的一次性标记（如示例脚本是否已导入）也放在这里。 */
     val keyValueStore: KeyValueStore,
+    /** 组合运行（两段脚本并行）的持久化配置。 */
+    val comboStore: ComboStore,
     val accessibilityController: AccessibilityController,
     val recordingController: RecordingController,
     val overlayManager: OverlayManager,
@@ -96,19 +100,33 @@ object AutoRunnerCore {
             metricsProvider = { resolvedAccessibility.screenMetrics },
             dispatcher = repositoryDispatcher,
         )
+        val dispatchGate = ActionDispatchGate()
         val executor = AutoRunnerScriptExecutor(
             accessibilityController = resolvedAccessibility,
             gamepadGateway = gamepadGateway,
             rootBackend = rootInputBackend,
             inputMode = { settingsRepository.current.inputMode },
+            dispatchGate = dispatchGate,
         )
-        val executionController = ExecutionController(executor, scope)
+        // 组合运行的第二个槽位需要独立执行器：两段脚本各自持有计数、暂停/停止
+        // 信号；动作派发通过同一个 gate 串行化，避免并发手势互相取消。
+        val secondaryExecutorFactory: () -> AutoRunnerScriptExecutor = {
+            AutoRunnerScriptExecutor(
+                accessibilityController = resolvedAccessibility,
+                gamepadGateway = gamepadGateway,
+                rootBackend = rootInputBackend,
+                inputMode = { settingsRepository.current.inputMode },
+                dispatchGate = dispatchGate,
+            )
+        }
+        val executionController = ExecutionController(executor, scope, secondaryExecutorFactory)
 
         return AppContainer(
             codec = codec,
             scriptRepository = scriptRepository,
             settingsRepository = settingsRepository,
             keyValueStore = keyValueStore,
+            comboStore = ComboStore(keyValueStore),
             accessibilityController = resolvedAccessibility,
             recordingController = resolvedRecording,
             overlayManager = resolvedOverlay,

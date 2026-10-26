@@ -2,6 +2,7 @@ package cn.helilab.autorunner.overlay
 
 import android.content.Context
 import android.provider.Settings
+import com.autorunner.core.model.ComboConfig
 import com.autorunner.core.platform.OverlayManager
 import com.autorunner.core.platform.OverlayState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,16 +36,24 @@ object OverlayStateHolder {
  */
 object PendingOverlayAction {
 
-    enum class Mode { RUN, RECORD }
+    enum class Mode { RUN, RECORD, COMBO }
 
-    data class Pending(val mode: Mode, val scriptId: String? = null)
+    data class Pending(
+        val mode: Mode,
+        val scriptId: String? = null,
+        val combo: ComboConfig? = null,
+    )
 
     private val _pending = MutableStateFlow<Pending?>(null)
 
     val pending: StateFlow<Pending?> = _pending.asStateFlow()
 
-    fun request(mode: Mode, scriptId: String? = null) {
-        _pending.value = Pending(mode, scriptId)
+    fun request(
+        mode: Mode,
+        scriptId: String? = null,
+        combo: ComboConfig? = null,
+    ) {
+        _pending.value = Pending(mode, scriptId, combo)
     }
 
     fun consume() {
@@ -99,6 +108,24 @@ class AndroidOverlayManager(
     }
 
     override fun armExecution(scriptId: String): Boolean {
+        if (!ensureOverlayReady()) return false
+        PendingOverlayAction.request(PendingOverlayAction.Mode.RUN, scriptId)
+        AutoRunnerOverlayService.start(context)
+        // 服务会异步确认附着结果。
+        OverlayStateHolder.update { it.copy(visible = true) }
+        return true
+    }
+
+    override fun armCombo(combo: ComboConfig): Boolean {
+        if (!ensureOverlayReady()) return false
+        PendingOverlayAction.request(PendingOverlayAction.Mode.COMBO, combo = combo)
+        AutoRunnerOverlayService.start(context)
+        OverlayStateHolder.update { it.copy(visible = true) }
+        return true
+    }
+
+    /** 悬浮窗权限检查 + 状态复位；[armExecution] / [armCombo] 共用。 */
+    private fun ensureOverlayReady(): Boolean {
         if (!isPermissionGranted()) {
             OverlayStateHolder.update {
                 it.copy(
@@ -112,10 +139,6 @@ class AndroidOverlayManager(
         OverlayStateHolder.update {
             it.copy(permissionGranted = true, error = null, menuOpen = false)
         }
-        PendingOverlayAction.request(PendingOverlayAction.Mode.RUN, scriptId)
-        AutoRunnerOverlayService.start(context)
-        // 服务会异步确认附着结果。
-        OverlayStateHolder.update { it.copy(visible = true) }
         return true
     }
 

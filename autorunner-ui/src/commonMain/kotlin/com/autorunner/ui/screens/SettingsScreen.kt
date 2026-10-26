@@ -320,11 +320,18 @@ private fun SettingsPageContent(
             PowerSection(settings = settings, viewModel = viewModel)
         }
 
-        SettingsPage.OVERLAY -> FloatingWindowSection(
-            settings = settings,
-            viewModel = viewModel,
-            onToggleOverlay = onToggleOverlay,
-        )
+        SettingsPage.OVERLAY -> {
+            FloatingWindowSection(
+                settings = settings,
+                viewModel = viewModel,
+                onToggleOverlay = onToggleOverlay,
+            )
+            HangModeSection(
+                settings = settings,
+                permissions = permissions,
+                viewModel = viewModel,
+            )
+        }
 
         SettingsPage.RECORDING -> RecordingTuningSection(settings = settings, viewModel = viewModel)
 
@@ -497,6 +504,22 @@ private fun PermissionSection(
                 modifier = Modifier.padding(start = 56.dp),
             )
         }
+
+        // 可选权限：只影响黑屏挂机时的通知展示与媒体控制，不参与「核心权限」统计。
+        PreferenceRow(
+            title = "通知使用权（可选）",
+            summary = "黑屏挂机时显示手机通知与媒体控制（歌曲信息、上一首 / 下一首）；Root 模块可自动授予",
+            statusText = if (status.notificationListenerGranted) "已授予" else "未授予",
+            statusColor = if (status.notificationListenerGranted) {
+                AutoRunnerColors.Running
+            } else {
+                MiuixTheme.colorScheme.onSurfaceVariantSummary
+            },
+            onClick = viewModel::openNotificationListenerSettings,
+        )
+        HorizontalDivider(
+            modifier = Modifier.padding(start = 56.dp),
+        )
 
         PreferenceRow(
             title = "忽略电池优化",
@@ -723,10 +746,83 @@ private fun FloatingWindowSection(
         )
         PreferenceRow(
             title = "球所在半屏",
-            summary = "决定迷你菜单的展开方向，拖动到任意位置后自动更新",
+            summary = "决定迷你菜单向左还是向右展开；上下位置决定朝上还是朝下",
             statusText = if (edge == DockEdge.LEFT) "左侧" else "右侧",
             statusColor = MiuixTheme.colorScheme.secondaryContainer,
             statusContentColor = MiuixTheme.colorScheme.onSecondaryContainer,
+        )
+    }
+}
+
+/**
+ * 黑屏挂机的两个可选增强。
+ *
+ * * **显示手机通知**：需要可选的系统「通知使用权」，由 `NotificationListenerService`
+ *   读取；Root 模块会自动授予，普通用户可在下方入口手动开启。通知只读、不可点击
+ *   ——黑屏层是 `FLAG_NOT_TOUCHABLE` 的，触摸必须继续穿透给脚本。
+ *   同一份授权也让黑屏层读取媒体会话：有音乐播放时在滚动文字中显示歌曲信息，
+ *   并提供上一首 / 下一首按钮（按钮位于独立的小窗口，其余触摸仍然穿透）。
+ * * **弹窗守护**：挂机期间通过无障碍事件发现新弹出的确认框，自动退出黑屏并暂停
+ *   脚本，避免注入的触摸盲点「确认购买 / 同意」之类的按钮。
+ */
+@Composable
+private fun HangModeSection(
+    settings: AppSettings,
+    permissions: PermissionStatus,
+    viewModel: SettingsViewModel,
+) {
+    val listenerGranted = permissions.notificationListenerGranted
+    SectionCard(
+        title = "黑屏挂机",
+        subtitle = "整屏纯黑、触摸穿透给下层应用时的附加能力",
+    ) {
+        SwitchPreference(
+            checked = settings.idleNotificationDisplay,
+            onCheckedChange = viewModel::setIdleNotificationDisplay,
+            title = "显示手机通知",
+            summary = if (listenerGranted) {
+                "挂机期间新到的通知以只读卡片显示，8 秒后自动消失"
+            } else {
+                "需要「通知使用权」：Root 模块会自动授予，也可手动开启"
+            },
+            endActions = {
+                StatusPill(
+                    text = if (listenerGranted) "已授权" else "未授权",
+                    color = if (listenerGranted) {
+                        AutoRunnerColors.Running
+                    } else {
+                        MiuixTheme.colorScheme.error
+                    },
+                )
+            },
+        )
+        SwitchPreference(
+            checked = settings.idleFocusDisplay,
+            onCheckedChange = viewModel::setIdleFocusDisplay,
+            title = "显示焦点通知",
+            summary = if (listenerGranted) {
+                "外卖、打车等服务的「小米超级岛」状态，只在服务进行中显示，结束即消失"
+            } else {
+                "需要「通知使用权」：与上面的通知卡片共用同一份授权"
+            },
+        )
+        PreferenceRow(
+            title = "通知使用权",
+            summary = "读取通知与媒体会话仅用于黑屏挂机的通知卡片、歌曲信息与切歌按钮，不会上传或持久化",
+            statusText = if (listenerGranted) "已授予" else "未授予",
+            statusColor = if (listenerGranted) {
+                AutoRunnerColors.Running
+            } else {
+                MiuixTheme.colorScheme.error
+            },
+            onClick = viewModel::openNotificationListenerSettings,
+        )
+        HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+        SwitchPreference(
+            checked = settings.hangDialogGuard,
+            onCheckedChange = viewModel::setHangDialogGuard,
+            title = "弹窗守护",
+            summary = "基于无障碍事件检测下层应用新弹出的确认框，自动退出黑屏并暂停脚本",
         )
     }
 }

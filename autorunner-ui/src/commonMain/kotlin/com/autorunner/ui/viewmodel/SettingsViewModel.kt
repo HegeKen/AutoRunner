@@ -142,6 +142,41 @@ class SettingsViewModel(
         manager.toggle()
     }
 
+    // ---------------------------------------------------------- 黑屏挂机
+
+    /**
+     * 黑屏挂机期间是否显示手机通知。
+     *
+     * 依赖可选的「通知使用权」；用户打开开关但尚未授权时，顺手把系统设置页
+     * 拉起来（开关保持打开，授权返回后即可生效）。
+     */
+    fun setIdleNotificationDisplay(enabled: Boolean) {
+        if (enabled && permissions?.status?.value?.notificationListenerGranted == false) {
+            _message.value = "请先授予「通知使用权」，否则黑屏挂机时收不到通知"
+            permissions.openNotificationListenerSettings()
+        }
+        container.settingsRepository.setIdleNotificationDisplay(enabled)
+    }
+
+    /**
+     * 黑屏挂机期间是否显示焦点通知（超级岛）状态。
+     *
+     * 与通知卡片共用同一份「通知使用权」；未授权时同样把系统设置页拉起来。
+     */
+    fun setIdleFocusDisplay(enabled: Boolean) {
+        if (enabled && permissions?.status?.value?.notificationListenerGranted == false) {
+            _message.value = "请先授予「通知使用权」，否则读不到焦点通知状态"
+            permissions.openNotificationListenerSettings()
+        }
+        container.settingsRepository.setIdleFocusDisplay(enabled)
+    }
+
+    /** 黑屏挂机期间是否启用弹窗守护。 */
+    fun setHangDialogGuard(enabled: Boolean) =
+        container.settingsRepository.setHangDialogGuard(enabled)
+
+    fun openNotificationListenerSettings() = permissions?.openNotificationListenerSettings()
+
     // ------------------------------------------------------------- 手柄
     //
     // 手柄模拟是把按键注入到*本*设备，因此唯一的配置工作就是

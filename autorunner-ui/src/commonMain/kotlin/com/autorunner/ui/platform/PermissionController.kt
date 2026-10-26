@@ -44,6 +44,14 @@ data class PermissionStatus(
     val accessibilityEnabled: Boolean = false,
     val overlayGranted: Boolean = false,
     val notificationGranted: Boolean = true,
+    /**
+     * 可选权限：系统「通知使用权」（`NotificationListenerService`）。
+     *
+     * 只服务于黑屏挂机时的通知展示与媒体控制（歌曲信息、上一首 / 下一首），
+     * 缺它不影响录制 / 回放等核心功能，因此不参与 [corePermissionsGranted]
+     * 与 [missingCore]。
+     */
+    val notificationListenerGranted: Boolean = false,
     /** 为 `true` 时应用已豁免电池优化。 */
     val batteryOptimisationIgnored: Boolean = false,
     /** 当前设备厂商，用于厂商专属引导。 */
@@ -93,6 +101,13 @@ interface PermissionController {
 
     /** 申请 `POST_NOTIFICATIONS`（API 33 以下为空操作）。 */
     fun requestNotificationPermission()
+
+    /**
+     * 打开系统「通知使用权」列表页（可选权限，用于黑屏挂机时显示通知）。
+     *
+     * 该权限无法通过运行时 API 申请，只能引导用户到系统设置里勾选本应用。
+     */
+    fun openNotificationListenerSettings() {}
 
     /** 打开电池优化豁免对话框。 */
     fun requestIgnoreBatteryOptimisations()

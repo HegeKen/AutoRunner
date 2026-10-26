@@ -15,6 +15,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import cn.helilab.autorunner.accessibility.AccessibilityServiceHolder
 import cn.helilab.autorunner.accessibility.AutoRunnerAccessibilityService
+import cn.helilab.autorunner.notification.AutoRunnerNotificationListener
 import com.autorunner.core.platform.RootInputBackend
 import com.autorunner.ui.platform.AutoRunnerPermission
 import com.autorunner.ui.platform.OemGuidanceStep
@@ -83,13 +84,13 @@ class AndroidPermissionController(
     }
 
     /**
-     * Root 模式下按需补授通知 / 悬浮窗权限：App 被重装或更新后这些授权会被系统
-     * 重置，而模块只在开机时授予一次。这里在检测到「缺失 + Root 可用」时下发一次
-     * 补授请求（装模块走守护进程，未装模块走 su 直连），稍后重读状态刷新 UI。
-     * 两个权限都到位后重置标志位，允许后续轮缺失再次补授；同一轮缺失只请求一次。
+     * Root 模式下按需补授通知 / 悬浮窗 / 通知使用权：App 被重装或更新后这些授权
+     * 会被系统重置，而模块只在开机时授予一次。这里在检测到「缺失 + Root 可用」时
+     * 下发一次补授请求（装模块走守护进程，未装模块走 su 直连），稍后重读状态刷新
+     * UI。全部到位后重置标志位，允许后续轮缺失再次补授；同一轮缺失只请求一次。
      */
     private fun requestPermissionRepairIfNeeded(status: PermissionStatus) {
-        if (status.notificationGranted && status.overlayGranted) {
+        if (status.notificationGranted && status.overlayGranted && status.notificationListenerGranted) {
             permRepairRequested = false
             return
         }
@@ -137,6 +138,29 @@ class AndroidPermissionController(
             return
         }
         requestPermissionLauncher?.invoke(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+    }
+
+    /**
+     * 打开系统「通知使用权」页面。
+     *
+     * 优先 API 30+ 的单项详情页（直接定位到本应用），失败再退回列表页；
+     * 部分 ROM 把入口藏在「应用详情」里，因此最后再兜底一次。
+     */
+    override fun openNotificationListenerSettings() {
+        val component = ComponentName(context, AutoRunnerNotificationListener::class.java)
+        val intents = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                add(
+                    Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
+                        Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                        component.flattenToString(),
+                    ),
+                )
+            }
+            add(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            add(appDetailsIntent())
+        }
+        launchFirstAvailable(intents, Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
     }
 
     override fun requestIgnoreBatteryOptimisations() {
@@ -224,6 +248,12 @@ class AndroidPermissionController(
             val manager = context.getSystemService(android.os.PowerManager::class.java)
             manager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
         }.getOrDefault(false)
+        // 可选权限：系统「通知使用权」。系统维护已启用 listener 的包名集合，
+        // 读取它无需额外权限。
+        val notificationListener = runCatching {
+            NotificationManagerCompat.getEnabledListenerPackages(context)
+                .contains(context.packageName)
+        }.getOrDefault(false)
 
         val manufacturer = Build.MANUFACTURER ?: ""
         return PermissionStatus(
@@ -231,6 +261,7 @@ class AndroidPermissionController(
                 isAccessibilityServiceEnabled(),
             overlayGranted = overlay,
             notificationGranted = notifications,
+            notificationListenerGranted = notificationListener,
             batteryOptimisationIgnored = battery,
             manufacturer = manufacturer,
             requiresOemGuidance = oemGuidance().isNotEmpty(),

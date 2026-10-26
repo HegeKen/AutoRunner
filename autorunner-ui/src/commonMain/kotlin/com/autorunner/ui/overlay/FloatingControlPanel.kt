@@ -31,6 +31,8 @@ import com.autorunner.ui.theme.accentColor
  * 球的强调色与球内图标由 [state] 与录制标志决定；菜单内容同样随状态变化。
  *
  * @param alignEnd 球贴靠屏幕右侧时为 `true`，菜单与球一起右对齐；否则左对齐。
+ * @param menuAbove 菜单画在球的上方（球位于屏幕下半部分时由宿主决定）。窗口坐标
+ *   由宿主按内容尺寸回推，球在屏幕上的位置保持不变。
  * @param isLandscape 横屏时菜单按钮排成一行（竖屏排成一列）。
  * @param onContentSizeChanged 内容尺寸变化回调：宿主用它把悬浮窗收紧到实际大小，
  *   避免空白区域吞掉游戏里的触摸。
@@ -47,12 +49,11 @@ fun FloatingControlPanel(
     onPrimaryAction: () -> Unit,
     onToggleMenu: () -> Unit,
     onStop: () -> Unit,
-    onStopRecording: () -> Unit,
-    onTogglePause: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     recording: Boolean = false,
     recordingArmed: Boolean = false,
+    menuAbove: Boolean = false,
     isLandscape: Boolean = false,
     blackScreen: Boolean = false,
     onToggleBlackScreen: () -> Unit = {},
@@ -75,7 +76,9 @@ fun FloatingControlPanel(
         else -> MiuixIcons.Play
     }
 
-    // 菜单里的动作全部统一成与主球（运行）同款的圆形图标按钮，不再有文字提示。
+    // 菜单里的动作统一成与主球同款的圆形图标按钮，不再有文字提示。
+    // 菜单**不重复**放主球当前的主操作（运行 / 暂停 / 恢复 / 停止录制）：球本身就在
+    // 菜单旁边，再放一个一模一样的按钮会让人以为出现了两个控件。
     val closeAction = MiniAction(onClick = onClose, glyph = MiuixIcons.Close, iconOnly = true)
 
     // 黑屏挂机：显示时用「眼睛」图标提示可以恢复，隐藏时用「划掉的眼睛」。
@@ -87,26 +90,13 @@ fun FloatingControlPanel(
     )
 
     val menuActions = when {
-        recording -> listOf(
-            MiniAction(
-                label = "停止录制",
-                onClick = onStopRecording,
-                glyph = null,
-                danger = true,
-                iconOnly = true,
-            ),
-            closeAction,
-        )
+        // 录制中：单击球即停止录制，菜单只保留「关闭悬浮窗」。
+        recording -> listOf(closeAction)
 
         recordingArmed -> listOf(closeAction)
 
+        // 运行 / 暂停：球本身负责暂停 / 恢复，菜单不再重复放同一个按钮。
         state.isActive -> listOf(
-            MiniAction(
-                label = if (state == ExecutionState.PAUSED) "继续" else "暂停",
-                onClick = onTogglePause,
-                glyph = if (state == ExecutionState.PAUSED) MiuixIcons.Play else MiuixIcons.Pause,
-                iconOnly = true,
-            ),
             MiniAction(label = "停止", onClick = onStop, glyph = null, danger = true, iconOnly = true),
             blackScreenAction,
             closeAction,
@@ -120,6 +110,14 @@ fun FloatingControlPanel(
         horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
         verticalArrangement = if (menuOpen) Arrangement.spacedBy(8.dp) else Arrangement.Top,
     ) {
+        // 球在下半屏时菜单朝上展开：先画菜单、再画球，球的屏幕位置由宿主保持不变。
+        if (menuOpen && menuAbove) {
+            MiniActionMenu(
+                rows = listOf(menuActions),
+                alignEnd = alignEnd,
+                isLandscape = isLandscape,
+            )
+        }
         FloatingBall(
             accent = accent,
             onClick = onPrimaryAction,
@@ -128,7 +126,7 @@ fun FloatingControlPanel(
         ) { tint ->
             BallGlyph(glyph = glyph, tint = tint, size = 26.dp)
         }
-        if (menuOpen) {
+        if (menuOpen && !menuAbove) {
             MiniActionMenu(
                 rows = listOf(menuActions),
                 alignEnd = alignEnd,

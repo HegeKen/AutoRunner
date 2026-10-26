@@ -6,6 +6,8 @@
     <string name="accessibility_service_summary">录制并回放屏幕手势</string>
     <string name="accessibility_service_description">开启后 AutoRunner 才能捕获你的点击、长按、滑动与多点触控，并通过系统手势 API 回放录制的脚本。服务不会收集或上传任何数据，所有脚本都保存在本机应用私有目录。</string>
 
+    <string name="notification_listener_label">AutoRunner 挂机通知</string>
+
     <string name="notification_channel_execution">脚本执行</string>
     <string name="notification_channel_execution_description">显示正在运行的脚本进度，并保持执行过程不被系统回收。</string>
     <string name="notification_execution_title">AutoRunner 正在执行脚本</string>

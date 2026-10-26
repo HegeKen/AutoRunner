@@ -15,6 +15,7 @@ import com.autorunner.core.platform.PlatformServices
 import com.autorunner.core.serialization.ArScriptCodec
 import com.autorunner.core.storage.InMemoryKeyValueStore
 import com.autorunner.core.storage.InMemoryScriptStorage
+import com.autorunner.ui.format.IntervalUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -170,6 +171,33 @@ class ViewModelTest {
         editor.addStep(TapStep(1f, 1f, duration = 0L))
         advanceUntilIdle()
         assertTrue(editor.validation.value.errors.any { it.code == "non_positive_duration" })
+    }
+
+    @Test
+    fun editorAdoptsTheLoadedIntervalUnitAndAcceptsASelectedOne() = runTest {
+        val container = container(FakeAccessibilityController())
+        val record = container.scriptRepository.save(
+            null,
+            ScriptModel(
+                execution = com.autorunner.core.model.ExecutionConfig(
+                    mode = ExecutionMode.REPEAT,
+                    repeatCount = 0,
+                    intervalMs = 14 * 60_000L,
+                ),
+                flow = listOf(TapStep(1f, 1f)),
+            ),
+        )
+        advanceUntilIdle()
+
+        val editor = ScriptEditorViewModel(container)
+        editor.load(record.id)
+        advanceUntilIdle()
+
+        // 840000ms 是整分钟，默认按「分钟」展示。
+        assertEquals(IntervalUnit.MINUTES, editor.intervalUnit.value)
+
+        editor.setIntervalUnit(IntervalUnit.SECONDS)
+        assertEquals(IntervalUnit.SECONDS, editor.intervalUnit.value)
     }
 
     // --------------------------------------------------------------- 执行

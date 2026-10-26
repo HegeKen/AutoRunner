@@ -61,6 +61,7 @@ import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.AppRecording
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Import
+import top.yukonga.miuix.kmp.icon.extended.Merge
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.Tasks
@@ -76,6 +77,7 @@ import com.autorunner.ui.platform.ScriptTransferController
 import com.autorunner.ui.state.Destination
 import com.autorunner.ui.theme.AutoRunnerTheme
 import com.autorunner.ui.theme.Dimens
+import com.autorunner.ui.viewmodel.ComboViewModel
 import com.autorunner.ui.viewmodel.ExecutionViewModel
 import com.autorunner.ui.viewmodel.RecordingViewModel
 import com.autorunner.ui.viewmodel.ScriptEditorViewModel
@@ -129,6 +131,7 @@ fun AutoRunnerApp(
             SettingsViewModel(container, permissionController, gamepadStatusProvider, isTabletDevice)
         }
         val executionViewModel = remember(container) { ExecutionViewModel(container) }
+        val comboViewModel = remember(container) { ComboViewModel(container) }
 
         var destination by remember { mutableStateOf(initialDestination) }
 
@@ -149,6 +152,7 @@ fun AutoRunnerApp(
             when (target) {
                 is Destination.Editor -> editorViewModel.load(target.scriptId)
                 Destination.Scripts -> scriptListViewModel.refresh()
+                Destination.Combo -> comboViewModel.refreshScripts()
                 Destination.Record, Destination.Settings -> Unit
             }
         }
@@ -430,6 +434,11 @@ fun AutoRunnerApp(
                                 calibratedGamepadModes = calibratedGamepadModes,
                             )
 
+                            Destination.Combo -> ComboScreen(
+                                viewModel = comboViewModel,
+                                windowSize = windowSize,
+                            )
+
                             Destination.Record -> RecordingScreen(
                                 viewModel = recordingViewModel,
                                 windowSize = windowSize,
@@ -547,6 +556,7 @@ private fun RunStatusBanner(
 /** 每个导航项对应的 MIUIX 图标。 */
 private fun Destination.icon() = when (this) {
     Destination.Scripts -> MiuixIcons.Tasks
+    Destination.Combo -> MiuixIcons.Merge
     Destination.Record -> MiuixIcons.AppRecording
     Destination.Settings -> MiuixIcons.Settings
     is Destination.Editor -> MiuixIcons.Play

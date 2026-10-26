@@ -1,0 +1,41 @@
+# 实机探测记录（小米超级岛 / 焦点通知）
+# 采集时间: 2026-10-23 21:05:22 CST
+# 采集方式: adb (设备已 root / KernelSU)，命令见每节标题
+
+## getprop
+ro.product.model                 = 25102RKBEC
+ro.product.device                = myron
+ro.product.name                  = myron
+ro.build.version.release         = 17
+ro.build.version.sdk             = 37
+ro.mi.os.version.code            = 4
+ro.mi.os.version.name            = OS4.0
+ro.mi.os.version.incremental     = OS4.0.4.0.XPMCNXM
+ro.build.version.incremental     = OS4.0.4.0.XPMCNXM
+ro.build.date                    = Thu Oct 15 21:25:28 CST 2026
+ro.miui.ui.version.name          = V816
+persist.sys.feature.island       = 1
+
+## settings get system notification_focus_protocol
+3
+
+## settings get secure focus_notifs   (当前登记为焦点通知的通知 key)
+["0|com.sankuai.meituan.takeoutnew|1163440069|null|10391"]
+
+## settings get secure updatable_focus_notifs
+["0|com.sankuai.meituan.takeoutnew|1163440069|null|10391"]
+
+## dumpsys package com.android.systemui | grep Provider  (公开查询接口)
+[miui.statusbar.notification.public]:
+    Provider{cbb18e com.android.systemui/.statusbar.notification.NotificationProviderPublic}
+      applicationInfo=ApplicationInfo{d26eae5 com.android.systemui}
+
+## content provider 鉴权行为（shell uid=2000 非应用，被拒绝）
+  Error while accessing provider:miui.statusbar.notification.public
+  java.lang.SecurityException: Package com.sankuai.meituan.takeoutnew is not owned by uid 2000
+
+## OAID（加设备白名单时需要，取自 /data/system/oaid_persistence_0）
+5e24538b54d99b12   # 文件前 2 字节为长度头(00 10)，后 16 字节为 OAID 字符串
+
+## 正在展示的焦点通知（dumpsys notification --noredact）
+      NotificationRecord(0x00c2334c: pkg=com.sankuai.meituan.takeoutnew user=UserHandle{0} id=1163440069 tag=null importance=3 key=0|com.sankuai.meituan.takeoutnew|1163440069|null|10391 bbbc=0: Notification(channel=mipush|com.sankuai.meituan.takeoutnew|102260 sh

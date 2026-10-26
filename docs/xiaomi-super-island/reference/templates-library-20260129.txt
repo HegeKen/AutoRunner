@@ -1,0 +1,2373 @@
+
+
+===== PAGE 1 =====
+⼩⽶超级岛通知模板库
+
+
+===== PAGE 2 =====
+焦点通知 / 岛（展开态）
+模板说明
+1. OS2/OS3 相同模版（适配 OS3 ⾃动兼容 OS2）
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+1
+⽂本组件 1 + 识别图形组件 3
+⽂本组件 1：
+• 必传内容：主要⽂本 1、次要⽂本 1
+• 主要⽂本：关键信息
+◦ 富⽂本：⽀持部分⽂字变⾊，可⾃定义颜⾊
+◦ 特殊标签：可⾃定义⽂本颜⾊和背景⾊，需
+要上传适配深浅模式的两种颜⾊
+◦ 间隔符号和超⻓规则⻅（附录 - ⽂件组件说
+明）
+• 次要⽂本：前置描述
+◦ 功能图标：正⽅形图⽚，建议像素不⼩于
+80*80px
+◦ 间隔符号和超⻓规则⻅（附录 - ⽂件组件说
+明）
+识别图形组件 3：
+• 必传内容：图⽚
+• 建议像素不⼩于 224*224px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 48*48dp，圆⻆取
+12dp
+
+
+===== PAGE 3 =====
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+2
+⽂本组件 2 + 识别图形组件 1
+⽂本组件 2：
+• 必传内容：主要⽂本 1、次要⽂本 1
+• 主要⽂本：关键信息
+◦ 富⽂本：⽀持部分⽂字变⾊，可⾃定义颜⾊
+◦ 特殊标签：可⾃定义⽂本颜⾊和背景⾊，需
+要上传适配深浅模式的两种颜⾊
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+• 次要⽂本：前置描述
+◦ 功能图标：正⽅形图⽚，建议像素不⼩于
+80*80px
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+识别图形组件 1：
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+
+
+===== PAGE 4 =====
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+3
+IM 图⽂组件 + 识别图形组件 2
+IM 图⽂组件：
+• 必传内容：头像图、主要⽂本、次要⽂本
+• 头像图：正⽅形图⽚，建议像素不⼩于
+224*224px
+• 主要⽂本：关键信息
+• 次要⽂本：补充描述
+• 应⽤图标：
+◦ 系统默认取桌⾯图标
+◦ ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+识别图形组件 2：
+• 必传内容：功能图标
+• 正⽅形图⽚，建议像素不⼩于 176*176px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 48*48dp，圆⻆取
+12dp
+
+
+===== PAGE 5 =====
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+4
+⽂本组件 2 + 识别图形组件 1 + 进度组件 1
+⽂本组件 2：
+• 必传内容：主要⽂本 1、次要⽂本 1
+• 主要⽂本：关键信息
+◦ 富⽂本：⽀持部分⽂字变⾊，可⾃定义颜⾊
+◦ 特殊标签：可⾃定义⽂本颜⾊和背景⾊，需
+要上传适配深浅模式的两种颜⾊
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+• 次要⽂本：前置描述
+◦ 功能图标：正⽅形图⽚，建议像素不⼩于
+80*80px
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+进度组件 1
+• 必传内容：当前进度、进度条颜⾊、前进图形、
+中间节点、⽬标点
+• 当前进度：已完成进度条在全部进度条上的相对
+位置
+• 进度条颜⾊：已完成进度的进度条颜⾊，⽀持⾃
+定义纯⾊、渐变⾊，推荐使⽤应⽤⾊
+• 前进图形、中间节点、⽬标点的绘制规范⻅附
+录 - 进度条绘制规范
+
+
+===== PAGE 6 =====
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+5
+⽂本组件 1 + 识别图形组件 1 + 进度组件 2
+⽂本组件 1：
+• 必传内容：主要⽂本 1、次要⽂本 1
+• 主要⽂本：关键信息
+◦ 富⽂本：⽀持部分⽂字变⾊，可⾃定义颜⾊
+◦ 特殊标签：可⾃定义⽂本颜⾊和背景⾊，需
+要上传适配深浅模式的两种颜⾊
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+• 次要⽂本：前置描述
+◦ 功能图标：正⽅形图⽚，建议像素不⼩于
+80*80px
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+进度组件 2
+• 必传内容：当前进度，进度条颜⾊
+• 当前进度：已完成进度条在全部进度条上的相对
+位置
+• 进度条颜⾊：已完成进度条的颜⾊，推荐和应⽤
+⾊相近的颜⾊
+◦ 单⾊：进度条起始颜⾊和进度条结束颜⾊相同
+◦ 渐变⾊：进度条起始颜⾊和进度条结束颜⾊不
+同，推荐同⾊系
+
+
+===== PAGE 7 =====
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+6
+⽂本组件 2 + 识别图形组件 1 + 进度组件 2
+⽂本组件 2：
+• 必传内容：主要⽂本 1、次要⽂本 1
+• 主要⽂本：关键信息
+◦ 富⽂本：⽀持部分⽂字变⾊，可⾃定义颜⾊
+◦ 特殊标签：可⾃定义⽂本颜⾊和背景⾊，需
+要上传适配深浅模式的两种颜⾊
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+• 次要⽂本：前置描述
+◦ 功能图标：正⽅形图⽚，建议像素不⼩于
+80*80px
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+进度组件 2
+• 必传内容：当前进度，进度条颜⾊
+• 当前进度：已完成进度条在全部进度条上的相对
+位置
+• 进度条颜⾊：已完成进度条的颜⾊，推荐和应⽤
+⾊相近的颜⾊
+◦ 单⾊：进度条起始颜⾊和进度条结束颜⾊相
+同
+◦ 渐变⾊：进度条起始颜⾊和进度条结束颜⾊
+不同，推荐同⾊系
+
+
+===== PAGE 8 =====
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+7
+IM 图⽂组件 + 识别图形组件 1 + 进度组件 2
+IM 图⽂组件
+• 必传内容：头像图、主要⽂本、次要⽂本
+• 头像图：正⽅形图⽚，建议像素不⼩于
+224*224px
+• 主要⽂本：关键信息
+• 次要⽂本：补充描述
+• 应⽤图标：
+◦ 系统默认取桌⾯图标
+◦ ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+进度组件 2
+• 必传内容：当前进度，进度条颜⾊
+• 当前进度：已完成进度条在全部进度条上的相对
+位置
+• 进度条颜⾊：已完成进度条的颜⾊，推荐和应⽤
+⾊相近的颜⾊
+◦ 单⾊：进度条起始颜⾊和进度条结束颜⾊相
+同
+◦ 渐变⾊：进度条起始颜⾊和进度条结束颜⾊
+不同，推荐同⾊系
+
+
+===== PAGE 9 =====
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+8
+IM 图⽂组件 + 识别图形组件 1 + 按钮组件 3
+IM 图⽂组件
+• 必传内容：头像图、主要⽂本、次要⽂本
+• 头像图：正⽅形图⽚，建议像素不⼩于
+224*224px
+• 主要⽂本：关键信息
+• 次要⽂本：补充描述
+• 应⽤图标：
+◦ 系统默认取桌⾯图标
+◦ ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+按钮组件 3
+• 必传内容：主要⽂本、按钮
+• 主要⽂本：关键信息
+• 图标⽂本按钮：
+◦ ⽂本：必传，建议不要太⻓
+◦ 图标：可⾃定义上传，建议像素不⼩于
+96*96px
+◦ 按钮颜⾊：可⾃定义，需要上传适配深浅模
+式的两种颜⾊
+• 图⽂特殊标签：
+◦ 图标：正⽅形，建议像素不⼩于 96*96px
+◦ 标签⽂本：建议不要太⻓
+◦ 颜⾊：可⾃定义⽂本和标签背景⾊，需要上
+传适配深浅模式的两种颜⾊
+
+
+===== PAGE 10 =====
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+9
+⽂本组件 2 + 识别图形组件 1 + 按钮组件 2
+⽂本组件 2：
+• 必传内容：主要⽂本 1、次要⽂本 1
+• 主要⽂本：关键信息
+◦ 富⽂本：⽀持部分⽂字变⾊，可⾃定义颜⾊
+◦ 特殊标签：可⾃定义⽂本颜⾊和背景⾊，需
+要上传适配深浅模式的两种颜⾊
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+• 次要⽂本：前置描述
+◦ 功能图标：正⽅形图⽚，建议像素不⼩于
+80*80px
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+按钮组件 2
+• 必传内容：前置⽂本 1，主要⼩⽂本 1，按钮⽂本
+• 前置⽂本：补充描述
+• 主要⼩⽂本：关键信息，⽀持计时器
+• 图标⽂本按钮：
+◦ ⽂本：必传，建议不要太⻓
+◦ 图标：可⾃定义上传，建议像素不⼩于
+96*96px
+◦ 按钮颜⾊：可⾃定义
+
+
+===== PAGE 11 =====
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+10
+⽂本组件 2 + 识别图形组件 1 + 按钮组件 3
+⽂本组件 2：
+• 必传内容：主要⽂本 1、次要⽂本 1
+• 主要⽂本：关键信息
+◦ 富⽂本：⽀持部分⽂字变⾊，可⾃定义颜⾊
+◦ 特殊标签：可⾃定义⽂本颜⾊和背景⾊，需
+要上传适配深浅模式的两种颜⾊
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+• 次要⽂本：前置描述
+◦ 功能图标：正⽅形图⽚，建议像素不⼩于
+80*80px
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+按钮组件 3
+• 必传内容：主要⽂本、按钮
+• 主要⽂本：关键信息
+• 图标⽂本按钮：
+◦ ⽂本：必传，建议不要太⻓
+◦ 图标：可⾃定义上传，建议像素不⼩于
+96*96px
+◦ 按钮颜⾊：可⾃定义
+• 图⽂特殊标签：
+◦ 图标：正⽅形，建议像素不⼩于 96*96px
+◦ 标签⽂本：建议不要太⻓
+◦ 颜⾊：可⾃定义⽂本和标签背景⾊，需要上传
+适配深浅模式的两种颜⾊
+
+
+===== PAGE 12 =====
+2. OS2/OS3 基本相同，OS3 ⽀持更多能⼒（适配 OS3 ⾃动兼容 OS2）
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+11
+强调图⽂组件 + 识别图形组件 1 + 按钮组件 2
+强调图⽂组件
+• 必传内容：强调⽂本、功能图标
+• 强调⽂本：需要强调的数据或内容，⽀持计时器
+• 功能图标：正⽅形，建议像素不⼩于 96*96px
+• 辅助⽂本：补充描述
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+按钮组件 2
+• 必传内容：前置⽂本 1，主要⼩⽂本 1，按钮⽂本
+• 前置⽂本：补充描述
+• 主要⼩⽂本：关键信息，⽀持计时器
+• 图标⽂本按钮：
+◦ ⽂本：必传，建议不要太⻓
+◦ 图标：可⾃定义上传，建议像素不⼩于
+96*96px
+◦ 按钮颜⾊：可⾃定义
+
+
+===== PAGE 13 =====
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+12
+IM 图⽂组件 + 按钮组件 1 OS2 差异：
+OS2仅⽀持普通按钮，不⽀持进度、⽂字按钮
+IM 图⽂组件
+• 必传内容：头像图、主要⽂本、次要⽂本
+• 头像图：正⽅形图⽚，建议像素不⼩于
+224*224px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 48*48dp，圆⻆取
+12dp
+• 主要⽂本：关键信息
+• 次要⽂本：补充描述
+• 应⽤图标：
+◦ 系统默认取桌⾯图标
+◦ ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+◦ 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数
+值取图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆
+⻆取 6dp
+按钮组件 1
+• ⽀持 3 种类型
+• 普通按钮：
+◦ ⽀持 1-3 个
+◦ 可⾃定义按钮图形，需要注意适配深浅模式
+• 进度按钮：
+◦ ⽀持 1-3 个
+◦ 可⾃定义进度条颜⾊、背景⾊
+• ⽂字按钮：
+◦ ⽀持 1 个
+◦ 不能和其他按钮同时使⽤
+
+
+===== PAGE 14 =====
+3. OS3 新增模版（仅适配 OS3，OS2 需选取 OS2 可适配模版）
+序号 模版结构 OS3 ⽰例 OS2 ⽰例 Flip 外屏⽰例
+13
+强调图⽂组件 + 按钮组件 1 OS2 差异点
+OS2仅⽀持普通按钮，不⽀持进度、⽂字按钮强调图⽂组件
+• 必传内容：强调⽂本、功能图标
+• 强调⽂本：需要强调的数据或内容，⽀持计时器
+• 功能图标：正⽅形，建议像素不⼩于 96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+• 辅助⽂本：补充描述
+按钮组件 1
+• ⽀持 3 种类型
+• 普通按钮：
+◦ ⽀持 1-3 个
+◦ 可⾃定义按钮图形，需要注意适配深浅模式
+• 进度按钮：
+◦ ⽀持 1-3 个
+◦ 可⾃定义进度条颜⾊、背景⾊
+• ⽂字按钮：
+◦ ⽀持 1 个
+◦ 不能和其他按钮同时使⽤
+
+
+===== PAGE 15 =====
+序号 模版结构 OS3 ⽰例 Flip 外屏⽰例
+14-1
+新图⽂组件
+新图⽂组件
+• 图⽚，主要⽂本、次要⽂本 1
+• 图⽚：正⽅形图⽚，建议像素不⼩于 224*224px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取图⽚尺⼨ 1/4，例如图⽚为 48*48dp，圆⻆取 12dp
+• 主要⽂本：关键信息
+• 次要⽂本：补充描述
+
+
+===== PAGE 16 =====
+14-2
+新图⽂组件 + 倒计时带图组件
+新图⽂组件
+• 必传内容：图⽚、主要⽂本、次要⽂本 1
+• 图⽚：正⽅形图⽚，建议像素不⼩于 224*224px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取图⽚尺⼨ 1/4，例如图⽚为
+48*48dp，圆⻆取 12dp
+• 主要⽂本：关键信息
+• 次要⽂本：补充描述
+倒计时带图组件
+• 必传内容：图⽚、⽂本、⽂本颜⾊
+◦ 图⽚：建议像素不⼩于 96*96px，需要上传深浅模式两套图⽚
+◦ ⽂本：倒计时或其他关键信息
+◦ ⽂本颜⾊：可⾃定义
+
+
+===== PAGE 17 =====
+序号 模版结构 OS3 ⽰例 Flip 外屏⽰例
+15
+新图⽂组件 + 按钮组件 1
+新图⽂组件
+• 必传内容：图⽚、主要⽂本、次要⽂本 1
+• 图⽚：正⽅形图⽚，建议像素不⼩于 224*224px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取图⽚尺⼨ 1/4，例如图⽚为
+48*48dp，圆⻆取 12dp
+• 主要⽂本：关键信息
+• 次要⽂本：补充描述
+按钮组件 1
+• ⽀持 3 种类型
+• 普通按钮：
+◦ ⽀持 1-3 个
+◦ 可⾃定义按钮图形，需要注意适配深浅模式
+• 进度按钮：
+◦ ⽀持 1-3 个
+◦ 可⾃定义进度条颜⾊、背景⾊
+• ⽂字按钮：
+◦ ⽀持 1 个
+◦ 不能和其他按钮同时使⽤
+
+
+===== PAGE 18 =====
+序号 模版结构 OS3 ⽰例 Flip 外屏⽰例
+16
+新图⽂组件 + 识别图形组件 1 + 按钮组件 5
+新图⽂组件
+• 必传内容：图⽚、主要⽂本、次要⽂本 1
+• 图⽚：正⽅形图⽚，建议像素不⼩于 224*224px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 48*48dp，圆⻆取
+12dp
+• 主要⽂本：关键信息
+• 次要⽂本：补充描述
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+按钮组件 5
+• 必传内容：⾼亮⽂本、图标⽂本按钮
+• ⾼亮⽂本：可⾃定义颜⾊
+• 图标⽂本按钮：
+◦ ⽂本：必传，建议不要太⻓
+◦ 图标：可⾃定义上传，建议像素不⼩于
+96*96px
+◦ 按钮颜⾊：可⾃定义
+
+
+===== PAGE 19 =====
+序号 模版结构 OS3 ⽰例 Flip 外屏⽰例
+17
+新图⽂组件 + 识别图形组件 + 按钮组件 4
+新图⽂组件
+• 必传内容：图⽚、主要⽂本、次要⽂本 1
+• 图⽚：正⽅形图⽚，建议像素不⼩于 224*224px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 48*48dp，圆⻆取
+12dp
+• 主要⽂本：关键信息
+• 次要⽂本：补充描述
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+按钮组件 4
+• ⽀持 1-2 个按钮
+
+
+===== PAGE 20 =====
+序号 模版结构 OS3 ⽰例 Flip 外屏⽰例
+18
+封⾯组件 + 识别图形组件 1 + 按钮组件 5
+封⾯组件
+• 必传内容：封⾯图⽚、主要⽂本、次要⽂本 1、
+次要⽂本 2
+• 封⾯图⽚：建议像素不⼩于 224*288px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+短边尺⼨ 1/4，例如图⽚为 48*64dp，圆⻆取
+12dp
+• 主要⽂本：关键信息
+• 次要⽂本：补充信息
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+按钮组件 5
+• 必传内容：⾼亮⽂本、图标⽂本按钮
+• ⾼亮⽂本：可⾃定义颜⾊
+• 图标⽂本按钮：
+◦ ⽂本：必传，建议不要太⻓
+◦ 图标：可⾃定义上传，建议像素不⼩于
+96*96px
+◦ 按钮颜⾊：可⾃定义
+
+
+===== PAGE 21 =====
+序号 模版结构 OS3 ⽰例 Flip 外屏⽰例
+19
+⽂本组件 2 + 识别图形组件 1 + 进度组件 3
+⽂本组件 2：
+• 必传内容：主要⽂本 1、次要⽂本 1
+• 主要⽂本：关键信息
+◦ 富⽂本：⽀持部分⽂字变⾊，可⾃定义颜⾊
+◦ 特殊标签：可⾃定义⽂本颜⾊和背景⾊，需要上传适配深浅模式的两种颜
+⾊
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+• 次要⽂本：前置描述
+◦ 功能图标：正⽅形图⽚，建议像素不⼩于 80*80px
+◦ 间隔符号和超⻓规则⻅附录 - ⽂本组件说明
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于 96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取图⽚尺⼨ 1/4，例如图⽚为
+24*24dp，圆⻆取 6dp
+进度组件 3
+• 必传内容：描述⽂本，
+当前进度
+• 描述⽂本：描述信息
+• 当前进度：已完成进度
+条在全部进度条上的相
+对位置
+• 进度条颜⾊：可⾃定义
+颜⾊
+• 节点：⽀持 0-4 个节
+点，起点⽆节点，进度
+条将被均分
+
+
+===== PAGE 22 =====
+序号 模版结构 OS3 ⽰例 Flip 外屏⽰例
+20
+IM 图⽂组件 + 进度组件 2
+IM 图⽂组件
+• 必传内容：头像图、主要⽂本、次要⽂本
+• 头像图：正⽅形图⽚，建议像素不⼩于 224*224px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取图⽚尺⼨ 1/4，例如图⽚为
+48*48dp，圆⻆取 12dp
+• 主要⽂本：关键信息
+• 次要⽂本：补充描述
+• 应⽤图标：
+◦ 系统默认取桌⾯图标
+◦ ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于 96*96px
+◦ 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取图⽚尺⼨ 1/4，例如图⽚
+为 24*24dp，圆⻆取 6dp
+进度组件 2
+• 必传内容：当前进度，进度条颜⾊
+• 当前进度：已完成进度条在全部进度条上的相对位置
+• 进度条颜⾊：已完成进度条的颜⾊，推荐和应⽤⾊相近的颜⾊
+◦ 单⾊：进度条起始颜⾊和进度条结束颜⾊相同
+◦ 渐变⾊：进度条起始颜⾊和进度条结束颜⾊不同，推荐同⾊系
+
+
+===== PAGE 23 =====
+4. 附录
+4.1 ⽂本组件说明
+间隔符号：主要⽂本和次要⽂本都具有的能⼒，⽤于在视觉上增强区分，可以控制间隔符号
+的显隐
+序号 模版结构 OS3 ⽰例 Flip 外屏⽰例
+21
+新图⽂组件 + 识别图⽂组件 1 + 进度组件 3
+新图⽂组件
+• 必传内容：图⽚、主要⽂本、次要⽂本 1
+• 图⽚：正⽅形图⽚，建议像素不⼩于 224*224px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 48*48dp，圆⻆取
+12dp
+• 主要⽂本：关键信息
+• 次要⽂本：补充描述
+识别图形组件 1
+• 系统默认取桌⾯图标
+• ⽀持⾃定义，正⽅形图⽚，建议像素不⼩于
+96*96px
+• 圆⻆说明：如果图⽚需要圆⻆，建议圆⻆数值取
+图⽚尺⼨ 1/4，例如图⽚为 24*24dp，圆⻆取
+6dp
+进度组件 3
+• 必传内容：描述⽂本，当前进度
+• 描述⽂本：描述信息
+• 当前进度：已完成进度条在全部进度条上的相对
+位置
+• 进度条颜⾊：可⾃定义颜⾊
+• 节点：⽀持 0-4 个节点，起点⽆节点，进度条将
+被均分
+1.
+
+
+===== PAGE 24 =====
+超⻓规则：
+• 主要⽂本：超⻓时会截断显⽰为“...”，截断顺序依次为补充⽂本➡主要⽂本 1 和主要⽂本
+2➡特殊标签，注意合理使⽤⽂本数量和控制字数
+• 次要⽂本：超⻓时会截断显⽰为“...”，截断顺序依次次要⽂本 1 和次要⽂本 2➡功能图
+标，注意合理使⽤⽂本数量和控制字数
+4.2 进度条绘制规范
+1.
+
+
+===== PAGE 25 =====
+组件能⼒
+关于 actionInfo 的说明
+参考下列⽰例：
+必传项 规则描述
+前进图形 • 素材尺⼨ 60*47dp（红⾊范围）
+• 为保证清晰度，导出尺⼨不⼩于 4x（即 240*188px）
+• 图⽚⼤⼩⼩于 100kb
+• 图形主体推荐放置区域（绿⾊范围），放置区域尺⼨ 44*39dp，图形主体横向居中放置，竖向与绿⾊区域底边对⻬
+中间节点 • 素材尺⼨ 30*47dp（红⾊范围）
+• 为保证清晰度，导出尺⼨不⼩于 4x（即 120*188px）
+• 图⽚⼤⼩⼩于 100kb
+• 图形主体推荐放置区域（绿⾊范围）
+• 节点到达前：
+◦ 推荐使⽤灰⾊，使⽤⼤⽓泡，直接与进度条接触
+◦ ⽓泡可添加阴影等效果提升质感
+• 节点到达后：
+◦ 推荐使⽤主题⾊，使⽤⼩⽓泡并上移，下⽅添加节点圆点
+◦ ⽓泡避让开进度条区域，防⽌与进度条相同颜⾊导致看不清边界
+⽬标点
+在使⽤ actionInfo 传递 Action ⾏为时，通过⾃定义⽅式创建 Action 参数时， 需要在清单⽂件中将 
+actionIntent 对应的 BroadcastReceiver/Service 将 exported 属性显式声明为 true, 否则在⼀些系列设
+备中将⽆法响应对应 Action 的⾏为
+
+
+===== PAGE 26 =====
+⽂本组件 1：baseInfo
+JSON
+{
+ actionIcon :  miui.focus.pic_action_pausing ,
+ actionIconDark :  miui.focus.pic_action_pausing_dark ,
+ actionIntentType : 2,
+ actionIntent :  intent:#Intent;action=xxxx;component=com.xx/xxx.XXXBroadcastReceiver;end 
+}
+{
+ actionIcon :  miui.focus.pic_action_pausing ,
+ actionIconDark :  miui.focus.pic_action_pausing_dark ,
+ actionIntentType : 3,
+ actionIntent :  intent:#Intent;action=xxxx;component=com.xx/xxx.XXXService;end 
+}
+// 需要将 XXXService exported 声明为  true
+<service
+android:name= .XXXService 
+android:exported= true  />    
+// 需要将 XXXBroadcastReceiver exported 声明为  true
+<receiver
+android:name= .XXXBroadcastReceiver 
+android:exported= true  />
+
+===== PAGE 27 =====
+
+
+===== PAGE 28 =====
+组件元素 元素名称 元素字段 类型 是否必传 元素描述
+baseInfo
+⽂本组件类型 type int Y ⽂本组件类型 , 取值如下：
+1： ⽂本组件 1
+2：⽂本组件 2
+⽂本组件 1 type 固定 为 1
+主要⽂本 1 title String Y 描述当前状况的关键信息 
+间隔符号 showDivider booean 是否显⽰主要⽂本间的分割符
+间隔符号 showContentDivider booean 是否显⽰主要⽂本和补充⽂本的分割符
+主要⽂本 2 subTitle String 描述当前状况的关键信息 
+补充⽂本 extraTitle String 补充说明 
+特殊标签 specialTitle String 需要强调的特殊⽂字标签 
+次要⽂本 1 content String Y 当前状况的前置描述
+次要⽂本 2 subContent String 当前状况的前置描述
+功能图标 picFunction String
+colorTitle String
+colorTitleDark String
+colorSubTitle String
+colorSubTitleDark String
+colorExtraTitle String
+colorExtraTitleDark String
+colorSpecialTitle String
+colorSpecialTitleDark String
+colorSpecialBg String
+colorContent String
+
+===== PAGE 29 =====
+colorContentDark String
+colorSubContent String
+colorSubContentDark String
+JSON
+ baseInfo :{
+ picFunction : miui.focus_pic_function_v2 ,
+ type :1,
+ title :  距离 ,
+ subTitle : 6 分钟 ,
+ extraTitle  :  6 分钟 ,
+ specialTitle :  6 分钟 ,
+ content : 京 ABZ422 ,
+ subContent  :  ⽩ ,
+ colorTitle :  #000000 ,
+ colorTitleDark :  #FFFFFF ,
+ colorSubTitle :  #000000 ,
+ colorSubTitleDark :  #FFFFFF ,
+ colorExtraTitle :  #000000 ,
+ colorExtraTitleDark :  #FFFFFF ,
+ colorSpecialBg : #FF6666 ,
+ colorSpecialTitle :  #000000 ,
+ colorSpecialTitleDark :  #FFFFFF ,
+ colorContent :  #000000 ,
+ colorContentDark :  #FFFFFF ,
+ colorSubContent :  #000000 ,
+ colorSubContentDark :  #FFFFFF ,
+ showDivider : true,
+ showContentDivider : true
+}
+
+===== PAGE 30 =====
+⽂本组件 2：baseInfo
+
+
+===== PAGE 31 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+baseInfo
+⽂本组件类型 type Y ⽂本组件类型 , 取值如下：
+1： ⽂本组件 1
+2：⽂本组件 2
+⽂本组件 2 type 固定 为 2
+主要⽂本 1 title String Y 描述当前状况的关键信息 
+主要⽂本 2 subTitle String 描述当前状况的关键信息 
+间隔符号 showDivider booean 是否显⽰次要⽂本间的分割符
+间隔符号 showContentDivider booean 是否显⽰次要⽂本和功能图标的分割符
+补充⽂本 extraTitle String 补充说明 
+特殊标签 specialTitle String 需要强调的特殊⽂字标签 
+次要⽂本 1 content String Y 当前状况的前置描述
+次要⽂本 2 subContent String 当前状况的前置描述
+功能图标 picFunction String
+colorTitle String
+colorTitleDark String
+colorSubTitle String
+colorSubTitleDark String
+colorExtraTitle String
+colorExtraTitleDark String
+colorSpecialTitle String
+colorSpecialTitleDark String
+colorSpecialBg String
+colorContent String
+
+===== PAGE 32 =====
+colorContentDark String
+colorSubContent String
+colorSubContentDark String
+JSON
+ baseInfo :{
+ picFunction : miui.focus_pic_function_v2 ,
+ type :2
+ title :  距离 ,
+ subTitle : 6 分钟 ,
+ extraTitle  :  6 分钟 ,
+ specialTitle :  6 分钟 ,
+ content : 京 ABZ422 ,
+ subContent  :  ⽩ ,
+ colorTitle :  #000000 ,
+ colorTitleDark :  #FFFFFF ,
+ colorSubTitle :  #000000 ,
+ colorSubTitleDark :  #FFFFFF ,
+ colorExtraTitle :  #000000 ,
+ colorExtraTitleDark :  #FFFFFF ,
+ colorSpecialBg : #FF6666 ,
+ colorSpecialTitle :  #000000 ,
+ colorSpecialTitleDark :  #FFFFFF ,
+ colorContent :  #000000 ,
+ colorContentDark :  #FFFFFF ,
+ colorSubContent :  #000000 ,
+ colorSubContentDark :  #FFFFFF ,
+ showDivider : true,
+ showContentDivider : true
+}
+
+===== PAGE 33 =====
+IM 图⽂组件：chatInfo
+
+
+===== PAGE 34 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+chatInfo
+头像类⼩图 picProfile String Y 头像类的图⽚
+深⾊模式图⽚ picProfileDark String
+⾃定义应⽤图标 appIconPkg String ⾃定义应⽤图标
+主要⽂本 title String Y 描述当前状况的关键信息 
+次要⽂本 content String Y
+（⼆选⼀）
+细节详情或补充
+时间信息 timerInfo Object
+colorTitle String
+colorTitleDark String
+colorContent String
+colorContentDark String
+timerInfo
+计时类型 timerType Int Y 取值 :-2,-1, 0 , 1,2
+-2: 倒计时暂停
+-1: 倒计时开始
+0：默认值，如果设置为 0 的话，必须设置相同位置上的标题
+1: 正计时开始
+2. 正计时暂停
+计时起点 timerWhen Long 毫秒的时间戳
+e.g.:1717470687604
+计时进度 timerTotal Long
+计时误差 timerSystemCurrent Long 毫秒的时间戳
+e.g.:1717470687604
+
+===== PAGE 35 =====
+强调图⽂组件：highlightInfo
+JSON
+ chatInfo :{
+ picProfile : miui.focus.pic_profile_v2 ,
+ title :  18212345678 ,
+ content : 北京联通 ,
+ colorTitle :  #000000 ,
+ colorTitleDark :  #FFFFFF ,
+ colorContent :  #000000 ,
+ colorContentDark :  #FFFFFF ，
+“timerInfo  : {
+ timerType  : 0,
+ timerWhen : 0,
+ timerTotal : 0,
+ timerCurrent : 0
+}
+}
+extra 中 miui.focus.pics 中存在 miui.focus.pic_profile_v2
+
+
+===== PAGE 36 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+highlightInfo
+强调⽂本 title String Y
+（⼆选⼀）
+需要强调的数据或内
+容 
+计时信息 timerInfo Object
+辅助⽂本 1 content String 补充信息，通常较短
+功能图标 picFunction String Y 描述功能的图标 icon 
+暗⿊模式下功能图标 picFunctionDark
+辅助⽂本 2 subContent String 状态信息
+是否隐藏辅助⽂本 1 type Int 1: 隐藏辅助⽂本 1
+colorTitle String
+colorTitleDark String
+colorContent String
+colorContentDark String
+colorSubContent String
+colorSubContentDa
+rk
+String
+timerInfo
+计时类型 timerType Int Y 取值 :-2,-1, 0 , 1,2
+-2: 倒计时暂停
+-1: 倒计时开始
+0：默认值，如果设
+置为 0 的话，必须设
+置相同位置上的标题
+1: 正计时开始
+2. 正计时暂停
+计时起点 timerWhen Long 毫秒的时间戳
+e.g.:1717470687604
+
+===== PAGE 37 =====
+识别图形组件：picInfo
+计时进度 timerTotal Long
+计时误差 timerSystemCurrent Long 毫秒的时间戳
+e.g.:1717470687604
+JSON
+ highlightInfo  : {
+ title : 00：00 ,
+ content : 哈 ,
+ subContent : 录⾳中 ,
+ colorTitle : #FF3D27 ,
+colorTitleDark : #3482FF ,
+ colorContent : #FF3D27 ,
+colorContentDark : #3482FF ,
+ colorSubContent : #FF3D27 ,
+ colorSubContentDark : #3482FF ,
+ picFunction : miui.focus_pic_function_v2 ,
+“timerInfo  : {
+// 具体值根据业务传输
+ timerType  : 0,
+ timerWhen : 0,
+ timerTotal : 0,
+ timerCurrent : 0
+}
+//extra 中 miui.focus.pics 中存在 miui.focus.pic_function_v2
+
+===== PAGE 38 =====
+识别图形组件 1 识别图形组件 2 识别图形组件 3
+
+
+===== PAGE 39 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述 备注
+picInfo
+标记组件类型 type int Y 取值含义
+1：appIcon
+2：middle
+3：large
+如果是 2 和 3，需要
+有 pic 字段，符
+合 JSON 中 pic使⽤
+规则 
+应⽤图标 / 功能图标 /
+图⽚
+pic String Y 表⽰通知的来源，系
+统将直接展⽰应⽤桌
+⾯图标 
+深⾊图⽚资源 picDark String Y
+actionInfo Object
+actionInfo
+clickWithCollapse boolean 点击是否收起⾯板
+备注： 
+1. Action 的 
+PendingIntent 是 
+Activity 类型， 默认
+点击收起
+2. actionIntentType 
+为 1 时，默认点击收
+起
+
+===== PAGE 40 =====
+⽅式⼀：
+miui.focus.actions
+中的 Action
+action String Y
+（ 两种⽅式⼆选⼀）
+两种⽅式
+⼆选⼀
+两者同时存在，
+使⽤⽅式⼀中 Icon 
+和 Title, 使⽤⽅式⼆
+中 pending Intent
+⽅式⼆：
+⾃定义构建 Action
+actionIcon String 按钮图标
+actionIconDark
+actionTitle String 按钮⽂字
+actionTitleColor String
+actionTitleColorDar
+k
+String
+actionBgColor String
+actionBgColorDark String
+actionIntentType String 跳转 URI 类型：
+1 url to activity
+2 action to 
+broadcast
+3 action to service
+actionIntent String 如何获取，⻅组件 
+actions 中的说明
+JSON
+ picInfo :{
+ pic :  miui.focus.pic_large_v2 ,
+ type : 1/2/3
+}
+1：appIcon
+2：middle
+3：large
+如果是 2 和 3，需要有 pic 字段，符合 JSON 中 pic使⽤规则 
+
+===== PAGE 41 =====
+倒计时带图组件：picInfo
+
+
+===== PAGE 42 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述 备注
+picInfo
+标记组件类型 type int Y 取值含义
+必传：5
+模版的类型，使⽤此
+模版时固定值 5
+应⽤图标 / 功能图标 /
+图⽚
+pic String Y 表⽰需要展⽰的图标
+（浅⾊主题），如红绿
+灯的红灯、绿灯、⻩
+灯⼩图标
+深⾊图⽚资源 picDark String Y 表⽰需要展⽰的图标
+（深⾊主题）, ⽆需区
+分的话传浅⾊⼀样的
+icon
+组件⽂字 title String Y 描述当前状况的关键
+信息 ，如红绿灯计时
+数字
+⽂字颜⾊ colorTitle String Y ARGB 颜⾊值，如：
+#cc234567
+JSON
+ picInfo :{
+ pic :  miui.focus.pic_red_light ,
+ picDark :  miui.focus.pic_red_light_dark ,
+ type : 5,
+ title : 120,
+ colorTitle : #cc234567 
+}
+
+===== PAGE 43 =====
+进度组件 1：progressInfo
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+progressInfo
+当前进度 progress int Y 根据容器宽度拉⻓
+进度条起始颜⾊ colorProgress String
+进度条结束颜⾊ colorProgressEnd String
+前进图形 picForward String Y 最⼤⾼度 47dp 
+中间节点图标(进度通过) picMiddle String Y 位置：相对进度条居中
+中间节点图标(进度未通过) picMiddleUnselected String Y 位置：相对进度条居中
+⽬标点图标(进度通过) picEnd String Y 位置：与进度条右对⻬
+⽬标点图标(进度未通过) picEndUnselected String Y 位置：与进度条右对⻬
+
+
+===== PAGE 44 =====
+进度组件 2：progressInfo
+JSON
+ progressInfo :{
+ progress : 40,
+ colorProgress :  #FF8514 ,
+ colorProgressEnd :  #FF8514 ,
+ picForward :  miui.focus.pic_forward_v2 ,
+ picMiddle :  miui.focus.pic_middle_v2 ,
+ picMiddleUnselected :  miui.focus.pic_middle_unselected_v2 ,
+ picEnd :  miui.focus.pic_end_v2 ,
+ picEndUnselected :  miui.focus.pic_end_unselected_v2 
+}
+// 必须是“miui.focus.pic_”前缀
+// 同时需要在 notification.extra 中 miui.focus.pics 的 Bundle 中有 miui.focus.pic_XXX 等资源。
+// 原理：json 中的 value作为到 miui.focus.pics 中查找图⽚的 key。
+
+
+===== PAGE 45 =====
+进度组件 3：multiProgressInfo
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+progressInfo progressInfo 中不传⼊任何图标，即为 进度组件 2
+当前进度 progress int Y 根据容器宽度拉⻓
+进度条起始颜⾊ colorProgress String
+进度条结束颜⾊ colorProgressEnd String
+JSON
+ progressInfo :{
+ progress : 40,
+ colorProgress :  #FF8514 ,
+ colorProgressEnd :  #FF8514 ,
+}
+
+
+===== PAGE 46 =====
+按钮组件 1：actions
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+multiProgressInfo
+描述⽂本 title String Y 最⼩压缩宽度：6 个汉字，12 个字符，72dp
+当前进度 progress int Y 宽度：被节点均分，⾃适应宽度，最⻓为 336dp
+数量：最少 1 段，最多 4 段
+进度条颜⾊ color String 颜⾊：可⾃定义⾼亮⾊，兜底为系统主⾊蓝⾊
+节点 points int 数量：⽀持 0-4 个
+颜⾊：和进度条⼀致
+JSON
+ multiProgressInfo :{
+ title :  正在排⽔ ,
+ progress : 10,
+ color :  00FF00 ,
+ points : 2
+}
+
+
+===== PAGE 47 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述 备注
+actions
+按钮 [actionInfo,actionInf
+o,actionInfo]
+Array Y 表⽰要执⾏的操作
+按钮类型由 
+actionInfo.type 决
+定，Action 按钮类
+型：
+0：普通按钮类型 (默
+认值)
+1：进度按钮类型
+2：⽂字按钮类型
+限制：
+• 圆形按钮⽀持 1-3 
+个
+• 进度按钮⽀持 1-3 
+个
+• ⽂字按钮⽀持 1 
+个
+• ⽂字按钮和其他
+按钮不能同时使
+⽤
+actionInfo
+type int Y Action 按钮类型
+0：圆形按钮类型 (默
+认值)
+1：进度按钮类型
+2：⽂字按钮类型
+progressInfo Object 进度按钮时必传 进度按钮中进度信息
+
+===== PAGE 48 =====
+clickWithCollapse boolean 点击是否收起⾯板
+备注： 
+1. Action 的 
+PendingIntent 是 
+Activity 类型， 默认
+点击收起
+2. actionIntentType 
+为 1 时，默认点击收
+起
+⽅式⼀：
+miui.focus.actions
+中的 Action
+action String Y
+（ 两种⽅式⼆选⼀）
+两种⽅式
+⼆选⼀
+两者同时存在，
+使⽤⽅式⼀中 Icon 
+和 Title, 使⽤⽅式⼆
+中 pending Intent
+⽅式⼆：
+⾃定义构建 Action
+actionIcon String 按钮图标
+actionTitle String 按钮⽂字
+actionTitleColor String
+actionIconDark String
+actionBgColor String
+actionTitleColorDar
+k
+String
+actionIntentType int 跳转 URI 类型：
+1 url to activity
+2 action to 
+broadcast
+3 action to service
+actionIntent String 如何获取，⻅组件 
+actions 中的说明
+progressInfo
+progress Int Y 进度
+colorProgress String
+
+===== PAGE 49 =====
+如何获取 actionIntent 对应的 uri
+⽰例：
+isCCW Boolean False - 0 度为起始位
+置(默认值，3 点钟⽅
+向)
+True - 270 度为起始
+位置（12 点钟⽅向）
+isAutoProgress Boolean 是否⾃更新
+JSON
+ actions : [
+{ action :  miui.focus.action_1_v2 },
+{ action :  miui.focus.action_2_v2  },
+{  actionIcon :  miui.focus.pic_action_3_v2 ,
+ progressInfo : {
+ progress : 40,
+ colorProgress :  #FF8514 
+}
+ actionTitle :  XX ,
+ actionTitleColor :  #FF0000 ,
+ actionBgColor :  #00FF00 ,
+ actionIntent :  XXXX } 
+]
+必须是“miui.focus.action_”前缀
+extra 中 miui.focus.actions 中有 miui.focus.action_XXX
+原理：json 中的 value作为到 miui.focus.actions 中查找 action 的 key。
+
+===== PAGE 50 =====
+按钮组件 2：hintInfo
+Java
+Intent intent =new Intent(this, UriTestActivity.class);
+String uri = intent.toUri(Intent.URI_INTENT_SCHEME);
+// uri 的值为：intent:#Intent;component=com.aline.notification/.UriTestActivity;end
+// 可以作为 actionIntent 的值进⾏传输
+
+
+===== PAGE 51 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述 备注
+hintInfo
+按钮组件类型 type int Y Type 取值：
+• 1：按钮组件 3
+• 2： 按钮组件 2
+此处为组件 2， type 
+取值为 2
+主要⼩⽂本 1 title String Y
+（⼆选⼀）
+描述当前状况的关键
+信息
+时间信息 timerInfo Object
+主要⼩⽂本 2 subTitle String 描述当前状况的关键
+信息
+前置⽂本 1 content String Y 当前状况的前置描
+述，通常较短
+前置⽂本 2 subContent String 当前状况的前置描
+述，通常较短
+colorTitle String
+colorTitleDark String
+colorSubTitle String
+colorSubTitleDark String
+colorContent String
+colorContentDark String
+colorSubContent String
+colorSubContentDa
+rk
+String
+分割线 由系统统⼀提供的分
+割线
+
+===== PAGE 52 =====
+圆头图⽂按钮 actionInfo Object Y 表⽰要跳转的操作按
+钮
+actionInfo
+clickWithCollapse boolean 点击是否收起⾯板
+备注： 
+1. Action 的 
+PendingIntent 是 
+Activity 类型， 默认
+点击收起
+2. actionIntentType 
+为 1 时，默认点击收
+起
+
+===== PAGE 53 =====
+⽅式⼀：
+miui.focus.actions
+中的 Action
+action Y
+（ 两种⽅式⼆选⼀）
+两种⽅式
+⼆选⼀
+两者同时存在，
+使⽤⽅式⼀中 Icon 
+和 Title, 使⽤⽅式⼆
+中 pending Intent
+⽅式⼆：
+⾃定义构建 Action
+actionIcon 按钮图标
+actionTitle 按钮⽂字
+actionTitleColor
+actionTitleColorDar
+k
+hintInfo
+actionBgColor
+actionBgColorDark
+actionIntentType 跳转 URI 类型：
+1 url to activity
+2 action to 
+broadcast
+3 action to service
+actionIntent 如何获取，⻅组件 
+actions 中的说明
+timerInfo
+计时类型 timerType Int Y 取值 :-2,-1, 0 , 1,2
+-2: 倒计时暂停
+-1: 倒计时开始
+0：默认值，如果设
+置为 0 的话，必须设
+置相同位置上的标题
+1: 正计时开始
+2. 正计时暂停
+计时起点 timerWhen Long 毫秒的时间戳
+e.g.:1717470687604
+
+===== PAGE 54 =====
+计时进度 timerTotal Long
+计时误差 timerSystemCurrent Long 毫秒的时间戳
+e.g.:1717470687604
+
+===== PAGE 55 =====
+JSON
+ hintInfo  :{
+ type : 1/2,
+ title :  9:20 开场 ,
+ subTitle :  4 排 6 座 ,
+ content :  时间 ,
+ subContent :  座位 ,
+ picContent :  miui.focus.pic_hint_content_v2 ,
+ colorTitle :  #000000 ,
+ colorTitleDark :  #FFFFFF ,
+ colorSubTitle :  #000000 ,
+ colorSubTitleDark :  #FFFFFF ,
+ colorContent :  #000000 ,
+ colorContentDark :  #FFFFFF ,
+ colorSubContent :  #000000 ,
+ colorSubContentDark :  #FFFFFF ,
+ colorContentBg :   ,
+ timerInfo : {
+// 具体值根据业务传输
+ timerType : 0,
+ timerWhen : 0,
+ timerTotal : 0,
+ timerSystemCurrent : 0
+},
+ actionInfo : {
+  action  :  miui.focus.action_hint_v2 ,
+ actionIcon :  miui.focus.pic_action_hint_v2 ,
+ actionTitle :  XX ,
+ actionTitleColor :  #FF0000 ,
+ actionBgColor :  #00FF00 ,
+ actionIntentType : 1,
+ actionIntent :  XXXX 
+}
+
+===== PAGE 56 =====
+按钮组件 3：hintInfo
+}
+notification.extra 的 miui.focus.pics 有 miui.focus.pic_XXX 等
+
+
+===== PAGE 57 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述 备注
+hintInfo
+type int Y Type 取值：
+• 1：按钮组件 3
+• 2： 按钮组件 2
+此处为组件 2， type 
+取值为 1
+主要⽂本 title String Y 描述当前状况的关键
+信息
+时间信息 timerInfo Object
+图⽂特殊标签⽂本 content String Y
+colorTitle String
+colorTitleDark String
+colorContentDark String
+图⽂特殊标签背景⾊ colorContentBg String
+图⽂特殊标签图标 picContent String
+圆头图⽂按钮 actionInfo Object Y 表⽰要跳转的操作按
+钮
+分割线 由系统统⼀提供的分
+割线
+actionInfo
+
+===== PAGE 58 =====
+clickWithCollapse boolean 点击是否收起⾯板
+备注： 
+1. Action 的 
+PendingIntent 是 
+Activity 类型， 默认
+点击收起
+2. actionIntentType 
+为 1 时，默认点击收
+起
+⽅式⼀：
+miui.focus.actions
+中的 Action
+action String
+Y
+（ 两种⽅式⼆选⼀）
+使⽤ 
+miui.focus.actions
+中对应 Key 的 Action 
+时
+两种⽅式
+⼆选⼀
+两者同时存在，
+使⽤⽅式⼀中 Icon 
+和 Title, 使⽤⽅式⼆
+中 pending Intent
+⽅式⼆：
+⾃定义构建 Action
+actionIcon String 按钮图标
+actionTitle String 按钮⽂字
+actionTitleColor String
+actionTitleColorDar
+k
+actionBgColor String
+actionBgColorDark
+actionIntentType int 跳转 URI 类型：
+1 url to activity
+2 action to 
+broadcast
+3 action to service
+actionIntent String 如何获取，⻅组件 
+actions 中的说明
+
+===== PAGE 59 =====
+按钮组件 4：textButton
+JSON
+ hintInfo  :{
+ type : 1,
+ title :  9:20 开场 ,
+ subTitle :  4 排 6 座 ,
+ content :  时间 ,
+ subContent :  座位 ,
+ picContent :  miui.focus.pic_hint_content_v2 ,
+ colorTitle :  #000000 ,
+ colorTitleDark :  #FFFFFF ,
+ colorSubTitle :  #000000 ,
+ colorSubTitleDark :  #FFFFFF ,
+ colorContent :  #000000 ,
+ colorContentDark :  #FFFFFF ,
+ colorSubContent :  #000000 ,
+ colorSubContentDark :  #FFFFFF ,
+ colorContentBg :   ,
+ actionInfo : {
+  action  :  miui.focus.action_hint_v2 ,
+ actionIcon :  miui.focus.pic_action_hint_v2 ,
+ actionTitle :  XX ,
+ actionTitleColor :  #FF0000 ,
+ actionBgColor :  #00FF00 ,
+ actionIntentType : 1,
+ actionIntent :  XXXX 
+}
+}
+notification.extra 的 miui.focus.pics 有 miui.focus.pic_XXX 等
+
+===== PAGE 60 =====
+
+
+===== PAGE 61 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述 备注
+textButton
+⽂字按钮 [actionInfo, 
+actionInfo]
+Array Y 表⽰要执⾏的操作
+数量 1-2
+actionInfo
+clickWithCollapse boolean 点击是否收起⾯板
+备注： 
+1. Action 的 
+PendingIntent 是 
+Activity 类型， 默认
+点击收起
+2. actionIntentType 
+为 1 时，默认点击收
+起
+
+===== PAGE 62 =====
+⽅式⼀：
+miui.focus.actions
+中的 Action
+action String Y
+（两种⽅式 ⼆选⼀）
+两种⽅式
+⼆选⼀
+两者同时存在，
+使⽤⽅式⼀中 Icon 
+和 Title, 使⽤⽅式⼆
+中 pending Intent
+⽅式⼆：
+⾃定义构建 Action
+actionIcon String 按钮图标
+actionTitle String 按钮⽂字
+actionTitleColor String
+actionTitleColorDar
+k
+actionBgColor String
+actionBgColorDark
+actionBgPressColor
+actionBgPressColor
+Dark
+actionIntentType int 跳转 URI 类型：
+1 url to activity
+2 action to 
+broadcast
+3 action to service
+actionIntent String 如何获取，⻅组件 
+actions 中的说明
+
+===== PAGE 63 =====
+按钮组件 5：highlightInfoV3
+JSON
+ textButton :[
+{
+ action :  miui.focus.action_hint_v2 ,
+ actionTitle :  去⽀付 ,
+ actionTitleColor :  #FF0000 ,
+ actionBgColor :  #00FF00 ,
+ actionIntentType : 1,
+ actionIntent :  XXXX 
+},
+{
+ action :  miui.focus.action_hint_v2 ,
+ actionTitle :  去⽀付 ,
+ actionTitleColor :  #FF0000 ,
+ actionBgColor :  #00FF00 ,
+ actionIntentType : 1,
+ actionIntent :  XXXX 
+}
+]
+
+===== PAGE 64 =====
+
+
+===== PAGE 65 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述 备注
+highlightInfoV3
+⾼亮⽂本 primaryText String Y 最⼩压缩宽度：6 个
+汉字 /12 个字符，
+132dp
+补充⽂本 secondaryText String 最⼩压缩宽度：6 个
+汉字 /12 个字符，
+84dp
+补充⽂本是否划线 showSecondaryLine boolean
+⽂字标签 highLightText String 最⼤宽度：6 个汉
+字 /12 个字符，72dp
+primaryColor String
+secondaryColor String
+highLightTextColor String
+highLightbgColor String
+primaryColorDark String
+secondaryColorDar
+k
+String
+highLightTextColorD
+ark
+String
+highLightbgColorDa
+rk
+String
+分割线 由系统统⼀提供的分
+割线
+圆头图⽂按钮 actionInfo Object Y
+actionInfo
+
+===== PAGE 66 =====
+按钮类型 type int Y Action 按钮类型， 默
+认值
+clickWithCollapse boolean 点击是否收起⾯板
+备注： 
+1. Action 的 
+PendingIntent 是 
+Activity 类型， 默认
+点击收起
+2. actionIntentType 
+为 1 时，默认点击收
+起
+⽅式⼀：
+miui.focus.actions
+中的 Action
+action String Y
+（两种⽅式 ⼆选⼀）
+两种⽅式
+⼆选⼀
+两者同时存在，
+使⽤⽅式⼀中 Icon 
+和 Title, 使⽤⽅式⼆
+中 pending Intent
+⽅式⼆：
+⾃定义构建 Action
+actionIcon String 按钮图标
+actionTitle String 按钮⽂字
+actionTitleColor String
+actionTitleColorDar
+k
+actionBgColor String
+actionBgColorDark
+actionIntentType int 跳转 URI 类型：
+1 url to activity
+2 action to 
+broadcast
+3 action to service
+actionIntent String 如何获取，⻅组件 
+actions 中的说明
+
+===== PAGE 67 =====
+封⾯组件：coverInfo
+JSON
+ highlightInfoV3 :{
+ primaryText :  4899 元 ,
+ secondaryText :  4999 元 ,
+ highLightText :  限时优惠 ,
+ primaryColor :  #0000FF ,
+ secondaryColor :  #00FF00 ,
+ highLightTextColor :  #00FF00 ,
+ highLightbgColor :  #00FF00 ,
+ primaryColorDark :  #0000FF ,
+ secondaryColorDark :  #00FF00 ,
+ highLightTextColorDark :  #00FF00 ,
+ highLightbgColorDark :  #00FF00 ,
+ actionInfo :{
+ action :  miui.focus.action_hint_v2 ,
+ actionTitle :  去⽀付 ,
+ actionIcon : miui.focus.pic_action_hint_v2 ,
+ actionTitleColor :  #FF0000 ,
+ actionBgColor :  #00FF00 ,
+ actionIntentType : 1,
+ actionIntent :  XXXX 
+}
+}
+
+===== PAGE 68 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+coverInfo
+封⾯图 picCover String Y 位置：和⽂本整体纵向居中
+主要⽂本 title String Y 描述当前状况的关键信息
+次要⽂本 1 content String Y 细节详情或补充，6 个汉字 /12 个字符，84dp
+次要⽂本 2 subContent String Y 细节详情或补充
+最⼩压缩宽度：6 个汉字 /12 个字符，84dp
+colorTitle String
+colorTitleDark String
+colorContent String
+colorContentDark String
+colorSubContent String
+colorSubContentDark String
+
+
+===== PAGE 69 =====
+新图⽂组件：iconTextInfo
+JSON
+ coverInfo :{
+ picCover :  miui.focus.pic_forward_v2 ,
+ title :  哪吒闹海 ,
+ content :  1 号厅 ,
+ subContent :  21 排 322 座 ,
+ colorTitle :  #000000 ,
+ colorTitleDark :  #FFFFFF ,
+ colorContent :  #000000 ,
+ colorContentDark :  #FFFFFF ,
+ colorSubContent :  #000000 ,
+ colorSubContentDark :  #FFFFFF 
+}
+
+
+===== PAGE 70 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+iconTextInfo
+图⽚ animIconInfo Object Y 尺⼨：48dpx48dp，
+显⽰区域 56dpx56dp
+位置：和⽂本整体纵
+向居中
+主要⽂本 title String Y 细节详情或补充
+最⼩压缩宽度：6 个
+汉字 /12 个字符，
+84dp
+次要⽂本 1 content String Y 细节详情或补充
+最⼩压缩宽度：6 个
+汉字 /12 个字符，
+84dp
+次要⽂本 2 subContent String 次要⽂本 2：细节详
+情或补充
+最⼩压缩宽度：6 个
+汉字 /12 个字符，
+84dp
+colorTitle String
+colorTitleDark String
+colorContent String
+colorContentDark String
+animIconInfo
+动画类型 type Int Y 图⽚类型：
+• 0: 静态图⽚（默
+认）
+资源 src String Y • pics Bundle 中 
+key
+
+===== PAGE 71 =====
+模板背景：bgInfo
+深⾊模式资源 srcDark 深⾊模式静态图
+JSON
+ iconTextInfo :{
+ title :  ⼿电筒 ,
+ content :  已打开 ,
+ colorTitle :  #000000 ,
+ colorTitleDark :  #FFFFFF ,
+ colorContent :  #000000 ,
+ colorContentDark :  #FFFFFF ,
+ animIconInfo : {
+ type : 3,
+ src :  xxx 
+}
+}
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+bgInfo
+背景类型 type Int 针对设置背景图的效果：
+1 : 全屏（默认）
+2: 右侧
+背景图 picBg String
+背景⾊ colorBg String
+
+===== PAGE 72 =====
+岛（摘要态）
+模版说明
+⼤岛
+⼤岛容器以摄像头左右分 A、B 两个区域，A 区有 2 种组件，B 区⽀持 9 种组件（包含空的情
+况），共⽀持 9 种排列组合。
+JSON
+ bgInfo  : {
+ type : 1,
+ picBg : miui.focus.pic_bg ,
+ colorBg : #FF6666 
+}
+背景图：
+type：// 1 : 全屏 2: 右侧
+picBg: 背景图
+colorBg: 背景颜⾊
+
+===== PAGE 73 =====
+
+
+===== PAGE 74 =====
+
+
+===== PAGE 75 =====
+序号 模板 ⽰例
+
+===== PAGE 76 =====
+1
+图⽂组件 1 + 空
+A 区组件：图⽂组件 1
+必传内容：图标或正⽂⼤字⼆选⼀，不能为空
+图标部分
+• 可上传静态图标、应⽤图标或动态图标，兜底取应⽤图标
+• 正⽅形，建议像素不⼩于 88*88px
+字体部分
+• ⼤字为主要⽂本，前置、后置⼩字为辅助⽂本
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度，建议总字数不超过 4 个
+中⽂字
+• 超⻓效果：⼤字变成⼩字，若仍超⻓会裁切，⽆滚动
+• 窄字体：⽀持数字、字⺟，需要传相关参数
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+B 区组件：为空
+
+
+===== PAGE 77 =====
+序号 模板 ⽰例
+2
+图⽂组件 1 + ⽂本组件
+A 区组件：图⽂组件 1
+必传内容：图标或正⽂⼤字⼆选⼀，不能为空
+图标部分
+• 可上传静态图标、应⽤图标或动态图标，兜底取应⽤图标
+• 正⽅形，建议像素不⼩于 88*88px
+字体部分
+• ⼤字为主要⽂本，前置、后置⼩字为辅助⽂本
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度，建议总字数不超过 4 个
+中⽂字
+• 超⻓效果：⼤字变成⼩字，若仍超⻓会裁切，⽆滚动
+• 窄字体：⽀持数字、字⺟，需要传相关参数
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+B 区组件：⽂本组件
+必传内容：正⽂⼤字
+• 谨慎使⽤多段⽂本，建议最多 2 段⽂本，即前置⼩字 + ⼤字或⼤字 + 后置⼩
+字
+• ⼤字为主要⽂本，前置、后置⼩字为辅助⽂本
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度，建议总字数不超过 4 个
+中⽂字
+• 超⻓效果：⼤字变成⼩字，若仍超⻓会裁切，⽆滚动
+• 窄字体：⽀持数字、字⺟，需要传相关参数
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+
+
+===== PAGE 78 =====
+
+
+===== PAGE 79 =====
+序号 模板 ⽰例
+
+===== PAGE 80 =====
+3
+图⽂组件 1 + 图⽂组件 2
+
+
+===== PAGE 81 =====
+A 区组件：图⽂组件 1
+必传内容：图标或正⽂⼤字⼆选⼀，不能为空
+图标部分
+• 可上传静态图标、应⽤图标或动态图标，兜底取应⽤图标
+• 正⽅形，建议像素不⼩于 88*88px
+字体部分
+• ⼤字为主要⽂本，前置、后置⼩字为辅助⽂本
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度，建议总字数不超过 4 个
+中⽂字
+• 超⻓效果：⼤字变成⼩字，若仍超⻓会裁切，⽆滚动
+• 窄字体：⽀持数字、字⺟，需要传相关参数
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+B 区组件：图⽂组件 2
+必传内容：⼤字和图标
+图标部分
+• 可选择静态图标、应⽤图标或动态图标
+• ⽀持更宽的图形，最⼤图形宽⾼⽐约为 1.45:1，建议像素不少于 128*88px
+字体部分
+• 谨慎使⽤多段⽂本，建议最多 2 段⽂本，即前置⼩字 + ⼤字或⼤字 + 后置⼩
+字
+• ⼤字为主要⽂本，前置、后置⼩字为辅助⽂本
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度，建议总字数不超过 4 个
+中⽂字
+• 超⻓效果：⼤字变成⼩字，若仍超⻓会裁切，⽆滚动
+• 窄字体：⽀持数字、字⺟，需要传相关参数
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+
+
+===== PAGE 82 =====
+序号 模板 ⽰例
+4
+图⽂组件 1 + 图⽂组件 3
+A 区组件：图⽂组件 1
+必传内容：图标或正⽂⼤字⼆选⼀，不能为空
+图标部分
+• 可上传静态图标、应⽤图标或动态图标，兜底取应⽤图标
+• 正⽅形，建议像素不⼩于 88*88px
+字体部分
+• ⼤字为主要⽂本，前置、后置⼩字为辅助⽂本
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度，建议总字数不超过 4
+个中⽂字
+• 超⻓效果：⼤字变成⼩字，若仍超⻓会裁切，⽆滚动
+• 窄字体：⽀持数字、字⺟，需要传相关参数
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+B 区组件：图⽂组件 3
+必传内容：⼤字和图标
+图标部分
+• 可选择静态图标、应⽤图标或动态图标
+• ⽀持更宽的图形，最⼤图形宽⾼⽐约为 1.45:1，建议像素不少于 128*88px
+字体部分
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度，建议总字数不超过 4
+个中⽂字
+• 超⻓效果：⼤字变成⼩字，若仍超⻓会裁切，⽆滚动
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+
+
+===== PAGE 83 =====
+
+
+===== PAGE 84 =====
+序号 模板 ⽰例
+5
+图⽂组件 1 + 进度⽂本组件
+A 区组件：图⽂组件 1
+必传内容：图标或正⽂⼤字⼆选⼀，不能为空
+图标部分
+• 可上传静态图标、应⽤图标或动态图标，兜底取应⽤图标
+• 正⽅形，建议像素不⼩于 88*88px
+字体部分
+• ⼤字为主要⽂本，前置、后置⼩字为辅助⽂本
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度，建议总字数不超过 4
+个中⽂字
+• 超⻓效果：⼤字变成⼩字，若仍超⻓会裁切，⽆滚动
+• 窄字体：⽀持数字、字⺟，需要传相关参数
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+B 区组件：进度⽂本组件
+必传内容：进度信息
+进度部分
+• 当前进度：当前进度参数值
+• 可⾃定义已完成进度条和未完成进度条的颜⾊
+字体部分
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度，建议总字数不超过 4
+个中⽂字
+• 超⻓效果：⼤字变成⼩字，若仍超⻓会裁切，⽆滚动
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+
+
+===== PAGE 85 =====
+
+
+===== PAGE 86 =====
+序号 模板 ⽰例
+6
+图⽂组件 1 + 等宽数字⽂本组件
+A 区组件：图⽂组件 1
+必传内容：图标或正⽂⼤字⼆选⼀，不能为空
+图标部分
+• 可上传静态图标、应⽤图标或动态图标，兜底取应⽤图标
+• 正⽅形，建议像素不⼩于 88*88px
+字体部分
+• ⼤字为主要⽂本，前置、后置⼩字为辅助⽂本
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度，建议总字数不超过 4
+个中⽂字
+• 超⻓效果：⼤字变成⼩字，若仍超⻓会裁切，⽆滚动
+• 窄字体：⽀持数字、字⺟，需要传相关参数
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+B 区组件：等宽数字组件
+必传内容：等宽数字
+等宽数字：每个数字是等宽的
+• ⽀持数字或计时器
+• 通常⽤于倒计时 / 正计时等有秒数级变化的情况，或视觉上需要⼯整排布
+• ⽀持⾃定义颜⾊
+后置⼩字：
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+
+
+===== PAGE 87 =====
+
+
+===== PAGE 88 =====
+序号 模板 ⽰例
+
+===== PAGE 89 =====
+7
+图⽂组件 1 + 定宽数字⽂本组件
+
+
+===== PAGE 90 =====
+A 区组件：图⽂组件 1
+必传内容：图标或正⽂⼤字⼆选⼀，不能为空
+图标部分
+• 可上传静态图标、应⽤图标或动态图标，兜底取应⽤图标
+• 正⽅形，建议像素不⼩于 88*88px
+字体部分
+• ⼤字为主要⽂本，前置、后置⼩字为辅助⽂本
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度，建议总字数不超过 4 个
+中⽂字
+• 超⻓效果：⼤字变成⼩字，若仍超⻓会裁切，⽆滚动
+• 窄字体：⽀持数字、字⺟，需要传相关参数
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+B 区组件：定宽数字组件
+必传内容：数字
+数字部分：
+• 数字在固定宽度的区域内显⽰，该区域最多⽀持显⽰ 3位数，最少 1位数
+• 超⻓后压缩显⽰为“...”
+后置⼩字：
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+
+
+===== PAGE 91 =====
+序号 模板 ⽰例
+8
+图⽂组件 1 + ⼤图组件
+A 区组件：图⽂组件 1
+必传内容：图标或正⽂⼤字⼆选⼀，不能为空
+图标部分
+• 可上传静态图标、应⽤图标或动态图标，兜底取应⽤图标
+• 正⽅形，建议像素不⼩于 88*88px
+字体部分
+• ⼤字为主要⽂本，前置、后置⼩字为辅助⽂本
+• 保持⽂本简短，过⻓⽂本会影响阅读效率和美观度，建议总字数不超过 4 个
+中⽂字
+• 超⻓效果：⼤字变成⼩字，若仍超⻓会裁切，⽆滚动
+• 窄字体：⽀持数字、字⺟，需要传相关参数
+• 强调⾊：可⾃定义颜⾊，⼤⼩字颜⾊⼀致
+B 区组件：⼤图组件
+必传内容：⼤图
+• ⽀持静态、动态⼤图
+• ⽀持更宽的图形，最⼤图形宽⾼⽐约为 2.2:1，建议像素不少于 192*88px
+
+
+===== PAGE 92 =====
+序号 模板 ⽰例
+9
+图⽂组件 5+ 图⽂组件 6
+A 区组件：图⽂组件 5
+必传内容：图⽚，⼤字
+• 图⽚：正⽅形，建议像素不少于 88*88px
+• 整体定宽⽂本 - ⼤字：
+◦ ⽀持数字或中⽂⽂字，在固定宽度的区域内显⽰
+◦ ⽀持最多 3 个数字，或者 2 个中⽂⽂字
+◦ 超⻓后压缩显⽰为“...”
+◦ 强调⾊：可⾃定义，⼤⼩字体⼀致
+• 整体定宽⽂本 - ⼩字：
+◦ 最多⽀持 2 个中⽂⽂字
+◦ 强调⾊：可⾃定义，⼤⼩字体⼀致
+B 区组件：图⽂组件 6
+必传内容：数字，图⽚
+• 数字：最多⽀持 3 个数字
+• 图⽚：正⽅形，建议像素不少于 88*88px
+
+
+===== PAGE 93 =====
+⼩岛
+⼩岛容器展⽰内容：
+优先取开发者上传的图标组件
+若开发者未上传，取⼤岛 A 区左侧的图标
+若条件 1、2 都不满⾜，取应⽤图标
+1.
+2.
+3.
+
+
+===== PAGE 94 =====
+组件能⼒
+序号 组件 说明
+1 图标组件 • 图标可选应⽤图标、静态图标
+• 必须为正⽅形，建议像素不少于 88*88px
+.
+2 图标组合组件 图标
+• 图⽚：必须为正⽅形，建议像素不少于 88*88px
+• 进度条：⽀持⾃定义颜⾊
+3 图标⽂本组件 使⽤图⽂组件 6
+• 在 imageTextInfoRight 中 type使⽤ 6 即可
+• 数字：最多⽀持 3 个数字
+• 图⽚：必须为正⽅形，建议像素不少于 88*88px
+
+
+===== PAGE 95 =====
+⼤岛组件
+图⽂组件 1：imageTextInfoLeft
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+imageTextInfoLeft
+组件类型 type int Y 图⽂组件 1，值为 1
+图标 picInfo
+⽂字 textInfo
+textInfo
+⼤字 title String
+后置⼩字 content String
+窄字体 narrowFont Boolean
+是否使⽤强调⾊ showHighlightColor Boolean
+picInfo
+图标组件类型 type Integer Y 1 
+图标 pic String Y 静态图标时为  miui.focus.pic_xxx 1.
+
+
+===== PAGE 96 =====
+图⽂组件 2：imageTextInfoRight
+JSON
+{
+ imageTextInfoLeft : {
+ type : 1,
+ picInfo : {
+ type : 1,
+ pic :  xxx 
+},
+ textInfo : {
+ title :  接驾中 ,
+ content :  5 分钟 ,
+ showHighlightColor : false
+}
+}
+}
+
+
+===== PAGE 97 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+imageTextInfoRight
+组件类型 type int Y 图⽂组件 2，值为 2
+⽂字信息 picInfo Object Y
+图标 picInfo Object Y
+textInfo
+前置⼩字 frontTitle String
+⼤字 title String Y
+后置⼩字 content String
+窄字体 narrowFont Boolean
+是否使⽤强调⾊ showHighlightColor Boolean
+picInfo
+图标组件类型 type Integer Y 1 
+图标 pic String Y 静态图标时为  miui.focus.pic_xxx 
+其他情况为 内置 key
+1.
+1.
+
+===== PAGE 98 =====
+图⽂组件 3：imageTextInfoRight
+JSON
+{
+ imageTextInfoRight : {
+ type : 2,
+ picInfo : {
+ type : 1,
+ pic :  xxx 
+},
+ textInfo : {
+ frontTitle :  充电中 ,
+ title :  24% ,
+ content :  剩 5 分钟 ,
+ showHighlightColor : false,
+ narrowFont : false
+}
+}
+}
+
+
+===== PAGE 99 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+imageTextInfoRight
+组件类型 type int Y 图⽂组件 3，值为 3
+⽂字信息 picInfo Object Y
+图标信息 picInfo Object Y
+textInfo
+⼤字 title String Y
+窄字体 narrowFont Boolean
+是否使⽤强调⾊ showHighlightColor Boolean
+picInfo
+图标组件类型 type Integer Y 1 
+图标 pic String Y 静态图标时为 miui.focus.pics  中图⽚的 key1.
+
+===== PAGE 100 =====
+图⽂组件 4：imageTextInfoRight
+该组件为设备通知充电和省电专⽤组件
+JSON
+{
+ imageTextInfoRight : {
+ type : 2,
+ picInfo : {
+ type : 1,
+ pic :  xxx 
+},
+ textInfo : {
+ frontTitle :  充电中 ,
+ title :  24% ,
+ content :  剩 5 分钟 ,
+ showHighlightColor : false
+}
+}
+}
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+imageTextInfoRight
+组件类型 type int Y 图⽂组件 4，值为 4
+
+
+===== PAGE 101 =====
+图⽂组件 5：imageTextInfoLeft
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+imageTextInfoLeft
+组件类型 type int Y 图⽂组件 5，值为 5
+图标 picInfo Y
+⽂字 textInfo
+textInfo
+⼤字 title String Y
+后置⼩字 content String
+是否使⽤强调⾊ showHighlightColor Boolean
+picInfo
+图标组件类型 type Integer Y 静态图标，值为 4
+图标 pic String Y 静态图标时为  miui.foucs.pic_xxx 1.
+
+
+===== PAGE 102 =====
+图⽂组件 6：imageTextInfoRight
+JSON
+{
+ imageTextInfoLeft : {
+ type : 5,
+ picInfo : {
+ type : 4,
+ pic :  xxx 
+},
+ textInfo : {
+ title :  5 ,
+ content :  公⾥ ,
+ showHighlightColor : false
+}
+}
+}
+
+
+===== PAGE 103 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+imageTextInfoRight
+组件类型 type int Y 图⽂组件 6，值为 6
+⽂字信息 textInfo Object Y
+图标 picInfo Object Y
+textInfo
+⼤字 title String Y
+窄字体 narrowFont Boolean
+是否使⽤强调⾊ showHighlightColor Boolean
+picInfo
+图标组件类型 type Integer Y 静态图标，值为 4
+图标 pic String Y 静态图标时为  miui.focus.pic_xxx 
+JSON
+{
+ imageTextInfoRight : {
+ type : 6,
+ picInfo : {
+ type : 4,
+ pic :  xxx 
+},
+ textInfo : {
+ title :  34 ,
+ showHighlightColor : false
+}
+}
+}
+
+===== PAGE 104 =====
+⽂本组件：textInfo
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+textInfo
+前置⼩字 frontTitle String
+⼤字 title String Y
+后置⼩字 content String
+窄字体 narrowFont Boolean
+是否使⽤强调⾊ showHighlightColor Boolean
+
+
+===== PAGE 105 =====
+定宽数字⽂本组件：fixedWidthDigitInfo
+JSON
+{
+ textInfo : {
+ frontTitle :  充电中 ,
+ title :  24% ,
+ content :  剩 5 分钟 ,
+ showHighlightColor : false,
+ narrowFont : false
+}
+}
+组件元素 元素名称 元素字段 是否必传 元素描述
+fixedWidthDigitInfo
+定宽数字 digit Y
+⼩字 content
+是否使⽤强调⾊ showHighlightColor Boolean
+
+
+===== PAGE 106 =====
+等宽数字⽂本组件：sameWidthDigitInfo
+JSON
+{
+ fixedWidthDigitInfo : {
+ digit :  99.9 ,
+ content :  1.02km ,
+ showHighlightColor : true
+}
+}
+
+
+===== PAGE 107 =====
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+sameWidthDigitInfo
+等宽数字 digit String Y
+（⼆选⼀）计时信息 timerInfo Object
+⼩字 content String
+是否使⽤强调⾊ showHighlightColor Boolean
+timerInfo
+计时类型 timerType Integer Y
+计时起点 timerWhen Long
+计时进度 timerTotal Long
+计时误差 timerSystemCurrent Long
+JSON
+{
+ sameWidthDigitInfo : {
+ timerInfo : {
+ timerType : 0,
+ timerWhen : 0,
+ timerTotal : 0,
+ timerCurrent : 0
+},
+ digit :  digit ,
+ content :  开场 ,
+ showHighlightColor : false
+}
+}
+
+===== PAGE 108 =====
+进度⽂本组件：progressTextInfo
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+progressTextInfo
+⽂字信息 textInfo
+进度信息 progressInfo Y
+textInfo
+前置⼩字 frontTitle String
+⼤字 title String
+后置⼩字 content String
+窄字体 narrowFont Boolean
+是否使⽤强调⾊ showHighlightColor Boolean
+progressInfo
+当前进度 progress int Y
+当前进度的颜⾊ colorReach String
+当前未到进度的颜⾊ colorUnReach String
+进度条的起始位置 isCCW Boolean False - 0 度为起始位置（默认值，3 点钟⽅向）
+True - 270 度为起始位置（12 点钟⽅向）
+
+
+===== PAGE 109 =====
+⼤图组件：picInfo
+JSON
+{
+ progressTextInfo : {
+ progressInfo : {
+ progress : 1,
+ colorReach :   ,
+ colorUnReach :   
+},
+ textInfo : {
+ frontTitle :  充电中 ,
+ title :  24% ,
+ content :  剩 5 分钟 ,
+ showHighlightColor : false,
+ narrowFont : false
+}
+}
+}
+
+
+===== PAGE 110 =====
+⼩岛组件
+图标组件：picInfo
+组件元素 元素名称 元素字段 字段类型 是否必传 元素描述
+picInfo
+图标组件类型 type Integer Y 1 : 静态图⽚
+图标 pic String Y 静态图标时为  pics Bundle 中 key1.
+JSON
+{
+ picInfo : {
+ type : 1,
+ pic :   
+}
+}
+组件类型 元素名称 元素字段 字段类型 是否必传 元素描述
+picInfo
+图标组件类型 type Integer Y 1 : 静态图⽚
+图标 pic String Y 静态图标时为  pics Bundle 中 key1.
+
+===== PAGE 111 =====
+图标组合组件：combinePicInfo
+JSON
+{
+ picInfo  : {
+ type  : 1,
+ pic :   
+}
+}
+组件元素 元素名称 元素字段 元素类型 是否必传 元素描述
+combinePicInfo
+图标 picInfo Object Y
+进度 progressInfo Object Y
+⼩图标 smallPicInfo
+type = 5
+Object
+picInfo
+图标组件类型 type Integer Y 1 : 静态图⽚
+图标 pic String Y 静态图标时为  miui.land.pic_xxx 
+progressInfo
+当前进度 progress int Y
+当前进度的颜⾊ colorReach String
+当前未到进度的颜⾊ colorUnReach String
+进度条的起始位置 isCCW Boolean False - 0 度为起始位置（默认值，3 点钟⽅向）
+True - 270 度为起始位置（12 点钟⽅向）
+
+===== PAGE 112 =====
+图标⽂本组件：
+使⽤图⽂组件 6，需要确保 imageTextInfoRight 的 type 为 6
+JSON
+{
+ combinePicInfo : {
+ picInfo : {
+ type : 1,
+ pic :   
+},
+ progressInfo : {
+ progress : 1,
+ colorReach :   ,
+ colorUnReach :   
+}
+}
+}
+TypeScript
+{
+ imageTextInfoRight : {
+ type : 6,
+ picInfo : {
+ type : 4,
+ pic :  xxx 
+},
+ textInfo : {
+ title :  34 ,
+ showHighlightColor : false
+}
+}
+}

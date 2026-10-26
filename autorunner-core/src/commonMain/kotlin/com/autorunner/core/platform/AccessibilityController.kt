@@ -1,6 +1,7 @@
 package com.autorunner.core.platform
 
 import com.autorunner.core.model.ActionStep
+import com.autorunner.core.model.ComboConfig
 import com.autorunner.core.model.ScreenMetrics
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -69,7 +70,7 @@ data class OverlayState(
     val visible: Boolean = false,
     /** 悬浮球长按的迷你动作菜单已展开。 */
     val menuOpen: Boolean = false,
-    /** 悬浮球当前所在的屏幕半边；决定菜单展开方向。 */
+    /** 悬浮球当前所在的屏幕半边；决定菜单的横向展开方向（纵向由球的上下位置决定）。 */
     val dockedEdge: DockEdge = DockEdge.RIGHT,
     /** 窗口管理器上报的最近一次错误（若有）。 */
     val error: String? = null,
@@ -100,6 +101,15 @@ interface OverlayManager {
      * 用户单击悬浮球即开始执行（无需展开面板）。平台不支持时退化为普通 [show]。
      */
     fun armExecution(scriptId: String): Boolean = show()
+
+    /**
+     * 组合运行：以悬浮球形式显示，并记住待启动的两段脚本与执行参数；
+     * 用户单击悬浮球后同时启动两段脚本（B 可带首轮延迟）。
+     *
+     * 平台不支持组合武装时返回 `false`（组合页据此提示用户），
+     * 而不是悄悄退化成单脚本运行。
+     */
+    fun armCombo(combo: ComboConfig): Boolean = false
 
     fun hide()
 

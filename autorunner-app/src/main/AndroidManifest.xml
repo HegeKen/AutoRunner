@@ -25,6 +25,14 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!--
+      黑屏挂机显示通知时，需要按包名解析任意来源应用的名称与图标。
+      Android 11+ 的包可见性过滤会阻止 getApplicationInfo / getApplicationIcon，
+      因此声明该权限（自动化工具需要展示所有应用的通知，用途明确）。
+    -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
 
     <uses-feature
         android:name="android.hardware.touchscreen"
@@ -79,6 +87,21 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- =================================================================
+             Optional "notification access" listener: renders incoming
+             notifications on the black idle screen. The user grants it in
+             system settings; the root module grants it automatically.
+             ================================================================= -->
+        <service
+            android:name=".notification.AutoRunnerNotificationListener"
+            android:exported="false"
+            android:label="@string/notification_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
         </service>
 
         <!-- =================================================================

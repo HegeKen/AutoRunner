@@ -245,6 +245,55 @@ class AutoRunnerScriptExecutorTest {
     }
 
     @Test
+    fun startDelayWaitsBeforeTheFirstRoundAndReportsProgress() = runTest {
+        val controller = FakeController()
+        val clock = VirtualExecutionClock()
+        val executor = AutoRunnerScriptExecutor(controller, clock = clock)
+        val snapshots = mutableListOf<com.autorunner.core.model.ExecutionProgress>()
+
+        val report = executor.execute(
+            ScriptModel(flow = listOf(TapStep(1f, 1f, delay = 0L))),
+            ExecutionConfig(
+                mode = ExecutionMode.REPEAT,
+                repeatCount = 2,
+                startDelayMs = 60_000L,
+            ),
+        ) { snapshots += it }
+
+        assertEquals(2, report.completedLoops)
+        // 首轮延迟 60 秒 + 两轮动作本身没有延时。
+        assertEquals(60_000L, report.elapsedMs)
+        assertTrue(
+            snapshots.any { it.startDelayTotalMs == 60_000L && it.startDelayElapsedMs == 60_000L },
+            "等待期间必须上报已等待时长",
+        )
+        assertEquals(0L, snapshots.last().startDelayTotalMs)
+    }
+
+    @Test
+    fun stopInterruptsTheFirstRoundDelay() = runTest {
+        val controller = FakeController()
+        val executor = AutoRunnerScriptExecutor(controller, clock = VirtualExecutionClock())
+
+        val job = launch {
+            executor.execute(
+                script,
+                ExecutionConfig(
+                    mode = ExecutionMode.REPEAT,
+                    repeatCount = 0,
+                    startDelayMs = 10 * 60_000L,
+                ),
+            )
+        }
+        repeat(3) { yield() }
+        executor.stop()
+        job.join()
+
+        assertEquals(ExecutionState.STOPPED, executor.state.value)
+        assertTrue(controller.dispatched.isEmpty(), "等待首轮期间不得派发任何动作")
+    }
+
+    @Test
     fun progressIsReportedForEveryActionAndLoop() = runTest {
         val executor = AutoRunnerScriptExecutor(FakeController(), clock = VirtualExecutionClock())
         val snapshots = mutableListOf<String>()

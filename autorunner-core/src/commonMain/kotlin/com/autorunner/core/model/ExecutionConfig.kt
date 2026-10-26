@@ -17,6 +17,13 @@ data class ExecutionConfig(
     @SerialName("repeatCount") val repeatCount: Int = 1,
     /** 完整遍历一遍 `flow` 之间的空闲时间，单位毫秒。 */
     @SerialName("intervalMs") val intervalMs: Long = 0L,
+    /**
+     * 第一轮开始前的额外等待时间，单位毫秒。
+     *
+     * 组合运行时用来实现「B 在 A 启动 N 分钟后才开始第一轮」：A 的该值为 `0`，
+     * B 取用户设置的首轮延迟。单独运行脚本时通常也是 `0`。
+     */
+    @SerialName("startDelayMs") val startDelayMs: Long = 0L,
     /** 单个动作失败时的行为。 */
     @SerialName("failureStrategy") val failureStrategy: FailureStrategy = FailureStrategy.ABORT_SCRIPT,
     /** 放弃前等待无障碍服务恢复的毫秒数。 */
@@ -41,15 +48,21 @@ data class ExecutionConfig(
     fun sanitized(): ExecutionConfig = copy(
         repeatCount = repeatCount.coerceAtLeast(0),
         intervalMs = intervalMs.coerceAtLeast(0L),
+        startDelayMs = startDelayMs.coerceAtLeast(0L),
         reconnectTimeoutMs = reconnectTimeoutMs.coerceAtLeast(0L),
         restoreDelayMs = restoreDelayMs.coerceAtLeast(0L),
     )
 
     /** 界面使用的简短本地化描述。 */
-    fun describe(): String = when {
-        mode == ExecutionMode.ONCE -> "单次执行"
-        isInfinite -> "无限循环 · 间隔 ${intervalMs}ms"
-        else -> "重复 $repeatCount 次 · 间隔 ${intervalMs}ms"
+    fun describe(): String = buildString {
+        append(
+            when {
+                mode == ExecutionMode.ONCE -> "单次执行"
+                isInfinite -> "无限循环 · 间隔 ${intervalMs}ms"
+                else -> "重复 $repeatCount 次 · 间隔 ${intervalMs}ms"
+            },
+        )
+        if (startDelayMs > 0L) append(" · 首轮延迟 ${startDelayMs}ms")
     }
 
     companion object {

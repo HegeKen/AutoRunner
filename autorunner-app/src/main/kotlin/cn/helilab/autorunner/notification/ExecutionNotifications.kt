@@ -74,12 +74,15 @@ object ExecutionNotifications {
             else -> context.getString(R.string.notification_execution_title)
         }
 
-        // 循环间隔等待期间追加「间隔 7/14 分钟」实时进度（intervalLabel 为 null 时不显示）。
+        // 循环间隔 / 首轮等待期间追加「间隔 7/14 分钟」实时进度
+        // （对应 label 为 null 时不显示）。
         val intervalSuffix = progress.intervalLabel?.let { " · 间隔 $it" }.orEmpty()
+        val startDelaySuffix = progress.startDelayLabel?.let { " · 首轮等待 $it" }.orEmpty()
+        val waitSuffix = intervalSuffix + startDelaySuffix
         val text = when (progress.state) {
             ExecutionState.IDLE -> context.getString(R.string.notification_execution_idle)
-            ExecutionState.RUNNING -> "运行中 · 循环 ${progress.loopLabel}$intervalSuffix · 耗时 ${progress.elapsedLabel}"
-            ExecutionState.PAUSED -> "已暂停 · 循环 ${progress.loopLabel}$intervalSuffix"
+            ExecutionState.RUNNING -> "运行中 · 循环 ${progress.loopLabel}$waitSuffix · 耗时 ${progress.elapsedLabel}"
+            ExecutionState.PAUSED -> "已暂停 · 循环 ${progress.loopLabel}$waitSuffix"
             ExecutionState.STOPPED -> "已停止 · 循环 ${progress.loopLabel}"
             ExecutionState.COMPLETED -> "已完成 · 循环 ${progress.loopLabel} · 耗时 ${progress.elapsedLabel}"
         }

@@ -101,6 +101,26 @@ data class AppSettings(
     @SerialName("hapticFeedback") val hapticFeedback: Boolean = true,
     /** 运行开始后立即把悬浮面板收起为小球。 */
     @SerialName("autoCollapsePanel") val autoCollapsePanel: Boolean = true,
+    /**
+     * 黑屏挂机期间在黑屏层上显示新到的手机通知。
+     *
+     * 需要「通知使用权」（[AppSettings] 之外的系统授权，由 Root 模块或设置页授予）；
+     * 默认关闭，避免验证码等敏感内容在用户没有预期时出现在屏幕上。
+     */
+    @SerialName("idleNotificationDisplay") val idleNotificationDisplay: Boolean = false,
+    /**
+     * 黑屏挂机期间显示焦点通知（小米超级岛）的进行中状态。
+     *
+     * 与 [idleNotificationDisplay] 的 8 秒卡片不同，焦点通知代表仍在进行的服务
+     * （外卖、打车、计时……），只要系统里这条通知还在，岛状态行就持续显示。
+     * 同样依赖「通知使用权」；默认开启，可在设置里关闭。
+     */
+    @SerialName("idleFocusDisplay") val idleFocusDisplay: Boolean = true,
+    /**
+     * 黑屏挂机期间的弹窗守护：检测到下层应用的确认框 / 异常弹窗时，
+     * 自动退出黑屏挂机并暂停脚本，避免注入的触摸继续盲点「确认购买」之类的按钮。
+     */
+    @SerialName("hangDialogGuard") val hangDialogGuard: Boolean = true,
     /** 手柄模拟总开关（可选功能）。 */
     @SerialName("gamepadEnabled") val gamepadEnabled: Boolean = false,
     /** 按键映射列表使用的命名预设（同时是新脚本的默认值）。 */
