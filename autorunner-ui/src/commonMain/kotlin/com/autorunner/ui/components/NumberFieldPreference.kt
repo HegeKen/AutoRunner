@@ -55,7 +55,7 @@ fun NumberFieldPreference(
                 label = label,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(vertical = 8.dp),
                 enabled = enabled,
                 maxDigits = 7,
             )
@@ -66,7 +66,7 @@ fun NumberFieldPreference(
                         suffix != null -> suffix
                         else -> ""
                     },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(vertical = 4.dp),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     style = MiuixTheme.textStyles.footnote1,
                 )

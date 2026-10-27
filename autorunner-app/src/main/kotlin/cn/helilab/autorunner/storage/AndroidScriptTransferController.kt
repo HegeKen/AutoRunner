@@ -32,10 +32,18 @@ class AndroidScriptTransferController(
 
     private var exportLauncher: ActivityResultLauncher<String>? = null
 
+    private var comboImportLauncher: ActivityResultLauncher<Array<String>>? = null
+
+    private var comboExportLauncher: ActivityResultLauncher<String>? = null
+
     /** 待处理的导出内容，由创建文档的回调消费。 */
     private var pendingExport: Pair<String, String>? = null
 
+    private var pendingComboExport: Pair<String, String>? = null
+
     override var onPicked: ((fileName: String?, content: String) -> Unit)? = null
+
+    override var onComboPicked: ((fileName: String?, content: String) -> Unit)? = null
 
     /** 注册 SAF 启动器；必须在 Activity 创建期间执行。 */
     fun register(caller: ActivityResultCaller) {
@@ -77,6 +85,30 @@ class AndroidScriptTransferController(
             Log.i(AutoRunnerApplication.TAG, "export '${payload.first}' written=$written")
             notify(if (written) "已导出到所选位置" else "导出失败，可改用「分享 / 复制」")
         }
+
+        // 组合任务使用独立的启动器与回调，避免和脚本库的导入/导出互相抢占。
+        comboImportLauncher = caller.registerForActivityResult(
+            ActivityResultContracts.OpenDocument(),
+        ) { uri: Uri? ->
+            if (uri == null) return@registerForActivityResult
+            val payload = readText(uri) ?: return@registerForActivityResult
+            onComboPicked?.invoke(displayName(uri), payload)
+        }
+
+        comboExportLauncher = caller.registerForActivityResult(
+            ActivityResultContracts.CreateDocument("*/*"),
+        ) { uri: Uri? ->
+            val payload = pendingComboExport
+            pendingComboExport = null
+            if (payload == null) return@registerForActivityResult
+            if (uri == null) {
+                notify("已取消导出组合")
+                return@registerForActivityResult
+            }
+            val written = writeText(uri, payload.second)
+            Log.i(AutoRunnerApplication.TAG, "combo export '${payload.first}' written=$written")
+            notify(if (written) "已导出组合到所选位置" else "组合导出失败")
+        }
         Log.i(AutoRunnerApplication.TAG, "document pickers registered")
     }
 
@@ -114,6 +146,37 @@ class AndroidScriptTransferController(
             pendingExport = null
             copyToClipboard(fileName, content)
             notify("无法打开文件选择器，已复制脚本内容到剪贴板")
+        }
+    }
+
+    override fun pickComboFile(): Boolean {
+        val launcher = comboImportLauncher
+        if (launcher == null) {
+            notify("当前上下文无法打开文件选择器")
+            return false
+        }
+        return runCatching {
+            launcher.launch(ARSCRIPT_MIME_TYPES)
+            true
+        }.onFailure { error ->
+            Log.w(AutoRunnerApplication.TAG, "unable to open combo picker", error)
+            notify("无法打开文件选择器，请改用「分享 / 复制」导入组合")
+        }.getOrDefault(false)
+    }
+
+    override fun exportCombo(fileName: String, content: String) {
+        val launcher = comboExportLauncher
+        if (launcher == null) {
+            Log.w(AutoRunnerApplication.TAG, "combo export picker unavailable, sharing instead")
+            shareScript(fileName, content)
+            return
+        }
+        pendingComboExport = fileName to content
+        runCatching { launcher.launch(fileName) }.onFailure { error ->
+            Log.w(AutoRunnerApplication.TAG, "unable to open combo create-document picker", error)
+            pendingComboExport = null
+            copyToClipboard(fileName, content)
+            notify("无法打开文件选择器，已复制组合内容到剪贴板")
         }
     }
 

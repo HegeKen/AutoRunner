@@ -4,13 +4,18 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Bundle
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import cn.helilab.autorunner.AppGraph
 import cn.helilab.autorunner.AutoRunnerApplication
 import cn.helilab.autorunner.accessibility.AccessibilityServiceHolder
 import cn.helilab.autorunner.accessibility.AndroidRecordingController
+import cn.helilab.autorunner.notification.ExecutionFocusIsland
 import cn.helilab.autorunner.notification.FocusNotification
 import cn.helilab.autorunner.notification.FocusNotificationFeed
 import cn.helilab.autorunner.notification.IdleNotification
@@ -59,7 +64,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
         Log.i(AutoRunnerApplication.TAG, "debug command: $command")
 
         when (command) {
-            "state" -> dumpState()
+            "state" -> dumpState(context)
 
             "run" -> {
                 val requested = intent.getStringExtra(EXTRA_SCRIPT_ID)
@@ -131,6 +136,59 @@ class DebugCommandReceiver : BroadcastReceiver() {
                         AutoRunnerApplication.TAG,
                         "debug run_combo -> started=$started A='${recordA.name}'@${intervalA}ms " +
                             "B='${recordB.name}'@${intervalB}ms delayB=${delayB}ms",
+                    )
+                }
+            }
+
+            "focus_permission" -> {
+                val extras = Bundle().apply { putString("package", context.packageName) }
+                val result = runCatching {
+                    context.contentResolver.call(
+                        Uri.parse("content://miui.statusbar.notification.public"),
+                        "canShowFocus",
+                        null,
+                        extras,
+                    )
+                }.onFailure { Log.w(AutoRunnerApplication.TAG, "focus_permission call failed", it) }.getOrNull()
+                val appInfo = runCatching {
+                    context.packageManager.getApplicationInfo(
+                        context.packageName,
+                        PackageManager.GET_META_DATA,
+                    )
+                }.getOrNull()
+                val xmsAppId = appInfo?.metaData?.getString(ExecutionFocusIsland.XMS_APP_ID_META)
+                val xmsDebug = appInfo?.metaData?.getBoolean("com.xiaomi.xms.BUILD_TYPE_DEBUG")
+                Log.i(
+                    AutoRunnerApplication.TAG,
+                    "debug focus_permission: canShowFocus=${result?.getBoolean("canShowFocus")} " +
+                        "protocol=${ExecutionFocusIsland.focusProtocol(context)} " +
+                        "xmsAppId=${xmsAppId?.ifBlank { "<empty>" } ?: "<missing>"} " +
+                        "xmsDebug=$xmsDebug " +
+                        "supportsIsland=${ExecutionFocusIsland.supportsIsland(context)} " +
+                        "rootUnlock=${ExecutionFocusIsland.hasRootFocusUnlock()} " +
+                        "focusNotifs=${Settings.Secure.getString(context.contentResolver, "focus_notifs")} " +
+                        "updatable=${Settings.Secure.getString(context.contentResolver, "updatable_focus_notifs")}",
+                )
+            }
+
+            "focus_payload" -> {
+                val container = AppGraph.requireContainer()
+                val combo = container.executionController.comboProgress.value
+                if (combo == null) {
+                    Log.w(
+                        AutoRunnerApplication.TAG,
+                        "debug focus_payload: no combo running " +
+                            "(protocol=${ExecutionFocusIsland.focusProtocol(context)}, " +
+                            "island=${ExecutionFocusIsland.supportsIsland(context)})",
+                    )
+                } else {
+                    Log.i(
+                        AutoRunnerApplication.TAG,
+                        "debug focus_payload: " +
+                            ExecutionFocusIsland.buildPayload(
+                                container.executionController.progress.value,
+                                combo,
+                            ),
                     )
                 }
             }
@@ -325,7 +383,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
     }
 
     /** 打印判断各服务是否正确接线所需的全部信息。 */
-    private fun dumpState() {
+    private fun dumpState(context: Context) {
         val container = AppGraph.requireContainer()
         Log.i(
             AutoRunnerApplication.TAG,
@@ -354,6 +412,10 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 append(container.executionController.state.value)
                 append(" progress=")
                 append(container.executionController.progress.value.loopLabel)
+                append(" focusProtocol=")
+                append(ExecutionFocusIsland.focusProtocol(context))
+                append(" island=")
+                append(ExecutionFocusIsland.supportsIsland(context))
                 append(" combo=")
                 append(
                     container.executionController.comboProgress.value?.let { combo ->

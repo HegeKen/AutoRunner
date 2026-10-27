@@ -2,6 +2,8 @@ package com.autorunner.ui.viewmodel
 
 import com.autorunner.core.di.AppContainer
 import com.autorunner.core.execution.ComboProgress
+import com.autorunner.core.model.ComboBundle
+import com.autorunner.core.model.ComboBundleScript
 import com.autorunner.core.model.ComboConfig
 import com.autorunner.core.model.ComboSlotConfig
 import com.autorunner.core.model.ComboSlotRole
@@ -11,6 +13,8 @@ import com.autorunner.core.model.ExecutionReport
 import com.autorunner.core.model.ExecutionState
 import com.autorunner.core.model.InputMode
 import com.autorunner.core.script.ScriptRecord
+import com.autorunner.core.serialization.ComboBundleCodec
+import com.autorunner.core.util.currentIsoTimestamp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -226,6 +230,127 @@ class ComboViewModel(
 
     fun dismissMessage() {
         _message.value = null
+    }
+
+    /** 供运行控制等场景直接填入一条提示。 */
+    fun reportMessage(message: String) {
+        _message.value = message
+    }
+
+    /**
+     * 生成自包含的组合任务文件内容。
+     *
+     * 导出把两段脚本原文一起嵌入；槽位里保存的循环参数与 B 的首轮延迟也
+     * 一并保留，导入端无需依赖原有脚本 id。
+     */
+    suspend fun buildExportFile(): Pair<String, String>? {
+        val a = _slotA.value
+        val b = _slotB.value
+        if (!a.isSelected || !b.isSelected) {
+            _message.value = "请先为脚本 A 和脚本 B 各选择一个脚本"
+            return null
+        }
+        if (a.scriptId == b.scriptId) {
+            _message.value = "A / B 选择了同一个脚本，无法导出组合"
+            return null
+        }
+        val recordA = repository.load(a.scriptId!!) ?: run {
+            _message.value = "脚本 A 已被删除，无法导出"
+            return null
+        }
+        val recordB = repository.load(b.scriptId!!) ?: run {
+            _message.value = "脚本 B 已被删除，无法导出"
+            return null
+        }
+        val embedded = buildList {
+            add(ComboBundleScript(recordA.id, recordA.script))
+            if (recordB.id != recordA.id) add(ComboBundleScript(recordB.id, recordB.script))
+        }
+        val bundle = ComboBundle(
+            exportedAt = currentIsoTimestamp(),
+            combo = buildConfig(),
+            scripts = embedded,
+        )
+        return ComboBundleCodec.fileNameFor(bundle) to ComboBundleCodec.encode(bundle)
+    }
+
+    /**
+     * 导入 `.arcombo` 组合任务：先落盘嵌入的脚本（或复用内容相同的已有脚本），
+     * 再把两个槽位重映射到新脚本 id，最后保存组合配置。
+     */
+    fun importCombo(text: String) {
+        if (controller.isActive) {
+            _message.value = "运行中不能导入组合，请先停止当前任务"
+            return
+        }
+        scope.launch {
+            val bundle = ComboBundleCodec.decode(text)
+            if (bundle == null) {
+                _message.value = "不是有效的组合任务文件（.arcombo）"
+                return@launch
+            }
+            repository.refresh()
+            val scriptCache = mutableMapOf<String, ScriptRecord>()
+
+            suspend fun recordFor(originalId: String, fallbackIndex: Int): ScriptRecord? {
+                scriptCache[originalId]?.let { return it }
+                val embedded = bundle.scripts.firstOrNull { it.originalId == originalId }
+                    ?: bundle.scripts.getOrNull(fallbackIndex)
+                if (embedded != null) {
+                    val saved = saveBundleScript(embedded)
+                    if (saved != null) {
+                        if (embedded.originalId.isNotBlank()) {
+                            scriptCache[embedded.originalId] = saved
+                        }
+                        if (originalId.isNotBlank()) scriptCache[originalId] = saved
+                        return saved
+                    }
+                }
+                if (originalId.isBlank()) return null
+                return repository.load(originalId)?.also { scriptCache[originalId] = it }
+            }
+
+            val config = bundle.combo.sanitized()
+            val recordA = recordFor(config.slotA.scriptId, 0)
+            val recordB = recordFor(config.slotB.scriptId, 1)
+            if (recordA == null || recordB == null) {
+                _message.value = "组合文件中的脚本无法导入，请检查文件是否完整"
+                return@launch
+            }
+            if (recordA.id == recordB.id) {
+                _message.value = "组合文件中的 A / B 是同一个脚本，无法运行"
+                return@launch
+            }
+            val slotA = ComboSlotState(
+                role = ComboSlotRole.A,
+                scriptId = recordA.id,
+                scriptName = recordA.name,
+                execution = config.slotA.execution.sanitized().copy(startDelayMs = 0L),
+            )
+            val slotB = ComboSlotState(
+                role = ComboSlotRole.B,
+                scriptId = recordB.id,
+                scriptName = recordB.name,
+                execution = config.slotB.execution.sanitized(),
+            )
+            setSlot(ComboSlotRole.A, slotA)
+            setSlot(ComboSlotRole.B, slotB)
+            // 旧配置可能还武装在悬浮球上；导入后取消，避免下次单击启动旧组合。
+            controller.disarm()
+            persist()
+            _message.value = "已导入组合：${recordA.name} + ${recordB.name}"
+        }
+    }
+
+    private suspend fun saveBundleScript(embedded: ComboBundleScript): ScriptRecord? {
+        val payload = embedded.script
+        if (embedded.originalId.isNotBlank()) {
+            repository.load(embedded.originalId)?.let { existing ->
+                if (existing.script == payload) return existing
+            }
+        }
+        scripts.value.firstOrNull { it.script == payload }?.let { return it }
+        return runCatching { repository.save(null, payload) }.getOrNull()
     }
 
     /** 组合运行所需的完整配置；启动前会写回 [ComboStore]。 */

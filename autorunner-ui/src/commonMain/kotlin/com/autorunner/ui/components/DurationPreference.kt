@@ -1,9 +1,12 @@
 package com.autorunner.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -103,45 +106,57 @@ fun DurationPreference(
     BasicComponent(
         title = title,
         summary = summary,
-        endActions = {
-            DurationNumberInput(
-                value = valueMs,
-                unit = activeUnit,
-                enabled = enabled,
-                onValueChange = onValueChange,
-            )
-            if (!compact) {
-                // 悬浮面板是 WindowManager 覆盖层，不在 Scaffold 里，拿不到
-                // MiuixPopupHost —— 那里不能用 OverlayListPopup，见下方 compact 分支。
-                Box(modifier = Modifier.align(Alignment.CenterVertically)) {
-                    TextButton(
-                        text = "${activeUnit.label} ▾",
-                        onClick = { unitPopupVisible = true },
-                        enabled = enabled,
-                    )
-                    OverlayListPopup(
-                        show = unitPopupVisible,
-                        onDismissRequest = { unitPopupVisible = false },
-                    ) {
-                        ListPopupColumn {
-                            IntervalUnit.entries.forEachIndexed { index, option ->
-                                DropdownImpl(
-                                    text = option.label,
-                                    optionSize = IntervalUnit.entries.size,
-                                    isSelected = option == activeUnit,
-                                    index = index,
-                                    onSelectedIndexChange = {
-                                        selectUnit(IntervalUnit.entries[it])
-                                        unitPopupVisible = false
-                                    },
-                                )
+        // 数值框和单位选择放在控件行里，而不是 BasicComponent 的 endActions：
+        // 窄屏上 endActions 会被标题/摘要挤到只剩十几 dp，单位按钮的文字会被裁掉，
+        // 而且 TextField 与 TextButton 的默认高度也不一致。两者固定同高（56dp），
+        // 数值框占满剩余宽度，单位按钮保留最小可点击宽度。
+        bottomAction = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DurationNumberInput(
+                    value = valueMs,
+                    unit = activeUnit,
+                    enabled = enabled,
+                    onValueChange = onValueChange,
+                    modifier = Modifier.weight(1f),
+                )
+                if (!compact) {
+                    Box(modifier = Modifier.height(56.dp)) {
+                        TextButton(
+                            text = "${activeUnit.label} ▾",
+                            onClick = { unitPopupVisible = true },
+                            enabled = enabled,
+                            modifier = Modifier
+                                .height(56.dp)
+                                .widthIn(min = 88.dp),
+                        )
+                        OverlayListPopup(
+                            show = unitPopupVisible,
+                            onDismissRequest = { unitPopupVisible = false },
+                        ) {
+                            ListPopupColumn {
+                                IntervalUnit.entries.forEachIndexed { index, option ->
+                                    DropdownImpl(
+                                        text = option.label,
+                                        optionSize = IntervalUnit.entries.size,
+                                        isSelected = option == activeUnit,
+                                        index = index,
+                                        onSelectedIndexChange = {
+                                            selectUnit(IntervalUnit.entries[it])
+                                            unitPopupVisible = false
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-        },
-        bottomAction = {
             if (compact) {
                 AppSegmentedChoice(
                     options = IntervalUnit.entries.map { it.label },
@@ -181,6 +196,7 @@ private fun DurationNumberInput(
     unit: IntervalUnit,
     enabled: Boolean,
     onValueChange: (Long) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val maxWhole = unit.maxUnits.toInt()
     val synced = remember(value, unit) {
@@ -200,7 +216,7 @@ private fun DurationNumberInput(
                 if (parsed != null) onValueChange(parsed * unit.perUnitMs)
             }
         },
-        modifier = Modifier.width(92.dp),
+        modifier = modifier.height(56.dp),
         label = "数值",
         enabled = enabled,
         singleLine = true,

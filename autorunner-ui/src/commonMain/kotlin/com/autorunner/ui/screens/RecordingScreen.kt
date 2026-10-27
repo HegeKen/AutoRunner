@@ -173,8 +173,11 @@ private fun RecordingBody(
                         .fillMaxWidth()
                         .fillMaxHeight(),
                     contentPadding = PaddingValues(
-                        horizontal = Dimens.ScreenPadding,
-                        vertical = Dimens.CardSpacing,
+                        start = Dimens.ScreenPadding,
+                        end = Dimens.ScreenPadding,
+                        top = Dimens.CardSpacing,
+                        // 右下角录制悬浮按钮会盖住列表末尾，留出按钮高度 + 间距。
+                        bottom = Dimens.CardSpacing + 140.dp,
                     ),
                     verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing),
                 ) {
@@ -455,7 +458,8 @@ private fun RecordingFeed(
     }
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(bottom = Dimens.CardSpacing),
+        // 宽屏右栏底部有录制悬浮按钮，避免最后一条动作被遮住。
+        contentPadding = PaddingValues(bottom = Dimens.CardSpacing + 120.dp),
         verticalArrangement = Arrangement.spacedBy(Dimens.TightSpacing),
     ) {
         itemsIndexed(

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:label="AutoRunner 超级岛解锁"
+        android:icon="@android:drawable/sym_def_app_icon"
+        android:allowBackup="false"
+        android:hasCode="true">
+
+        <!-- 兼容旧版 Xposed / LSPosed 的模块识别；libxposed API 102 还会读取
+             META-INF/xposed/module.prop 与 java_init.list。 -->
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="允许 AutoRunner 通过小米焦点通知 / 超级岛白名单（需 LSPosed 作用域：系统界面 + 小米服务框架）" />
+        <meta-data
+            android:name="xposedminversion"
+            android:value="93" />
+    </application>
+</manifest>

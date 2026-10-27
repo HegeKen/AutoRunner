@@ -50,6 +50,19 @@
         android:theme="@style/Theme.AutoRunner"
         android:resizeableActivity="true">
 
+        <!--
+          小米超级岛 / 焦点通知的服务鉴权。
+          APP_ID 为空时等同于未接入；申请到 APP_ID 后通过 Gradle 属性注入：
+          `-Pautorunner.xiaomiXmsAppId=你的APPID`。
+          BUILD_TYPE_DEBUG 只在 debug 构建为 true，用于平台侧调试设备白名单。
+        -->
+        <meta-data
+            android:name="com.xiaomi.xms.APP_ID"
+            android:value="${xmsAppId}" />
+        <meta-data
+            android:name="com.xiaomi.xms.BUILD_TYPE_DEBUG"
+            android:value="${xmsBuildTypeDebug}" />
+
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density|navigation"

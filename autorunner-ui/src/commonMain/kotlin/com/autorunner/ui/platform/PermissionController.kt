@@ -134,6 +134,20 @@ interface ScriptTransferController {
     /** 通过系统创建文档流程将 [content] 写出为 [fileName]。 */
     fun exportScript(fileName: String, content: String)
 
+    /**
+     * 组合任务（`.arcombo`）的导入回调。
+     *
+     * 与脚本库的 [onPicked] 分开，避免两个页面互相覆盖回调；Android 实现使用
+     * 独立的 SAF 启动器。
+     */
+    var onComboPicked: ((fileName: String?, content: String) -> Unit)?
+
+    /** 拉起组合任务文件选择器；无法打开时返回 `false`。 */
+    fun pickComboFile(): Boolean
+
+    /** 将组合任务内容写出为 [fileName]（`.arcombo`）。 */
+    fun exportCombo(fileName: String, content: String)
+
     /** 将 [content] 以纯文本形式分享（SAF 不可用时的兜底）。 */
     fun shareScript(fileName: String, content: String)
 

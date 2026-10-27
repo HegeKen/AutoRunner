@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -60,6 +61,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.AppRecording
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Import
 import top.yukonga.miuix.kmp.icon.extended.Merge
 import top.yukonga.miuix.kmp.icon.extended.Play
@@ -78,6 +80,7 @@ import com.autorunner.ui.state.Destination
 import com.autorunner.ui.theme.AutoRunnerTheme
 import com.autorunner.ui.theme.Dimens
 import com.autorunner.ui.viewmodel.ComboViewModel
+import kotlinx.coroutines.launch
 import com.autorunner.ui.viewmodel.ExecutionViewModel
 import com.autorunner.ui.viewmodel.RecordingViewModel
 import com.autorunner.ui.viewmodel.ScriptEditorViewModel
@@ -139,6 +142,9 @@ fun AutoRunnerApp(
         val recordingStatus by recordingViewModel.status.collectAsStateWithLifecycle()
         val highlightedScriptId by scriptListViewModel.selectedId.collectAsStateWithLifecycle()
         val storedScripts by scriptListViewModel.scripts.collectAsStateWithLifecycle()
+        val comboState by comboViewModel.state.collectAsStateWithLifecycle()
+        val armedCombo by comboViewModel.armedCombo.collectAsStateWithLifecycle()
+        val comboExportScope = rememberCoroutineScope()
         var showClearAllDialog by remember { mutableStateOf(false) }
         // 驱动脚本库顶栏可折叠的大标题。
         val scrollBehavior = MiuixScrollBehavior()
@@ -154,6 +160,30 @@ fun AutoRunnerApp(
                 Destination.Scripts -> scriptListViewModel.refresh()
                 Destination.Combo -> comboViewModel.refreshScripts()
                 Destination.Record, Destination.Settings -> Unit
+            }
+        }
+
+        val importComboAction: () -> Unit = {
+            val transfer = transferController
+            if (transfer == null) {
+                comboViewModel.reportMessage("当前平台不支持导入组合任务")
+            } else {
+                transfer.onComboPicked = { _, content -> comboViewModel.importCombo(content) }
+                if (!transfer.pickComboFile()) {
+                    comboViewModel.reportMessage("无法打开文件选择器")
+                }
+            }
+        }
+        val exportComboAction: () -> Unit = {
+            comboExportScope.launch {
+                comboViewModel.buildExportFile()?.let { (fileName, content) ->
+                    val transfer = transferController
+                    if (transfer == null) {
+                        comboViewModel.reportMessage("当前平台不支持导出组合任务")
+                    } else {
+                        transfer.exportCombo(fileName, content)
+                    }
+                }
             }
         }
 
@@ -299,6 +329,38 @@ fun AutoRunnerApp(
                             contentDescription = "录制",
                             tint = MiuixTheme.colorScheme.onPrimary,
                         )
+                    }
+
+                    Destination.Combo -> {
+                        FloatingActionButton(
+                            onClick = importComboAction,
+                            containerColor = MiuixTheme.colorScheme.secondaryContainer,
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Import,
+                                contentDescription = "导入组合任务",
+                                tint = MiuixTheme.colorScheme.onSecondaryContainer,
+                            )
+                        }
+                        FloatingActionButton(
+                            onClick = exportComboAction,
+                            containerColor = MiuixTheme.colorScheme.secondaryContainer,
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Download,
+                                contentDescription = "导出组合任务",
+                                tint = MiuixTheme.colorScheme.onSecondaryContainer,
+                            )
+                        }
+                        if (!comboState.isActive && armedCombo == null) {
+                            FloatingActionButton(onClick = comboViewModel::start) {
+                                Icon(
+                                    imageVector = MiuixIcons.Play,
+                                    contentDescription = "开始组合",
+                                    tint = MiuixTheme.colorScheme.onPrimary,
+                                )
+                            }
+                        }
                     }
 
                     else -> Unit

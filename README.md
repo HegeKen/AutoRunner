@@ -26,6 +26,8 @@ UI 全面采用 **MIUIX**（小米 HyperOS 设计语言）。
 | 可视化编辑器 | 动作增删改排序、参数编辑、坐标百分比换算、实时校验、导入导出 | `ScriptEditorScreen`、`ScriptEditorViewModel` |
 | 单次 / 重复执行 | `mode=once` 或 `mode=repeat` + `repeatCount`（`0` = 无限）+ `intervalMs` | `AutoRunnerScriptExecutor`、`ExecutionController` |
 | 组合运行（双脚本并行） | 两段脚本同时进入运行状态，各自按自己的循环间隔推进；可为脚本 B 设置首轮延迟（例如 A 跑 10 分钟后 B 才开始第一轮），首轮之后 B 仍按自己的节奏循环 | `ExecutionController.startCombo`、`ComboViewModel`、`ComboScreen` |
+| 组合任务导入 / 导出 | 组合页右下角悬浮按钮「导入 / 导出」：导出自包含 `.arcombo` 文件（两段脚本原文 + 两个槽位的执行参数 / 首轮延迟），导入时先落盘脚本并重映射槽位，跨设备可恢复 | `ComboBundleCodec`、`ComboViewModel`、`AndroidScriptTransferController` |
+| 小米超级岛状态通知 | 组合运行期间向焦点通知上报：标题 + 运行循环次数 + 当前运行时间 + 两段进度条（A/B）；摘要态 A/B 区各显示一个独立进度圈（自定义位图）。仅在 OS3 超级岛、已配置 XMS APP_ID 或安装 Root Bridge 的超级岛解锁模块、且应用焦点通知权限开启时出现 | `ExecutionFocusIsland`、`ExecutionNotifications`、`AutoRunnerOverlayService` |
 | 进度反馈 | 循环次数、当前动作、已运行时长、状态，同步到悬浮窗与通知栏 | `ExecutionProgress`、`ExecutionNotifications` |
 | 循环时长估算 | 编辑器顶部信息卡按循环间隔的显示单位（毫秒 / 秒 / 分钟）展示循环任务预计总时长；包含首轮延迟、轮间间隔，无限循环显示「无限循环」与每轮耗时 | `ScriptMetaCard`、`LoopDurationInfo` |
 | 悬浮控制面板 | 可自由拖动悬浮球 + 展开面板：录制、脚本选择、运行/暂停/停止、重复次数输入 | `AutoRunnerOverlayService`、`FloatingControlPanel` |
@@ -33,6 +35,7 @@ UI 全面采用 **MIUIX**（小米 HyperOS 设计语言）。
 | 主题 | 仅浅色 / 深色 / 跟随系统三档（无 Monet 动态取色、无自定义种子色） | `AutoRunnerTheme` |
 | 权限适配 | 无障碍、悬浮窗、通知 + 忽略电池优化，含 MIUI / ColorOS / OriginOS / EMUI 引导；缺权限时列表页浮标与设置首页摘要卡直接列出缺失项 | `AndroidPermissionController`、`PermissionFab`、`MissingPermissionsCard` |
 | Root 注入（可选） | 设置 → 执行 可切换「无障碍服务 / Root 注入」；Root 下由 `su -c input` 注入，不依赖无障碍；配套 Magisk/KernelSU 模块（开机自动开无障碍 + 默认授权 + 注入守护进程），未装模块时可从应用内导出 zip 到下载目录 | `AndroidRootInputBackend`、`root-module/` |
+| Root 超级岛解锁（可选） | Root Bridge 自带 `autorunner-xposed.apk`：在 LSPosed 中启用并勾选系统界面 / 小米服务框架后，绕过 XMSF 焦点通知鉴权与 SystemUI 签名白名单；无需平台 APP_ID。App 通过 `/data/local/tmp/autorunner_root/focus_unlock` 标记启用焦点通知 | `autorunner-xposed`、`root-module/scripts/install_focus_unlock.sh`、`ExecutionFocusIsland` |
 | 到位再执行 | 点「运行 / 开始录制」→ 自动回到桌面并显示悬浮窗（此时尚未开始）→ 用户打开目标页面后**单击悬浮球**才开始（图标变为停止），跑完自动结束且不返回应用；长按悬浮球展开面板 | `ExecutionViewModel.armAndGoHome`、`RecordingViewModel.armAndGoHome`、`FloatingControlPanel` |
 | 多重停止入口 | 采集期间屏幕常驻「停止录制」胶囊 + 悬浮球单击 + 通知栏「停止录制」；运行中可由悬浮球/面板/通知停止 | `TouchCaptureView`、`ExecutionNotifications` |
 | 黑屏挂机 | 整屏纯黑但保持屏幕点亮、注入触摸继续穿透给下层游戏；长按音量减键退出。滚动文字面板带**发光圆角边框**（以边框本体为碰撞边界，贴到屏幕边缘才反弹），内部显示**当前时间**（每秒刷新）与**右上角电量 / 充电标识**，随面板移动避免烧屏 | `AutoRunnerOverlayService`、`IdleScreenOverlay`、`IdleBatteryMonitor` |
@@ -51,7 +54,7 @@ AutoRunner/
 │   ├── commonMain         脚本模型、JSON 编解码、校验、手势分类、执行状态机、设置、仓储
 │   ├── androidMain        SharedPreferences / 内部存储 / 时间（actual 实现）
 │   ├── desktopMain        JVM 对应实现（预览与测试用）
-│   └── commonTest         86 个单元测试
+│   └── commonTest         94 个单元测试
 ├── autorunner-gamepad/    手柄「本机注入」模块（LocalGamepadGateway，无蓝牙依赖）
 ├── autorunner-ui/         Compose Multiplatform + MIUIX 界面层
 │   ├── theme              MiuixTheme / ThemeController / 固定品牌色 #2655FF / Dimens 令牌
@@ -60,9 +63,12 @@ AutoRunner/
 │   ├── overlay            悬浮控制面板内容（App 内与悬浮窗共用）
 │   ├── screens            脚本列表 / 编辑器 / 组合运行 / 录制 / 设置 / 应用外壳
 │   ├── viewmodel          平台无关 ViewModel（StateFlow）
-│   └── commonTest         31 个测试（ViewModel + 组件规则）
+│   └── commonTest         33 个测试（ViewModel + 组件规则）
+├── autorunner-xposed/     LSPosed 模块（XMSF 鉴权 / SystemUI 焦点通知白名单解锁）
 └── autorunner-app/        Android 应用（KMP androidTarget + com.android.application）
     └── src/androidMain    AndroidManifest、资源、无障碍服务、悬浮窗服务、权限、SAF
+
+root-module/               Magisk / KernelSU 模块（含 autorunner-xposed.apk 与安装脚本）
 ```
 
 依赖方向：`app → ui → core`，`app → gamepad → core`。`autorunner-ui` 不依赖 gamepad，
@@ -396,6 +402,50 @@ flow**，保证 `info.coordinateSpace` 与动作数据始终一致。
 * **配置持久化。** 两个脚本 id、各自循环次数 / 间隔与 B 的首轮延迟保存在
   `combo.config`（`ComboStore`），下次打开组合页自动恢复；脚本本身仍以
   `.arscript` 文件为准。
+* **导入 / 导出。** 右下角悬浮按钮提供「导入 / 导出」（与脚本库、录制页一致），
+  使用 `.arcombo` 自包含文件：导出时把两段脚本原文与两个槽位的执行参数一起写入；
+  导入时先保存脚本（内容相同的已有脚本会复用），再把槽位重映射到新脚本 id，最后
+  覆盖保存组合配置。
+* **开始组合。** 「开始组合」也改为右下角悬浮按钮，位于导入 / 导出下方；运行中
+  自动隐藏，暂停 / 停止保留在「运行控制」卡片和悬浮球里。
+* **滚动与重组。** `LazyColumn` 铺满整页、内容居中，边缘滑动也能滚动；实时状态卡
+  独立订阅进度，每秒进度更新只重组状态卡，不会让整页输入控件一起重组。
+* **表单对齐。** 重复次数、循环间隔、首轮延迟统一使用 16dp 行内边距；时长控件
+  改为「数字框 + 单位按钮」同一行、同高 56dp，单位按钮最小 88dp。卡片保持整页
+  宽度，不为悬浮按钮缩窄内容；悬浮按钮按 Material 惯例浮在内容上，底部留白只
+  保证滚到底时最后一张卡片可完整阅读。
+
+### 7.11 小米超级岛：组合运行状态上岛
+
+组合运行期间，`ExecutionFocusIsland` 生成 `miui.focus.param` JSON，随独立焦点通知
+（id `0x4154`）一起交给系统；`AutoRunnerOverlayService` 在组合运行时每 5 秒刷新一次，
+结束后立即取消。
+
+* **展开态**：`baseInfo`（标题「组合运行」+「循环 N 次」+「已运行 mm:ss」，字段间带分隔符）+
+  `multiProgressInfo`（`points = 1` 的两段进度条，标题显示 `A x% · B y%`）；
+* **摘要态**：`param_island.bigIslandArea` 的 A 区 / B 区各引用一张运行时生成的
+  进度圈位图（`miui.focus.pic_combo_ring_a` / `ring_b`），环内分别是 A/B 的
+  当前循环百分比；原生大岛没有「两个独立进度」字段，这是用自定义位图实现的双环；
+* **息屏 / OS2 兜底**：`aodTitle` 与 `ticker`；
+* **进度语义**：单段进度 = 当前轮的动作估算进度 + 间隔等待进度；两段整体进度取
+  A/B 当前循环进度的平均值。模板的 `multiProgressInfo` 只有一个 `progress` 值，
+  不能给两段分别赋值，因此 A/B 各自百分比放在标题里说明；
+* **刷新**：执行器在动作边界 / 间隔 tick 上报进度；叠加 5 秒 ticker 让「当前运行
+  时间」与进度条在两次上报之间继续推进，同时避免逐秒通知 IPC；
+* **前置条件**：HyperOS 3 / OS3 超级岛（`notification_focus_protocol >= 3`），
+  且满足以下任一条件：清单配置 `com.xiaomi.xms.APP_ID`，或安装 Root Bridge 的
+  「超级岛解锁」LSPosed 模块（标记 `/data/local/tmp/autorunner_root/focus_unlock`）。
+  同时用户需为 AutoRunner 开启「焦点通知」权限。未满足时 `filterWhenNoPermission
+  = true` 会让焦点通知被系统过滤，不会多出一条普通通知；普通前台通知始终保留。
+
+> 超级岛模板正式上线还需要在小米开放平台完成场景预审 / 方案提报（本地联调需按 OAID
+> 加白）。APP_ID 通过 `-Pautorunner.xiaomiXmsAppId=...` 或 `gradle.properties` 注入；
+> debug 构建自动带 `BUILD_TYPE_DEBUG=true`。
+>
+> 2026-10-26 在 `25102RKBEC`（OS4.0）实测：payload 能被系统解析（`focusType=PARAMS`，
+> 模板 inflate 成功），但 XMS 鉴权返回 `-300 scope mismatch`，说明包名 / 签名尚未在
+> 平台开通超级岛 scope；这不是 JSON 或通知代码的问题。详细日志与注册步骤见
+> [docs/xiaomi-super-island/README.md](docs/xiaomi-super-island/README.md#84-实机联调结论2026-10-26)。
 
 ---
 
@@ -417,15 +467,20 @@ flow**，保证 `info.coordinateSpace` 与动作数据始终一致。
 | `AutoRunnerScriptExecutorTest` | 13 | 单次 / 重复 / 无限循环、首轮延迟、暂停恢复、重连重试、跳过与终止策略、进度序列、手柄分发 |
 | `ActionDispatchGateTest` | 1 | 组合运行的两个执行器共享派发锁，动作不会并发进入输入后端 |
 | `ExecutionControllerComboTest` | 5 | 双脚本并行、B 首轮偏移、等待首轮进度、暂停/停止、无第二执行器时拒绝启动 |
+| `ComboProgressTest` | 5 | 单槽/组合循环进度、首轮等待、快照间插值、运行时长实时推进 |
+| `ComboBundleCodecTest` | 3 | `.arcombo` 往返、错误格式/版本拒绝、文件名建议 |
 | `ScriptModelDurationTest` | 5 | 单轮 / 总时长估算（含间隔、恢复延迟与首轮延迟）、无限循环无有限总时长 |
 | `FileScriptRepositoryTest` | 7 | 保存/加载/列表、原地更新、重命名、复制、删除、导入校验、唯一命名、导出 |
 | `ComboStoreTest` | 3 | 组合配置往返、A 首轮延迟归零、损坏配置回退空值 |
 | `GamepadVocabularyTest` | 15 | 三家手柄按键的物理键位换算、肩键/系统键命名、展示文案不得出现中立标识 |
 | `LocalGamepadGatewayTest` | 8 | 按键→本机点击、trigger 时长缩放、摇杆拖动、未映射/未启用/服务断开时的快速失败 |
 | `ViewModelTest` | 20 | 编辑器增删改排序、坐标换算、校验联动、执行控制、列表过滤与导入、设置写穿 |
-| `ComboViewModelTest` | 5 | 脚本选择与参数持久化、首轮延迟、武装悬浮球、同脚本拒绝、端到端并行启动 |
+| `ComboViewModelTest` | 7 | 脚本选择与参数持久化、首轮延迟、武装悬浮球、同脚本拒绝、端到端并行启动、组合文件跨容器导入导出 |
 | `IntervalUnitTest` | 6 | 循环间隔的单位吸附取整、时长按单位格式化（毫秒/秒/分钟、两位小数） |
-| **合计** | **125** | 全部通过 |
+| **合计** | **135** | 全部通过 |
+
+> `autorunner-app` 模块另有 app JVM 单测（含 `ExecutionFocusIslandTest` 的超级岛负载结构断言），
+> 随 `./gradlew :autorunner-app:testDebugUnitTest` 运行。
 
 ---
 

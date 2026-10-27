@@ -184,7 +184,8 @@ fun SettingsScreen(
                         .width(320.dp)
                         .fillMaxHeight()
                         .overScrollVertical()
-                        .verticalScroll(rememberScrollState()),
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 96.dp),
                 ) {
                     SettingsCategoryMenu(
                         permissionStatus = permissions,
@@ -209,7 +210,8 @@ fun SettingsScreen(
                         .weight(1f)
                         .fillMaxHeight()
                         .overScrollVertical()
-                        .verticalScroll(rememberScrollState()),
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(Dimens.SectionSpacing),
                 ) {
                     CompositionLocalProvider(LocalPageTitle provides detailPage.title) {
@@ -242,7 +244,7 @@ fun SettingsScreen(
                         .padding(
                             start = Dimens.ScreenPadding,
                             end = Dimens.ScreenPadding,
-                            bottom = Dimens.ScreenPadding,
+                            bottom = Dimens.ScreenPadding + 96.dp,
                         ),
                     verticalArrangement = Arrangement.spacedBy(Dimens.SectionSpacing),
                 ) {

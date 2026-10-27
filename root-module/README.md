@@ -6,7 +6,11 @@
    绕过 MIUI/HyperOS 的「受限设置」不让第三方 App 打开无障碍开关的问题；
 2. **Root 模式输入注入桥** —— 由 root shell 调用 `input`（具备 `INJECT_EVENTS`），
    在无障碍服务不可用/被限制的设备上也能做点击、长按、滑动、按键、文本输入；
-3. **自动授予通知使用权** —— 把 `AutoRunnerNotificationListener` 并入
+3. **超级岛解锁（LSPosed 模块）** —— 随模块安装 `autorunner-xposed.apk`，解除
+   小米焦点通知的 XMSF 鉴权与 SystemUI 签名白名单，让 AutoRunner 在没有平台
+   APP_ID 的情况下也能上超级岛。该功能依赖 LSPosed，首次安装后需在 LSPosed
+   管理器中启用模块并勾选作用域（见下文）。
+4. **自动授予通知使用权** —— 把 `AutoRunnerNotificationListener` 并入
    `enabled_notification_listeners`，并在 Android 15+ 允许
    `RECEIVE_SENSITIVE_NOTIFICATIONS`，让黑屏挂机界面能显示手机通知（含验证码正文），
    同时读取媒体会话以显示歌曲信息与上一首 / 下一首按钮。
@@ -42,11 +46,14 @@ adb shell su -c 'mkdir -p /data/adb/modules/autorunner_root && \
 | `scripts/enable_accessibility.sh` | 幂等地把 `cn.helilab.autorunner/...AutoRunnerAccessibilityService` 追加进 `enabled_accessibility_services`（保留其它已启用服务），并置 `accessibility_enabled=1` |
 | `scripts/grant_permissions.sh` | 通知 / 悬浮窗 / 电池白名单 / 后台运行权限，以及**通知使用权**（并入 `enabled_notification_listeners`）与 Android 15+ 的敏感通知 appop；收到 `perms` 命令时按需重放 |
 | `scripts/click_daemon.sh` | 监听命令文件，执行 `input tap/long/swipe/key/text`；收到 `a11y` / `perms` 命令时即时补回无障碍条目或权限（按需自愈，无轮询） |
-| `uninstall.sh` | 停守护进程、删标记目录、从无障碍与通知使用权列表中移除本 App |
+| `scripts/install_focus_unlock.sh` | 安装 `autorunner-xposed.apk`，写入 `/data/local/tmp/autorunner_root/focus_unlock` 标记 |
+| `autorunner-xposed.apk` | LSPosed 模块：XMSF AuthSession 鉴权放行 + SystemUI 焦点通知白名单放行 |
+| `uninstall.sh` | 停守护进程、卸载超级岛解锁模块、删标记目录、从无障碍与通知使用权列表中移除本 App |
 
 标记目录 `/data/local/tmp/autorunner_root/`（root 可写、普通 App 只读）：
 
 - `mode`：模块存在标记 —— App 可据此显示「Root 增强已启用」；
+- `focus_unlock`：超级岛解锁模块已安装（App 据此启用无 APP_ID 的焦点通知）；
 - `daemon.pid` / `daemon.log` / `service.log`：排障用。
 
 > **无障碍按需自愈**：系统「强停应用」（`am force-stop`、Gradle `installDebug` 等）会
@@ -54,6 +61,28 @@ adb shell su -c 'mkdir -p /data/adb/modules/autorunner_root && \
 > 补写会导致强停后无障碍一直缺失到下次重启。守护进程**不做任何轮询**（避免周期性 spawn
 > `settings` 的耗电），而是由 App 在启动/回前台检测到条目缺失时，经命令文件下发一条
 > `a11y`，守护进程在既有的约 0.2s 循环里即时调用 `enable_accessibility.sh` 幂等补回。
+
+## 超级岛解锁（LSPosed）
+
+模块自带 `autorunner-xposed.apk`，开机由 `install_focus_unlock.sh` 安装。首次使用：
+
+1. 安装/更新本 root 模块并重启（模块 APK 会被 `pm install`，标记文件写入
+   `/data/local/tmp/autorunner_root/focus_unlock`）；
+2. 打开 LSPosed 管理器，在「模块」里启用 **AutoRunner 超级岛解锁**；
+3. 作用域勾选：
+   - **系统界面**（`com.miui.systemui`）
+   - **小米服务框架**（`com.xiaomi.xmsf`）
+4. 重启手机，或分别强行停止这两个进程让作用域重新加载；
+5. 打开 AutoRunner 组合运行，状态栏应出现双环超级岛。
+
+> 安装脚本会在 `org.lsposed.manager` 不存在时，从
+> `/data/adb/modules/zygisk_lsposed/manager.apk` 自动安装 LSPosed 管理器。
+> 作用域是 LSPosed 自身配置，root 模块不会、也不应直接改写它的数据库；
+> 这一步只需做一次。
+
+该模块只把 **AutoRunner 的包名** 加入 SystemUI 白名单；XMSF AuthSession 的
+鉴权放行是 HyperCeiler 同类「解锁焦点通知白名单」的既有做法，会影响该进程的
+通用鉴权，请只在自用 root 设备上启用。
 
 ## Root 注入协议（App 侧对接）
 
@@ -79,6 +108,8 @@ perms
 
 - 只有 AutoRunner 能下发指令（命令文件位于其私有目录，第三方 App 无写权限）；
 - 守护进程只接受上述白名单命令，未知命令仅记日志；
-- 模块不修改任何 system 分区文件，不注入系统进程，仅一个常驻 shell 循环
+- 基础 shell 部分不修改 system 分区、不注入系统进程，仅一个常驻 shell 循环
   （约 0.2s 一轮处理注入命令，无常驻轮询）；
+- 可选的超级岛解锁 LSPosed 模块会注入 `com.miui.systemui` 与 `com.xiaomi.xmsf`；
+  只有用户在 LSPosed 中显式启用模块并勾选作用域后才生效；
 - `uninstall.sh` 会还原无障碍与通知使用权列表（移除本 App，保留其它服务/应用）。

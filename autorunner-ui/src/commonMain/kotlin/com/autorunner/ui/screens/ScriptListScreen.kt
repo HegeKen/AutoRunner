@@ -142,7 +142,7 @@ private fun ScriptListContent(
                 contentPadding = PaddingValues(
                     start = Dimens.ScreenPadding,
                     end = Dimens.ScreenPadding,
-                    bottom = Dimens.ScreenPadding + 72.dp,
+                    bottom = Dimens.ScreenPadding + 260.dp,
                 ),
                 verticalArrangement = Arrangement.spacedBy(Dimens.ItemSpacing),
             ) {

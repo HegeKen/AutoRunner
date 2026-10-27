@@ -8,6 +8,7 @@ import com.autorunner.core.model.ExecutionProgress
 import com.autorunner.core.model.ExecutionReport
 import com.autorunner.core.model.ExecutionState
 import com.autorunner.core.model.ScriptModel
+import com.autorunner.core.util.currentTimeMillis
 import kotlin.concurrent.Volatile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -207,15 +208,23 @@ class ExecutionController(
         activeScriptId = null
         activeScriptName = comboName(execution)
         comboRun.value = run
+        run.lastProgressAAtMs = currentTimeMillis()
+        run.lastProgressBAtMs = currentTimeMillis()
         _state.value = ExecutionState.RUNNING
         publishComboSnapshot(run)
 
         // 先建立镜像：执行器开始跑之前就把后续每一份进度聚合到控制器。
         run.mirrors += scope.launch {
-            run.executorA.progress.collect { publishComboSnapshot(run) }
+            run.executorA.progress.collect {
+                run.lastProgressAAtMs = currentTimeMillis()
+                publishComboSnapshot(run)
+            }
         }
         run.mirrors += scope.launch {
-            run.executorB.progress.collect { publishComboSnapshot(run) }
+            run.executorB.progress.collect {
+                run.lastProgressBAtMs = currentTimeMillis()
+                publishComboSnapshot(run)
+            }
         }
 
         val deferredA = scope.async {
@@ -257,6 +266,11 @@ class ExecutionController(
         if (run != null) {
             run.executorA.pause()
             run.executorB.pause()
+            // 暂停 / 恢复时重置各槽位的时间基准，避免恢复后把暂停时长
+            // 补进超级岛进度条的插值。
+            val now = currentTimeMillis()
+            run.lastProgressAAtMs = now
+            run.lastProgressBAtMs = now
             publishComboSnapshot(run)
             return
         }
@@ -268,6 +282,9 @@ class ExecutionController(
         if (run != null) {
             run.executorA.resume()
             run.executorB.resume()
+            val now = currentTimeMillis()
+            run.lastProgressAAtMs = now
+            run.lastProgressBAtMs = now
             publishComboSnapshot(run)
             return
         }
@@ -360,6 +377,13 @@ class ExecutionController(
         /** 两个槽位的 `execute()` 都返回后置为 `true`，用于把聚合状态收敛到终态。 */
         @Volatile
         var finished: Boolean = false
+
+        /** 各槽位最近一次进度更新的挂钟时间，供超级岛进度条插值。 */
+        @Volatile
+        var lastProgressAAtMs: Long = 0L
+
+        @Volatile
+        var lastProgressBAtMs: Long = 0L
     }
 
     /** 把两个执行器的最新快照聚合成 [ComboProgress] 与通知用的 [ExecutionProgress]。 */
@@ -378,6 +402,9 @@ class ExecutionController(
                     scriptName = run.slotA.scriptName,
                     state = stateA,
                     progress = progressA,
+                    loopDurationMs = run.slotA.script.estimatedDurationMs,
+                    cycleDurationMs = cycleDurationMs(run.slotA),
+                    updatedAtEpochMs = run.lastProgressAAtMs,
                 ),
                 ComboSlotProgress(
                     role = ComboSlotRole.B,
@@ -385,10 +412,14 @@ class ExecutionController(
                     scriptName = run.slotB.scriptName,
                     state = stateB,
                     progress = progressB,
+                    loopDurationMs = run.slotB.script.estimatedDurationMs,
+                    cycleDurationMs = cycleDurationMs(run.slotB),
+                    updatedAtEpochMs = run.lastProgressBAtMs,
                 ),
             ),
             state = aggregate,
             elapsedMs = maxOf(progressA.elapsedMs, progressB.elapsedMs),
+            updatedAtEpochMs = currentTimeMillis(),
         )
         _comboProgress.value = snapshot
         _state.value = aggregate
@@ -467,6 +498,12 @@ class ExecutionController(
             startDelayElapsedMs = waiting?.progress?.startDelayElapsedMs ?: 0L,
         )
     }
+
+    /** 一个槽位从本轮开始到下一轮开始的估算总时长。 */
+    private fun cycleDurationMs(slot: ComboScriptSlot): Long =
+        slot.script.estimatedDurationMs +
+            slot.config.intervalMs.coerceAtLeast(0L) +
+            slot.config.restoreDelayMs.coerceAtLeast(0L)
 
     private fun combineReports(a: ExecutionReport, b: ExecutionReport): ExecutionReport {
         val outcome = when {

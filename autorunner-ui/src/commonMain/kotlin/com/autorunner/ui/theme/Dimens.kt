@@ -27,7 +27,7 @@ object Dimens {
     val CompactRowPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
 
     /** 带表单控件的复合行（底部有输入框 / 滑块的偏好项）。 */
-    val FormFieldPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp)
+    val FormFieldPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
 
     /** 已经处在 16dp 页面边距内的数值行，不再叠加水平内边距。 */
     val InsetRowPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)

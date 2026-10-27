@@ -10,6 +10,7 @@ import android.util.Log
 import cn.helilab.autorunner.AppGraph
 import cn.helilab.autorunner.AutoRunnerApplication
 import cn.helilab.autorunner.accessibility.AccessibilityServiceHolder
+import cn.helilab.autorunner.notification.ExecutionFocusIsland
 import cn.helilab.autorunner.notification.ExecutionNotifications
 import com.autorunner.core.model.ExecutionState
 import com.autorunner.core.platform.DockEdge
@@ -23,6 +24,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,6 +54,11 @@ class AutoRunnerOverlayService : Service() {
     private var recordingJob: Job? = null
 
     private var pendingJob: Job? = null
+
+    private var focusTickerJob: Job? = null
+
+    /** 当前是否已向通知栏投递超级岛焦点通知，避免空闲时反复 cancel。 */
+    private var focusPosted = false
 
     private lateinit var executionViewModel: ExecutionViewModel
 
@@ -133,6 +141,10 @@ class AutoRunnerOverlayService : Service() {
         progressJob?.cancel()
         recordingJob?.cancel()
         pendingJob?.cancel()
+        focusTickerJob?.cancel()
+        focusTickerJob = null
+        focusPosted = false
+        ExecutionNotifications.cancelFocusIsland(this)
         idleScreenOverlay?.hide()
         idleScreenOverlay = null
         AccessibilityServiceHolder.current()?.hideIdleScreen()
@@ -263,6 +275,68 @@ class AutoRunnerOverlayService : Service() {
     }
 
     /**
+     * 组合运行期间定时刷新超级岛：执行器只在动作边界 / 间隔 tick 上报进度，
+     * 而「当前运行时间」需要持续走动。5 秒一次既能保持时间近似实时，也避免
+     * 每秒通知 IPC 带来的耗电与系统限流。
+     *
+     * 只在组合运行期间存在；空闲时不会每 5 秒唤醒一次进程。
+     */
+    private fun ensureFocusTicker() {
+        if (focusTickerJob?.isActive == true) return
+        focusTickerJob = scope.launch {
+            while (isActive) {
+                delay(FOCUS_TICK_MS)
+                if (AppGraph.requireContainer()
+                        .executionController.comboProgress.value?.isActive != true
+                ) {
+                    if (focusPosted) {
+                        focusPosted = false
+                        ExecutionNotifications.cancelFocusIsland(this@AutoRunnerOverlayService)
+                    }
+                    break
+                }
+                refreshFocusIsland()
+            }
+        }
+    }
+
+    /** 组合运行期间把进度同步到小米超级岛；非组合 / 已结束时清理焦点通知。 */
+    private fun refreshFocusIsland() {
+        val container = AppGraph.requireContainer()
+        val combo = container.executionController.comboProgress.value
+        if (combo == null || !combo.isActive ||
+            !container.settingsRepository.current.executionNotification
+        ) {
+            focusTickerJob?.cancel()
+            focusTickerJob = null
+            if (focusPosted) {
+                focusPosted = false
+                ExecutionNotifications.cancelFocusIsland(this)
+            }
+            return
+        }
+        val notification = ExecutionNotifications.buildFocusIsland(
+            context = this,
+            progress = executionViewModel.progress.value,
+            combo = combo,
+        ) ?: run {
+            focusTickerJob?.cancel()
+            focusTickerJob = null
+            if (focusPosted) {
+                focusPosted = false
+                ExecutionNotifications.cancelFocusIsland(this)
+            }
+            return
+        }
+        ensureFocusTicker()
+        runCatching {
+            getSystemService(android.app.NotificationManager::class.java)
+                ?.notify(ExecutionFocusIsland.NOTIFICATION_ID, notification)
+            focusPosted = true
+        }
+    }
+
+    /**
      * 保持前台通知与录制状态同步。否则录制进行期间，“停止录制”操作永远不会
      * 出现在通知中。
      */
@@ -311,7 +385,10 @@ class AutoRunnerOverlayService : Service() {
      * 的动作一致。
      */
     private fun refreshNotification() {
-        if (!AppGraph.requireContainer().settingsRepository.current.executionNotification) return
+        if (!AppGraph.requireContainer().settingsRepository.current.executionNotification) {
+            ExecutionNotifications.cancelFocusIsland(this)
+            return
+        }
         val progress = executionViewModel.progress.value
         val notification = when {
             progress.state.isActive -> ExecutionNotifications.build(this, progress)
@@ -323,6 +400,7 @@ class AutoRunnerOverlayService : Service() {
             val manager = getSystemService(android.app.NotificationManager::class.java) ?: return
             manager.notify(ExecutionNotifications.NOTIFICATION_ID, notification)
         }
+        refreshFocusIsland()
     }
 
     private fun startForegroundSafely() {
@@ -366,6 +444,9 @@ class AutoRunnerOverlayService : Service() {
         const val ACTION_SET_MODE = "cn.helilab.autorunner.action.SET_OVERLAY_MODE"
         const val ACTION_SET_BLACK_SCREEN = "cn.helilab.autorunner.action.SET_BLACK_SCREEN"
         private const val EXTRA_BLACK_SCREEN = "blackScreen"
+
+        /** 超级岛「当前运行时间」的刷新间隔；避免逐秒通知 IPC。 */
+        private const val FOCUS_TICK_MS = 5_000L
 
         /** 启动（或重新下达指令给）悬浮层服务。 */
         fun start(context: Context, action: String? = null) {

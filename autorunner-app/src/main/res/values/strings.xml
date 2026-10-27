@@ -10,6 +10,8 @@
 
     <string name="notification_channel_execution">脚本执行</string>
     <string name="notification_channel_execution_description">显示正在运行的脚本进度，并保持执行过程不被系统回收。</string>
+    <string name="notification_channel_focus">组合运行超级岛</string>
+    <string name="notification_channel_focus_description">组合运行期间显示循环次数、运行时间与两段进度。</string>
     <string name="notification_execution_title">AutoRunner 正在执行脚本</string>
     <string name="notification_execution_idle">等待任务</string>
     <string name="notification_recording_title">AutoRunner 正在录制操作</string>

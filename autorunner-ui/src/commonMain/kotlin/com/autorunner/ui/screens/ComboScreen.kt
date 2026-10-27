@@ -2,14 +2,13 @@ package com.autorunner.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -65,37 +64,41 @@ fun ComboScreen(
     val slotB by viewModel.slotB.collectAsStateWithLifecycle()
     val scripts by viewModel.scripts.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val combo by viewModel.comboProgress.collectAsStateWithLifecycle()
     val lastReport by viewModel.lastReport.collectAsStateWithLifecycle()
     val armedCombo by viewModel.armedCombo.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
     val horizontal = if (windowSize.isTablet) Dimens.ScreenPaddingWide else Dimens.ScreenPadding
     val busy = state.isActive
-    val canStart = slotA.isSelected && slotB.isSelected &&
-        slotA.scriptId != slotB.scriptId && !busy
 
     PageScaffold(
         windowSize = windowSize,
         title = "组合运行",
         subtitle = "两段脚本并行，各自按自己的循环间隔运行",
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        // 滚动容器铺满整页，只把内容限制在 MaxContentWidth 内并居中。
+        // 这样在平板上从左右留白处开始滑动也能滚动（此前 LazyColumn 只有
+        // 中间 720dp 宽，边缘区域的触摸不会落到滚动容器上）。
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val sidePadding = if (maxWidth > Dimens.MaxContentWidth) {
+                (maxWidth - Dimens.MaxContentWidth) / 2
+            } else {
+                horizontal
+            }
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .widthIn(max = Dimens.MaxContentWidth),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    start = horizontal,
-                    end = horizontal,
+                    start = sidePadding,
+                    end = sidePadding,
                     top = 8.dp,
-                    bottom = 96.dp,
+                    // 三个悬浮按钮还会占据底部高度，留出最后一张卡片的空间。
+                    bottom = 280.dp,
                 ),
                 verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing),
             ) {
-                item { ComboIntroCard() }
+                item(key = "intro") { ComboIntroCard() }
 
-                item {
+                item(key = "slotA") {
                     ComboSlotCard(
                         role = ComboSlotRole.A,
                         slot = slotA,
@@ -108,7 +111,7 @@ fun ComboScreen(
                     )
                 }
 
-                item {
+                item(key = "slotB") {
                     ComboSlotCard(
                         role = ComboSlotRole.B,
                         slot = slotB,
@@ -122,16 +125,14 @@ fun ComboScreen(
                     )
                 }
 
-                item { SchedulePreviewCard(slotA = slotA, slotB = slotB) }
+                item(key = "schedule") { SchedulePreviewCard(slotA = slotA, slotB = slotB) }
 
-                item {
+                item(key = "control") {
                     ComboControlCard(
                         state = state,
-                        canStart = canStart,
                         sameScript = slotA.isSelected && slotA.scriptId == slotB.scriptId,
-                        hasResult = combo != null,
+                        hasResult = lastReport != null,
                         armed = armedCombo != null,
-                        onStart = viewModel::start,
                         onTogglePause = viewModel::togglePause,
                         onStop = viewModel::stop,
                         onReset = viewModel::reset,
@@ -139,14 +140,9 @@ fun ComboScreen(
                     )
                 }
 
-                combo?.let { snapshot ->
-                    item {
-                        ComboStatusCard(
-                            combo = snapshot,
-                            lastReport = lastReport,
-                        )
-                    }
-                }
+                // 实时状态单独订阅 comboProgress / lastReport：进度每秒变化时只
+                // 重组这张卡片，而不是把上面的滑杆、输入框和整条 LazyColumn 一起重组。
+                item(key = "live") { ComboLiveStatus(viewModel) }
             }
         }
     }
@@ -354,11 +350,9 @@ private fun ScheduleLine(
 @Composable
 private fun ComboControlCard(
     state: ExecutionState,
-    canStart: Boolean,
     sameScript: Boolean,
     hasResult: Boolean,
     armed: Boolean,
-    onStart: () -> Unit,
     onTogglePause: () -> Unit,
     onStop: () -> Unit,
     onReset: () -> Unit,
@@ -383,16 +377,8 @@ private fun ComboControlCard(
                             color = AppButtonTone.Danger.contentColor(),
                         )
                     }
-                } else {
-                    AppButton(onClick = onStart, enabled = canStart) {
-                        Text(
-                            text = "开始组合",
-                            color = AppButtonTone.Primary.contentColor(),
-                        )
-                    }
-                    if (hasResult) {
-                        TextButton(text = "清除结果", onClick = onReset)
-                    }
+                } else if (hasResult) {
+                    TextButton(text = "清除结果", onClick = onReset)
                 }
             }
 
@@ -419,13 +405,29 @@ private fun ComboControlCard(
                 }
             }
 
-            Text(
-                text = "开始后会回到桌面并显示悬浮球；打开目标应用后单击悬浮球，" +
-                    "两段脚本才会真正开始。",
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
+            val hint = when {
+                state.isActive -> "运行中可在此暂停 / 停止，或回到目标应用通过悬浮球控制。"
+                armed -> null
+                else -> "点击右下角的「开始组合」悬浮按钮：会回到桌面并显示悬浮球；" +
+                    "打开目标应用后单击悬浮球，两段脚本才会真正开始。"
+            }
+            hint?.let {
+                Text(
+                    text = it,
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun ComboLiveStatus(viewModel: ComboViewModel) {
+    val combo by viewModel.comboProgress.collectAsStateWithLifecycle()
+    val lastReport by viewModel.lastReport.collectAsStateWithLifecycle()
+    combo?.let { snapshot ->
+        ComboStatusCard(combo = snapshot, lastReport = lastReport)
     }
 }
 

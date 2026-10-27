@@ -259,6 +259,9 @@ MIPUSH 侧则是在 `Message` 上 `.extra("miui.focus.param", json)` / `.extra("
 
 - 平台侧要同时配置 **Release 与 Debug 两个签名指纹**，否则 debug 包鉴权不过。
 - `BUILD_TYPE_DEBUG`：debug 签名调试填 `true`，正式签名填 `false`。
+- AutoRunner 已把两项改成构建期注入：`APP_ID` 来自 Gradle 属性
+  `autorunner.xiaomiXmsAppId`（也可 `-P` 传入）；debug 构建自动把
+  `BUILD_TYPE_DEBUG` 置为 `true`，release 为 `false`。
 
 本机可用于白名单登记的 OAID：`5e24538b54d99b12`（取自 `/data/system/oaid_persistence_0`）。
 
@@ -360,6 +363,107 @@ val notification = NotificationCompat.Builder(context, CHANNEL_ID)
   （打车/外卖/取件这类）。「挂机/自动化脚本进度」属于长期常驻类，按 pId=2140 的标准很可能被驳回。
 - **渠道重要性**：现有 channel 是 `IMPORTANCE_LOW`，焦点通知/岛是否受渠道重要性影响官方未写明，
   真发岛前需要实测（必要时新建 DEFAULT 级渠道）。
+
+### 8.3 AutoRunner 的实现（组合运行）
+
+AutoRunner 在**组合运行**期间通过独立焦点通知（id `0x4154`）上报，组合结束立即取消；
+前台服务通知（id `0x4152`）保持不变。两者**不再使用 group summary**：MIUI
+在只有摘要、没有子通知时会隐藏整组通知，实测导致组合运行的前台通知从通知栏消失；
+焦点通知即使可用也单独显示。实现位于
+`ExecutionFocusIsland.kt` / `ExecutionNotifications.kt` / `AutoRunnerOverlayService.kt`。
+
+负载结构（`param_v2`，OS3 客户端接入）：
+
+| 位置 | 字段 | AutoRunner 取值 |
+|------|------|----------------|
+| `baseInfo` | `type=2` / `title` / `subTitle` / `content` | 「组合运行」/「循环 N 次」/「已运行 mm:ss」 |
+| `multiProgressInfo` | `title` / `progress` / `points` / `color` | `A x% · B y%` / 两者平均 / `1`（两段）/ `#2655FF` |
+| `param_island.bigIslandArea.imageTextInfoLeft` | `picInfo.pic` | `miui.focus.pic_combo_ring_a`（A 任务进度圈位图） |
+| `param_island.bigIslandArea.picInfo` | `picInfo.pic` | `miui.focus.pic_combo_ring_b`（B 任务进度圈位图） |
+| `ticker` / `aodTitle` | — | 组合运行 · 循环 N · mm:ss |
+| `filterWhenNoPermission` | — | `true`（无焦点权限时过滤，不生成普通通知） |
+| `islandFirstFloat` / `enableFloat` | — | `false`（不自动展开，避免打断用户） |
+| `timeout` / `islandTimeout` | — | 12 小时兜底 |
+
+进度语义：
+
+* 每个槽位的当前循环进度 = 当前轮动作估算进度（动作阶段）或「单轮时长 + 间隔已等待」
+  （间隔阶段）；首轮等待阶段显示等待进度。
+* `multiProgressInfo` 只有一个 `progress` 字段，无法给两段独立赋值；AutoRunner 用
+  A/B 进度的平均值填充整条进度条，并在 `title` 中分别标注 A/B 百分比。
+* 原生大岛 A/B 区各只能放一个图文组件，没有「两个独立进度」字段；因此摘要态用
+  `miui.focus.pics` 传入两张运行时生成的圆环位图，A/B 区各显示一个任务进度圈。
+* 每 5 秒由 `AutoRunnerOverlayService` 刷新一次，快照间用挂钟差插值；暂停时冻结。
+* 焦点通知使用独立渠道 `autorunner_focus`（`IMPORTANCE_DEFAULT`，静音），与官方
+  示例一致；前台服务通知仍是 `autorunner_execution`（LOW）。
+* 设备要求：`notification_focus_protocol >= 3`，且满足以下任一条件：
+  1. 清单中配置了 `com.xiaomi.xms.APP_ID`（小米开放平台正式接入）；
+  2. 安装了 AutoRunner Root Bridge 的「超级岛解锁」LSPosed 模块（写入
+     `/data/local/tmp/autorunner_root/focus_unlock` 标记）。
+  另外用户需为 AutoRunner 打开「焦点通知」权限。两条路都没有时
+  `supportsIsland()` 返回 false，不会投递焦点通知，避免系统鉴权失败后留下一条
+  无法上岛的普通通知。
+
+### 8.4 实机联调结论（2026-10-26）
+
+在 `25102RKBEC`（OS4.0，`notification_focus_protocol=3`）上验证：
+
+* 应用内 `canShowFocus=true`；在**未加 APP_ID 过滤**的验证构建里，通知里
+  `focusType=PARAMS`，系统日志出现
+  `FocusPlugin: createStandardTemplate` 与 `inflateFinishCallback ... true`，
+  说明 **JSON 结构与模板本身没有问题**；
+* 紧接着系统日志打印
+  `FocusPlugin: onAuthFailed ... cn.helilab.autorunner`，XMS 鉴权返回
+  `AuthManager: Auth error message: Authentication failed because scope mismatch`、
+  `errorCode: -300`；
+* 鉴权请求里的包信息是
+  `HttpPkgInfo(packageName=cn.helilab.autorunner, debug=true, clientId=null, appType=0)`，
+  `scopeInfos=[]`。`clientId=null` 表示没有配置 `com.xiaomi.xms.APP_ID`，
+  服务端也没有为该包名 / 签名分配超级岛 scope（20032）。
+
+因此平台路径下，这不是客户端 payload 的问题，而是**平台侧尚未注册 / 开通
+超级岛服务**。仅加 `BUILD_TYPE_DEBUG` 只能让 `debug=true`，不能绕过 scope 鉴权。
+官方接入文档也明确：`com.xiaomi.xms.APP_ID`「必须配置」，调用服务时会通过
+App Id 进行鉴权（[pId=2132](https://dev.mi.com/xiaomihyperos/documentation/detail?pId=2132)）。
+
+> **Root 路径（已实测）**：安装 Root Bridge 自带的 `autorunner-xposed.apk` 后，在
+> LSPosed 中启用「AutoRunner 超级岛解锁」，作用域勾选 `com.miui.systemui` 与
+> `com.xiaomi.xmsf`，重启即可。模块会强制 XMSF AuthSession 返回成功，并让
+> SystemUI 对 `cn.helilab.autorunner` 的 `canShowFocusState` 返回允许；此时
+> 不需要 APP_ID，日志会从 `onAuthFailed` 变为 `onAuthSuccess` +
+> `updateDynamicIslandView`。
+
+修复步骤：
+
+1. 在 [dev.mi.com](https://dev.mi.com/xiaomihyperos/) 创建应用
+   `cn.helilab.autorunner`，上传包体，开通「小米超级岛」服务；
+2. 在开放服务里配置 **Release 与 Debug 两套签名指纹**（当前 debug 证书
+   SHA-256 为 `79:B1:1E:7D:1F:C8:3F:EB:CD:CA:99:A1:4D:08:04:C7:D9:D9:D8:FA:E8:35:85:D0:04:AD:9D:07:BA:8C:3D:56`）；
+3. 用「设备白名单管理」按 OAID `5e24538b54d99b12` 添加本机
+   （30 天有效，每应用 ≤ 10 台）；
+4. 在平台拿到 **App Id** 后重新构建：
+   ```bash
+   ./gradlew :autorunner-app:assembleDebug \
+     -Pautorunner.xiaomiXmsAppId=你的APP_ID
+   ```
+   或写进 `gradle.properties` 的 `autorunner.xiaomiXmsAppId=...`；
+5. 重装后验证：
+   ```bash
+   adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND \
+     -n cn.helilab.autorunner/.debug.DebugCommandReceiver --es command focus_permission
+   adb logcat -s FocusPlugin AuthManager
+   ```
+   `focus_permission` 应打印 `xmsAppId=你的APP_ID`；日志不应再出现
+   `onAuthFailed`，且 `settings get secure focus_notifs` 会出现本通知 key。
+
+调试命令：
+
+```bash
+adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND \
+  -n cn.helilab.autorunner/.debug.DebugCommandReceiver --es command focus_payload
+adb shell am broadcast -a cn.helilab.autorunner.DEBUG_COMMAND \
+  -n cn.helilab.autorunner/.debug.DebugCommandReceiver --es command focus_permission
+```
 
 ## 9. 目录清单与复现命令
 

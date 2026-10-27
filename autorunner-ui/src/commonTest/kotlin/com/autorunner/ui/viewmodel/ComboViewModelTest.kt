@@ -201,6 +201,54 @@ class ComboViewModelTest {
         assertEquals("请选择两个不同的脚本", combo.message.value)
     }
 
+    @Test
+    fun comboExportCanBeImportedIntoAnotherContainer() = runTest {
+        val source = container(FakeAccessibilityController(), FakeOverlayManager(), InMemoryKeyValueStore())
+        val a = source.scriptRepository.save(
+            null,
+            ScriptModel(info = ScriptInfo(name = "A"), flow = listOf(TapStep(1f, 1f))),
+        )
+        val b = source.scriptRepository.save(
+            null,
+            ScriptModel(info = ScriptInfo(name = "B"), flow = listOf(TapStep(2f, 2f))),
+        )
+        advanceUntilIdle()
+
+        val sourceCombo = ComboViewModel(source)
+        sourceCombo.selectScript(ComboSlotRole.A, a.id)
+        sourceCombo.selectScript(ComboSlotRole.B, b.id)
+        sourceCombo.setIntervalMs(ComboSlotRole.A, 14 * 60_000L)
+        sourceCombo.setIntervalMs(ComboSlotRole.B, 50 * 60_000L)
+        sourceCombo.setStartDelayMs(10 * 60_000L)
+        advanceUntilIdle()
+
+        val (fileName, content) = assertNotNull(sourceCombo.buildExportFile())
+        assertTrue(fileName.endsWith(".arcombo"))
+        assertTrue(content.contains("autorunner.combo"))
+
+        // 模拟另一台设备 / 另一个全新容器导入。
+        val target = container(FakeAccessibilityController(), FakeOverlayManager(), InMemoryKeyValueStore())
+        val targetCombo = ComboViewModel(target)
+        targetCombo.importCombo(content)
+        advanceUntilIdle()
+
+        assertEquals("A", targetCombo.slotA.value.scriptName)
+        assertEquals("B", targetCombo.slotB.value.scriptName)
+        assertEquals(14 * 60_000L, targetCombo.slotA.value.execution.intervalMs)
+        assertEquals(50 * 60_000L, targetCombo.slotB.value.execution.intervalMs)
+        assertEquals(10 * 60_000L, targetCombo.slotB.value.execution.startDelayMs)
+        assertEquals(2, target.scriptRepository.scripts.value.size)
+    }
+
+    @Test
+    fun importingAnInvalidComboFileShowsAMessage() = runTest {
+        val container = container(FakeAccessibilityController(), FakeOverlayManager(), InMemoryKeyValueStore())
+        val combo = ComboViewModel(container)
+        combo.importCombo("not a combo")
+        advanceUntilIdle()
+        assertTrue(combo.message.value?.contains("不是有效的组合任务") == true)
+    }
+
     /**
      * 端到端：ComboViewModel 武装 → 悬浮球的 ExecutionViewModel 单击启动 →
      * 两段脚本并行执行完毕，控制器聚合成 COMPLETED。

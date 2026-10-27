@@ -76,6 +76,7 @@ abstract class PackageRootModuleTask : DefaultTask() {
 val rootModuleDir = rootProject.layout.projectDirectory.dir("root-module")
 
 val buildRootModule = tasks.register<PackageRootModuleTask>("buildRootModule") {
+    dependsOn(":autorunner-xposed:assembleDebug")
     group = "build"
     description = "打包 root-module 并输出 build/generated/rootModuleAssets/autorunner_root.zip"
     moduleDir.set(rootModuleDir)
@@ -86,6 +87,10 @@ val buildRootModule = tasks.register<PackageRootModuleTask>("buildRootModule") {
         rootModuleDir.file("uninstall.sh"),
         rootModuleDir.file("build.sh"),
         rootModuleDir.dir("scripts"),
+        // 超级岛解锁模块 APK 参与 root zip；作为输入保证 APK 变化时重新打包。
+        rootProject.layout.projectDirectory.file(
+            "autorunner-xposed/build/outputs/apk/debug/autorunner-xposed-debug.apk",
+        ),
     )
     versionName.set(providers.gradleProperty("autorunner.versionName"))
     versionCode.set(providers.gradleProperty("autorunner.versionCode"))
@@ -105,6 +110,13 @@ android {
 
         // adb 调试命令接收器只存在于 debug 构建。
         manifestPlaceholders["debugReceiverEnabled"] = "false"
+
+        // 小米超级岛 / 焦点通知鉴权：APP_ID 需在小米开放平台申请后通过
+        // `-Pautorunner.xiaomiXmsAppId=...` 或 gradle.properties 注入；
+        // 未填写时保持空值，不会投递焦点通知，也不影响其他通知。
+        manifestPlaceholders["xmsAppId"] =
+            providers.gradleProperty("autorunner.xiaomiXmsAppId").orElse("").get()
+        manifestPlaceholders["xmsBuildTypeDebug"] = "false"
     }
 
     buildFeatures {
@@ -159,6 +171,8 @@ android {
         // debug.keystore，因此本地无变量时的行为与以前完全一致。
         getByName("debug") {
             manifestPlaceholders["debugReceiverEnabled"] = "true"
+            // 本地联调时 XMS 鉴权要求 debug 标记；正式包必须为 false。
+            manifestPlaceholders["xmsBuildTypeDebug"] = "true"
             signingConfig = signingConfigs.getByName("release")
         }
         release {
