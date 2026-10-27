@@ -158,7 +158,10 @@ object ExecutionNotifications {
     }
 
     /**
-     * 组合运行期间的小米超级岛 / 焦点通知。
+     * 执行期间的小米超级岛 / 焦点通知。
+     *
+     * [combo] 活动时上报组合运行（双进度 + A/B 双圆环）；否则按单脚本运行上报
+     * （脚本名 + 单进度条 + 单圆环）。
      *
      * 返回 `null` 表示当前设备不支持 OS3 超级岛（或不是小米设备），调用方应
      * 取消可能残留的焦点通知；普通前台通知不受影响。
@@ -166,15 +169,25 @@ object ExecutionNotifications {
     fun buildFocusIsland(
         context: Context,
         progress: ExecutionProgress,
-        combo: ComboProgress,
+        combo: ComboProgress?,
     ): Notification? {
         if (!ExecutionFocusIsland.supportsIsland(context)) return null
         ensureFocusChannel(context)
-        val elapsed = ExecutionProgress.formatDuration(combo.liveElapsedMs())
+        val activeCombo = combo?.takeIf { it.isActive }
+        val title: String
+        val text: String
+        if (activeCombo != null) {
+            title = "组合运行"
+            text = "循环 ${progress.completedLoops} 次 · 已运行 " +
+                ExecutionProgress.formatDuration(activeCombo.liveElapsedMs())
+        } else {
+            title = progress.scriptName.ifBlank { "AutoRunner" }
+            text = "循环 ${progress.loopLabel} · 已运行 ${progress.elapsedLabel}"
+        }
         val notification = NotificationCompat.Builder(context, FOCUS_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("组合运行")
-            .setContentText("循环 ${progress.completedLoops} 次 · 已运行 $elapsed")
+            .setContentTitle(title)
+            .setContentText(text)
             .setContentIntent(contentIntent(context))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -185,33 +198,44 @@ object ExecutionNotifications {
             .build()
         notification.extras.putString(
             FocusNotificationExtras.PARAM,
-            ExecutionFocusIsland.buildPayload(progress, combo),
+            if (activeCombo != null) {
+                ExecutionFocusIsland.buildPayload(progress, activeCombo)
+            } else {
+                ExecutionFocusIsland.buildSinglePayload(progress)
+            },
         )
-        // 原生岛没有两个独立进度字段：A/B 区各放一张实时生成的圆环位图。
-        val now = currentTimeMillis()
-        val percentA = ((combo.slot(ComboSlotRole.A)?.cycleFractionAt(now) ?: 0f) * 100f)
-            .roundToInt().coerceIn(0, 100)
-        val percentB = ((combo.slot(ComboSlotRole.B)?.cycleFractionAt(now) ?: 0f) * 100f)
-            .roundToInt().coerceIn(0, 100)
-        val pics = Bundle().apply {
-            putParcelable(
+        // 原生岛没有单/双进度字段：用运行时生成的圆环位图表达当前百分比。
+        val pics = Bundle()
+        if (activeCombo != null) {
+            val now = currentTimeMillis()
+            val percentA = ((activeCombo.slot(ComboSlotRole.A)?.cycleFractionAt(now) ?: 0f) * 100f)
+                .roundToInt().coerceIn(0, 100)
+            val percentB = ((activeCombo.slot(ComboSlotRole.B)?.cycleFractionAt(now) ?: 0f) * 100f)
+                .roundToInt().coerceIn(0, 100)
+            pics.putParcelable(
                 ExecutionFocusIsland.RING_A_PIC_KEY,
                 Icon.createWithBitmap(
-                    ExecutionFocusIsland.buildRingBitmap(percentA, 'A', "#2655FF"),
+                    ExecutionFocusIsland.buildRingBitmap(percentA, "A", "#2655FF"),
                 ),
             )
-            putParcelable(
+            pics.putParcelable(
                 ExecutionFocusIsland.RING_B_PIC_KEY,
                 Icon.createWithBitmap(
-                    ExecutionFocusIsland.buildRingBitmap(percentB, 'B', "#00B8A9"),
+                    ExecutionFocusIsland.buildRingBitmap(percentB, "B", "#00B8A9"),
                 ),
+            )
+        } else {
+            val percent = ExecutionFocusIsland.singlePercent(progress)
+            pics.putParcelable(
+                ExecutionFocusIsland.RING_SINGLE_PIC_KEY,
+                Icon.createWithBitmap(ExecutionFocusIsland.buildSingleRingBitmap(percent)),
             )
         }
         notification.extras.putBundle("miui.focus.pics", pics)
         return notification
     }
 
-    /** 结束 / 取消组合运行的小米超级岛焦点通知。 */
+    /** 结束 / 取消执行期间的小米超级岛焦点通知。 */
     fun cancelFocusIsland(context: Context) {
         runCatching {
             context.getSystemService(NotificationManager::class.java)

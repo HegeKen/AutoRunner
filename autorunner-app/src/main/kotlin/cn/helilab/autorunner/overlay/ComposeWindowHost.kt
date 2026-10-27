@@ -181,6 +181,26 @@ class ComposeWindowHost(
         }
     }
 
+    /**
+     * 切换悬浮球窗口是否接收触摸。
+     *
+     * 黑屏挂机层由无障碍服务添加（`TYPE_ACCESSIBILITY_OVERLAY`）时位于本窗口
+     * 之上，球被完全遮住却仍可触摸：脚本注入的点击落在球矩形内会被本窗口吞掉，
+     * 无法下传到游戏。黑屏期间置为不可触摸，退出黑屏后恢复。
+     */
+    fun setTouchable(touchable: Boolean) {
+        val view = composeView ?: return
+        val params = layoutParams ?: return
+        val flags = if (touchable) {
+            params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        } else {
+            params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+        if (flags == params.flags) return
+        params.flags = flags
+        runCatching { windowManager?.updateViewLayout(view, params) }
+    }
+
     /** 移除窗口并释放 Compose 属主。 */
     fun remove() {
         val view = composeView ?: return

@@ -83,4 +83,35 @@ class ExecutionFocusIslandTest {
     private fun JsonObject.obj(key: String): JsonObject = this[key]!!.jsonObject
 
     private fun JsonObject.str(key: String): String = this[key]!!.jsonPrimitive.content
+
+    @Test
+    fun buildsASingleProgressIslandPayloadForOneScript() {
+        val progress = ExecutionProgress(
+            state = ExecutionState.RUNNING,
+            scriptName = "GTA OL",
+            completedLoops = 3,
+            totalLoops = 10,
+            // 第 2 / 4 个动作进行中 → 50%
+            currentActionIndex = 1,
+            totalActions = 4,
+        )
+
+        val payload = ExecutionFocusIsland.buildSinglePayload(progress)
+        val root = Json.parseToJsonElement(payload).jsonObject
+        val v2 = root.obj("param_v2")
+        val baseInfo = v2.obj("baseInfo")
+        val island = v2.obj("param_island")
+        val big = island.obj("bigIslandArea")
+        val imageText = big.obj("imageTextInfoLeft")
+
+        assertEquals("GTA OL", baseInfo.str("title"))
+        assertEquals("循环 3 / 10", baseInfo.str("subTitle"))
+        assertEquals("已运行 00:00", baseInfo.str("content"))
+        assertEquals(50, v2.obj("progressInfo")["progress"]!!.jsonPrimitive.int)
+        assertEquals(
+            ExecutionFocusIsland.RING_SINGLE_PIC_KEY,
+            imageText.obj("picInfo").str("pic"),
+        )
+        assertEquals("GTA OL", imageText.obj("textInfo").str("title"))
+    }
 }

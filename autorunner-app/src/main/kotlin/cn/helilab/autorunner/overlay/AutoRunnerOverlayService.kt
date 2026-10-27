@@ -257,8 +257,16 @@ class AutoRunnerOverlayService : Service() {
             blackScreen.value = true
             // 回退路径用的是同层 APPLICATION_OVERLAY，重新添加才能盖住黑层；
             // 无障碍层永远在本层之上，无需（也无法）置顶。
-            if (!viaAccessibility) host?.bringToFront()
+            if (viaAccessibility) {
+                // 无障碍层盖住了球，但球窗口仍可触摸：注入的点击落在球矩形内
+                // 会被它吞掉，无法下传到游戏。挂机期间球本就不可见也不可操作，
+                // 直接让出触摸，退出黑屏时恢复。
+                host?.setTouchable(false)
+            } else {
+                host?.bringToFront()
+            }
         } else {
+            host?.setTouchable(true)
             AccessibilityServiceHolder.current()?.hideIdleScreen()
             idleScreenOverlay?.hide()
             idleScreenOverlay = null
@@ -275,20 +283,20 @@ class AutoRunnerOverlayService : Service() {
     }
 
     /**
-     * 组合运行期间定时刷新超级岛：执行器只在动作边界 / 间隔 tick 上报进度，
+     * 执行期间定时刷新超级岛：执行器只在动作边界 / 间隔 tick 上报进度，
      * 而「当前运行时间」需要持续走动。5 秒一次既能保持时间近似实时，也避免
      * 每秒通知 IPC 带来的耗电与系统限流。
      *
-     * 只在组合运行期间存在；空闲时不会每 5 秒唤醒一次进程。
+     * 组合运行与单脚本运行期间都存在；空闲时不会每 5 秒唤醒一次进程。
      */
     private fun ensureFocusTicker() {
         if (focusTickerJob?.isActive == true) return
         focusTickerJob = scope.launch {
             while (isActive) {
                 delay(FOCUS_TICK_MS)
-                if (AppGraph.requireContainer()
-                        .executionController.comboProgress.value?.isActive != true
-                ) {
+                val controller = AppGraph.requireContainer().executionController
+                val comboActive = controller.comboProgress.value?.isActive == true
+                if (!comboActive && !executionViewModel.progress.value.state.isActive) {
                     if (focusPosted) {
                         focusPosted = false
                         ExecutionNotifications.cancelFocusIsland(this@AutoRunnerOverlayService)
@@ -300,11 +308,16 @@ class AutoRunnerOverlayService : Service() {
         }
     }
 
-    /** 组合运行期间把进度同步到小米超级岛；非组合 / 已结束时清理焦点通知。 */
+    /**
+     * 执行期间把进度同步到小米超级岛：组合运行上报双进度，单脚本上报单进度；
+     * 空闲 / 已结束时清理焦点通知。
+     */
     private fun refreshFocusIsland() {
         val container = AppGraph.requireContainer()
         val combo = container.executionController.comboProgress.value
-        if (combo == null || !combo.isActive ||
+        val progress = executionViewModel.progress.value
+        val comboActive = combo != null && combo.isActive
+        if ((!comboActive && !progress.state.isActive) ||
             !container.settingsRepository.current.executionNotification
         ) {
             focusTickerJob?.cancel()
@@ -317,7 +330,7 @@ class AutoRunnerOverlayService : Service() {
         }
         val notification = ExecutionNotifications.buildFocusIsland(
             context = this,
-            progress = executionViewModel.progress.value,
+            progress = progress,
             combo = combo,
         ) ?: run {
             focusTickerJob?.cancel()

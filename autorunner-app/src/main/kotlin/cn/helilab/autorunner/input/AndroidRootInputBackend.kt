@@ -7,6 +7,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import cn.helilab.autorunner.AutoRunnerApplication
+import cn.helilab.autorunner.overlay.IdleInjectionPassthrough
 import com.autorunner.core.BuildInfo
 import com.autorunner.core.model.ActionStep
 import com.autorunner.core.model.LongPressStep
@@ -103,15 +104,22 @@ class AndroidRootInputBackend(
 
     override suspend fun perform(step: ActionStep): ActionResult {
         if (!isAvailable) return ActionResult.Failure("Root 桥未就绪", recoverable = true)
-        val line = when (step) {
-            is TapStep -> "tap ${px(step.x, true)} ${px(step.y, false)}"
-            is LongPressStep -> "long ${px(step.x, true)} ${px(step.y, false)} ${step.duration}"
+        val (line, durationMs) = when (step) {
+            is TapStep -> "tap ${px(step.x, true)} ${px(step.y, false)}" to step.duration
+            is LongPressStep ->
+                "long ${px(step.x, true)} ${px(step.y, false)} ${step.duration}" to step.duration
             is SwipeStep ->
-                "swipe ${px(step.fromX, true)} ${px(step.fromY, false)} " +
-                    "${px(step.toX, true)} ${px(step.toY, false)} ${step.duration}"
+                (
+                    "swipe ${px(step.fromX, true)} ${px(step.fromY, false)} " +
+                        "${px(step.toX, true)} ${px(step.toY, false)} ${step.duration}"
+                    ) to step.duration
             is MultiTouchStep -> return ActionResult.Unsupported("Root 注入暂不支持多点触控")
             else -> return ActionResult.Unsupported("Root 注入不支持该动作")
         }
+        // 注入前让黑屏层的媒体按钮窗口临时不可触摸，否则落在按钮矩形上的点击
+        // 会被悬浮窗截获。文件桥由守护进程轮询后执行，返回时还不知道注入时刻，
+        // 因此按「动作时长 + 余量」延迟恢复。
+        IdleInjectionPassthrough.holdForInjection(durationMs)
         // 模块在 → 走文件桥（最快，无 su 开销）；否则直接 su 调 input。
         return if (moduleInstalled) write(line) else execSu(line)
     }

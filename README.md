@@ -27,7 +27,7 @@ UI 全面采用 **MIUIX**（小米 HyperOS 设计语言）。
 | 单次 / 重复执行 | `mode=once` 或 `mode=repeat` + `repeatCount`（`0` = 无限）+ `intervalMs` | `AutoRunnerScriptExecutor`、`ExecutionController` |
 | 组合运行（双脚本并行） | 两段脚本同时进入运行状态，各自按自己的循环间隔推进；可为脚本 B 设置首轮延迟（例如 A 跑 10 分钟后 B 才开始第一轮），首轮之后 B 仍按自己的节奏循环 | `ExecutionController.startCombo`、`ComboViewModel`、`ComboScreen` |
 | 组合任务导入 / 导出 | 组合页右下角悬浮按钮「导入 / 导出」：导出自包含 `.arcombo` 文件（两段脚本原文 + 两个槽位的执行参数 / 首轮延迟），导入时先落盘脚本并重映射槽位，跨设备可恢复 | `ComboBundleCodec`、`ComboViewModel`、`AndroidScriptTransferController` |
-| 小米超级岛状态通知 | 组合运行期间向焦点通知上报：标题 + 运行循环次数 + 当前运行时间 + 两段进度条（A/B）；摘要态 A/B 区各显示一个独立进度圈（自定义位图）。仅在 OS3 超级岛、已配置 XMS APP_ID 或安装 Root Bridge 的超级岛解锁模块、且应用焦点通知权限开启时出现 | `ExecutionFocusIsland`、`ExecutionNotifications`、`AutoRunnerOverlayService` |
+| 小米超级岛状态通知 | 单脚本与组合运行期间向焦点通知上报：单脚本显示脚本名 + 循环次数 + 当前运行时间 + 一条进度条，组合运行显示 A/B 两段进度条；摘要态以大岛进度圈展示百分比（组合为 A/B 双环）。仅在 OS3 超级岛、已配置 XMS APP_ID 或安装 Root Bridge 的超级岛解锁模块、且应用焦点通知权限开启时出现 | `ExecutionFocusIsland`、`ExecutionNotifications`、`AutoRunnerOverlayService` |
 | 进度反馈 | 循环次数、当前动作、已运行时长、状态，同步到悬浮窗与通知栏 | `ExecutionProgress`、`ExecutionNotifications` |
 | 循环时长估算 | 编辑器顶部信息卡按循环间隔的显示单位（毫秒 / 秒 / 分钟）展示循环任务预计总时长；包含首轮延迟、轮间间隔，无限循环显示「无限循环」与每轮耗时 | `ScriptMetaCard`、`LoopDurationInfo` |
 | 悬浮控制面板 | 可自由拖动悬浮球 + 展开面板：录制、脚本选择、运行/暂停/停止、重复次数输入 | `AutoRunnerOverlayService`、`FloatingControlPanel` |
@@ -38,9 +38,9 @@ UI 全面采用 **MIUIX**（小米 HyperOS 设计语言）。
 | Root 超级岛解锁（可选） | Root Bridge 自带 `autorunner-xposed.apk`：在 LSPosed 中启用并勾选系统界面 / 小米服务框架后，绕过 XMSF 焦点通知鉴权与 SystemUI 签名白名单；无需平台 APP_ID。App 通过 `/data/local/tmp/autorunner_root/focus_unlock` 标记启用焦点通知 | `autorunner-xposed`、`root-module/scripts/install_focus_unlock.sh`、`ExecutionFocusIsland` |
 | 到位再执行 | 点「运行 / 开始录制」→ 自动回到桌面并显示悬浮窗（此时尚未开始）→ 用户打开目标页面后**单击悬浮球**才开始（图标变为停止），跑完自动结束且不返回应用；长按悬浮球展开面板 | `ExecutionViewModel.armAndGoHome`、`RecordingViewModel.armAndGoHome`、`FloatingControlPanel` |
 | 多重停止入口 | 采集期间屏幕常驻「停止录制」胶囊 + 悬浮球单击 + 通知栏「停止录制」；运行中可由悬浮球/面板/通知停止 | `TouchCaptureView`、`ExecutionNotifications` |
-| 黑屏挂机 | 整屏纯黑但保持屏幕点亮、注入触摸继续穿透给下层游戏；长按音量减键退出。滚动文字面板带**发光圆角边框**（以边框本体为碰撞边界，贴到屏幕边缘才反弹），内部显示**当前时间**（每秒刷新）与**右上角电量 / 充电标识**，随面板移动避免烧屏 | `AutoRunnerOverlayService`、`IdleScreenOverlay`、`IdleBatteryMonitor` |
+| 黑屏挂机 | 整屏纯黑但保持屏幕点亮、注入触摸继续穿透给下层游戏；长按音量减键退出。滚动文字面板带**发光圆角边框**（以边框本体为碰撞边界，贴到屏幕边缘才反弹），内部显示**当前时间**（每秒刷新）、**右上角电量 / 充电标识**与**执行进度圆环**（组合 A/B 双环，单脚本一个百分比环），随面板移动避免烧屏 | `AutoRunnerOverlayService`、`IdleScreenOverlay`、`IdleBatteryMonitor` |
 | 挂机通知（可选） | 黑屏期间把新到的手机通知以只读卡片显示在黑屏层上；媒体通知不再重复显示（已由面板媒体控制接管）；需要系统「通知使用权」，Root 模块可自动授予 | `AutoRunnerNotificationListener`、`IdleNotificationView` |
-| 挂机媒体控制（可选） | 通过同一份「通知使用权」读取媒体会话：有音乐播放时在滚动文字中加入歌曲信息与**上一首 / 播放暂停 / 下一首**按钮。超长歌名在边框内以省略号截断；按钮位于独立的小窗口并跟随文字面板移动，按钮矩形外的触摸继续穿透给脚本；暂停后按钮保留（可恢复播放） | `IdleMediaMonitor`、`IdleMediaControlWindow` |
+| 挂机媒体控制（可选） | 通过同一份「通知使用权」读取媒体会话：有音乐播放时在滚动文字中加入歌曲信息与**上一首 / 播放暂停 / 下一首**按钮。超长歌名在边框内跑马灯滚动；按钮位于独立的小窗口并跟随文字面板移动，脚本注入期间按钮窗口临时让出触摸，避免拦截落在按钮矩形上的注入点击；暂停后按钮保留（可恢复播放） | `IdleMediaMonitor`、`IdleMediaControlWindow`、`IdleInjectionPassthrough` |
 | 弹窗守护 | 挂机期间检测下层应用**新弹出**的确认框 / 异常弹窗，自动退出黑屏并暂停脚本，避免盲点「确认购买」 | `AutoRunnerAccessibilityService`、`HangDialogGuard` |
 | 手柄模拟（可选） | 把脚本中的手柄按键**映射为本机触摸/摇杆拖动**，直接注入当前设备；按键在界面上按脚本的手柄类型显示（§7.8） | `autorunner-gamepad` 模块、`LocalGamepadGateway` |
 
@@ -415,21 +415,25 @@ flow**，保证 `info.coordinateSpace` 与动作数据始终一致。
   宽度，不为悬浮按钮缩窄内容；悬浮按钮按 Material 惯例浮在内容上，底部留白只
   保证滚到底时最后一张卡片可完整阅读。
 
-### 7.11 小米超级岛：组合运行状态上岛
+### 7.11 小米超级岛：执行状态上岛
 
-组合运行期间，`ExecutionFocusIsland` 生成 `miui.focus.param` JSON，随独立焦点通知
-（id `0x4154`）一起交给系统；`AutoRunnerOverlayService` 在组合运行时每 5 秒刷新一次，
-结束后立即取消。
+单脚本或组合运行期间，`ExecutionFocusIsland` 生成 `miui.focus.param` JSON，随独立
+焦点通知（id `0x4154`）一起交给系统；`AutoRunnerOverlayService` 在执行中每 5 秒刷新
+一次，停止 / 结束后立即取消。
 
-* **展开态**：`baseInfo`（标题「组合运行」+「循环 N 次」+「已运行 mm:ss」，字段间带分隔符）+
-  `multiProgressInfo`（`points = 1` 的两段进度条，标题显示 `A x% · B y%`）；
-* **摘要态**：`param_island.bigIslandArea` 的 A 区 / B 区各引用一张运行时生成的
-  进度圈位图（`miui.focus.pic_combo_ring_a` / `ring_b`），环内分别是 A/B 的
-  当前循环百分比；原生大岛没有「两个独立进度」字段，这是用自定义位图实现的双环；
+* **单脚本展开态**：`baseInfo`（脚本名 +「循环 n/N」+「已运行 mm:ss」）+
+  `progressInfo`（一条整段进度条）；摘要态 A 区引用一张百分比进度圈位图
+  （`miui.focus.pic_single_ring`），环内显示 `0–100` 数字；
+* **组合展开态**：`baseInfo`（标题「组合运行」+「循环 N 次」+「已运行 mm:ss」，
+  字段间带分隔符）+ `multiProgressInfo`（`points = 1` 的两段进度条，标题显示
+  `A x% · B y%`）；摘要态 A 区 / B 区各引用一张运行时生成的进度圈位图
+  （`miui.focus.pic_combo_ring_a` / `ring_b`），环内分别是 A/B 的当前循环百分比；
+  原生大岛没有「两个独立进度」字段，这是用自定义位图实现的双环；
 * **息屏 / OS2 兜底**：`aodTitle` 与 `ticker`；
-* **进度语义**：单段进度 = 当前轮的动作估算进度 + 间隔等待进度；两段整体进度取
-  A/B 当前循环进度的平均值。模板的 `multiProgressInfo` 只有一个 `progress` 值，
-  不能给两段分别赋值，因此 A/B 各自百分比放在标题里说明；
+* **进度语义**：单脚本与组合槽位的单段进度均优先取首轮等待 / 循环间隔的插值，
+  否则取当前轮动作估算进度；两段整体进度取 A/B 当前循环进度的平均值。模板的
+  `multiProgressInfo` 只有一个 `progress` 值，不能给两段分别赋值，因此 A/B 各自
+  百分比放在标题里说明；
 * **刷新**：执行器在动作边界 / 间隔 tick 上报进度；叠加 5 秒 ticker 让「当前运行
   时间」与进度条在两次上报之间继续推进，同时避免逐秒通知 IPC；
 * **前置条件**：HyperOS 3 / OS3 超级岛（`notification_focus_protocol >= 3`），

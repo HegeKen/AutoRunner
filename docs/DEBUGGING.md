@@ -66,7 +66,7 @@ $B state          # 打印无障碍连接、悬浮窗、脚本数量、执行状
 $B run            # 按"列表 ▶"的同一条路径运行最近脚本
 $B run_combo --es scriptA a --es scriptB b --el intervalA 840000 --el intervalB 3000000 --el delayB 600000
                   # 直接启动组合运行（绕过悬浮球），便于验证并行调度与首轮延迟
-$B focus_payload # 打印当前组合的 miui.focus.param JSON（含协议版本 / 岛支持状态）
+$B focus_payload # 打印当前执行（单脚本 / 组合）的 miui.focus.param JSON（含协议版本 / 岛支持状态）
 $B focus_permission # 查询 canShowFocus / 协议 / APP_ID / debug 标记 / focus_notifs
 $B stop           # 停止执行（组合运行时同时停止两段脚本）
 $B pause          # 暂停/继续

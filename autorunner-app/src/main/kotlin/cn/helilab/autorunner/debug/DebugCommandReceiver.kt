@@ -174,22 +174,25 @@ class DebugCommandReceiver : BroadcastReceiver() {
             "focus_payload" -> {
                 val container = AppGraph.requireContainer()
                 val combo = container.executionController.comboProgress.value
-                if (combo == null) {
+                val progress = container.executionController.progress.value
+                val payload = when {
+                    combo != null && combo.isActive ->
+                        ExecutionFocusIsland.buildPayload(progress, combo)
+
+                    progress.state.isActive ->
+                        ExecutionFocusIsland.buildSinglePayload(progress)
+
+                    else -> null
+                }
+                if (payload == null) {
                     Log.w(
                         AutoRunnerApplication.TAG,
-                        "debug focus_payload: no combo running " +
+                        "debug focus_payload: nothing running " +
                             "(protocol=${ExecutionFocusIsland.focusProtocol(context)}, " +
                             "island=${ExecutionFocusIsland.supportsIsland(context)})",
                     )
                 } else {
-                    Log.i(
-                        AutoRunnerApplication.TAG,
-                        "debug focus_payload: " +
-                            ExecutionFocusIsland.buildPayload(
-                                container.executionController.progress.value,
-                                combo,
-                            ),
-                    )
+                    Log.i(AutoRunnerApplication.TAG, "debug focus_payload: $payload")
                 }
             }
 

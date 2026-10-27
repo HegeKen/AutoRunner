@@ -25,12 +25,17 @@ import cn.helilab.autorunner.notification.IdleMediaMonitor
 import cn.helilab.autorunner.notification.IdleMediaState
 import cn.helilab.autorunner.notification.IdleNotification
 import cn.helilab.autorunner.notification.IdleNotificationFeed
+import com.autorunner.core.execution.ComboProgress
+import com.autorunner.core.model.ComboSlotRole
+import com.autorunner.core.model.ExecutionProgress
+import com.autorunner.core.model.ExecutionState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 /**
@@ -73,6 +78,15 @@ class IdleScreenOverlay(
 
     /** 通过「通知使用权」读取媒体会话的监听器。 */
     private var mediaMonitor: IdleMediaMonitor? = null
+
+    /** 当前是否处于脚本注入期间：媒体按钮窗口需要让出触摸。 */
+    private var injectionPassthrough = false
+
+    /** 注册到 [IdleInjectionPassthrough] 的回调；收起时按身份撤销。 */
+    private val injectionListener: (Boolean) -> Unit = { passthrough ->
+        injectionPassthrough = passthrough
+        mediaControlWindow?.setTouchable(!passthrough)
+    }
 
     /** 电量 / 充电状态监听器。 */
     private var batteryMonitor: IdleBatteryMonitor? = null
@@ -122,6 +136,8 @@ class IdleScreenOverlay(
                 windowType = windowType,
                 onAction = ::handleMediaAction,
             )
+            // 注入期间按钮窗口必须让出触摸，否则落在按钮矩形上的点击会被截获。
+            IdleInjectionPassthrough.bind(injectionListener)
             // 黑屏层可见期间才接收通知；收起时立即断开，避免后台持有通知内容。
             val observer: (IdleNotification) -> Unit = { notifications.add(it) }
             feedObserver = observer
@@ -161,6 +177,8 @@ class IdleScreenOverlay(
         batteryMonitor = null
         mediaMonitor?.stop()
         mediaMonitor = null
+        IdleInjectionPassthrough.unbind(injectionListener)
+        injectionPassthrough = false
         mediaControlWindow?.hide()
         mediaControlWindow = null
         if (feedObserver != null && IdleNotificationFeed.observer === feedObserver) {
@@ -187,6 +205,8 @@ class IdleScreenOverlay(
             // setMedia() 已算出新的按钮行位置；先缓存位置再添加窗口，避免首帧闪到 (0, 0)。
             hint.actionBounds()?.let(controls::moveTo)
             controls.show(state)
+            // 窗口可能是注入期间才出现的：创建后立即同步让行状态。
+            controls.setTouchable(!injectionPassthrough)
         }
     }
 
@@ -235,9 +255,12 @@ class IdleScreenOverlay(
  * （约 18dp/s），既能看清提示，又不会因为移动过快分散注意力。
  *
  * 面板内部从上到下依次是：标题 + **右上角电量 / 充电标识**、**当前时间
- * （每秒刷新）**、操作提示；有音乐播放时追加媒体标题 / 歌手（超长截断）与
- * 一行按钮占位。按钮本身由 [IdleMediaControlWindow] 单独绘制，这里只负责
- * 计算并上报它该出现的位置。
+ * （每秒刷新）**、操作提示；有音乐播放时追加媒体标题 / 歌手（超长时在固定
+ * 宽度内跑马灯滚动）与一行按钮占位。按钮本身由 [IdleMediaControlWindow]
+ * 单独绘制，这里只负责计算并上报它该出现的位置。
+ *
+ * 执行期间，时钟行两侧还会显示 AutoRunner 的执行进度圆环：组合运行在左右
+ * 各显示一个 A / B 圆环，单脚本只在右侧（电量下方）显示一个百分比圆环。
  */
 @SuppressLint("ViewConstructor")
 private class DvdHintView(
@@ -256,6 +279,8 @@ private class DvdHintView(
         textSize = sp(31f)
         // 等宽字体让秒数跳动时文字面板宽度保持稳定，不会左右抖动。
         typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+        // 固定槽位中心对齐：秒数变化时数字宽度不再影响水平位置。
+        textAlign = Paint.Align.CENTER
     }
 
     private val subtitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -292,6 +317,30 @@ private class DvdHintView(
         color = DEFAULT_FOCUS_ACCENT
     }
 
+    /** 执行进度圆环的底槽（未完成部分）。 */
+    private val ringTrackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        color = Color.argb(40, 255, 255, 255)
+    }
+
+    /** 圆环的已完成部分；颜色按运行 / 暂停状态逐次赋值。 */
+    private val ringArcPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        color = DEFAULT_FOCUS_ACCENT
+    }
+
+    /** 圆环中心文字：组合运行时是 A / B，单脚本时是百分比数字。 */
+    private val ringLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textSize = sp(11f)
+        color = Color.argb(245, 250, 250, 250)
+    }
+
+    private val ringRect = RectF()
+
     private val batteryTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.argb(215, 225, 225, 225)
         textSize = sp(11f)
@@ -323,7 +372,7 @@ private class DvdHintView(
 
     private val boltPath = Path()
 
-    private val title = "AutoRunner 挂机中"
+    private val title = "AutoRunner"
 
     private val subtitleLines = listOf(
         "屏幕保亮  ·  触摸穿透",
@@ -334,13 +383,33 @@ private class DvdHintView(
     private var clockText = clockFormatter.format(Date())
     private var lastClockSecond = -1L
 
+    /**
+     * 时钟的固定槽位宽度。
+     *
+     * 若直接用当前 [clockText] 的测量宽度参与面板测量，面板可用宽度会与文字
+     * 宽度贴着相等；某些秒数的字形宽一点点就会触发 [ellipsize] 截断，下一秒
+     * 又恢复，表现为时间疯狂乱跳。这里按最宽的数字模板预留固定宽度，秒数变化
+     * 不再影响面板尺寸与时钟水平位置。
+     */
+    private val clockSlotWidth: Float = maxOf(
+        clockPaint.measureText("00:00:00"),
+        clockPaint.measureText("88:88:88"),
+    ) + dp(1f)
+
     private var mediaState: IdleMediaState? = null
 
-    /** 已按内容宽度截断的媒体行，避免超长歌名每帧重复测量。 */
-    private var mediaLineText: String? = null
+    /** 媒体行当前文本宽度；超过 [contentWidth] 时启用跑马灯。 */
+    private var mediaTextWidth = 0f
+    private var mediaScrolling = false
+
+    /** 跑马灯已滚动的距离（px），按 [mediaScrollSpeed] 逐帧推进。 */
+    private var mediaScrollOffset = 0f
 
     /** 当前有效的焦点通知（超级岛）状态，按最近更新排序。 */
     private var focusState: List<FocusNotification> = emptyList()
+
+    /** 时钟行上的执行进度圆环：单脚本只有右侧一个，组合运行左右各一个。 */
+    private var rings: List<ProgressRing> = emptyList()
 
     private var batteryState: IdleBatteryState? = null
 
@@ -351,6 +420,12 @@ private class DvdHintView(
     private val focusLineGap = dp(2f)
     private val focusProgressGap = dp(5f)
     private val focusProgressHeight = dp(3f)
+
+    /** 执行进度圆环：直径、描边宽度，以及与居中时钟之间的留白。 */
+    private val ringSize = dp(40f)
+    private val ringStroke = dp(3.2f)
+    private val ringClockGap = dp(12f)
+
     /**
      * 碰撞边界：以发光边框本体（最内层亮线）的外沿为准，而不是旧版 24dp 的
      * 安全留白。核心描边宽约 1.6dp，这里只保留半个描边宽度，贴边时亮线正好
@@ -364,8 +439,12 @@ private class DvdHintView(
     private val framePadding = dp(16f)
     private val frameRadius = dp(18f)
 
-    /** 面板最大宽度：音乐名再长也不会把面板撑到整屏，超出部分以省略号截断。 */
+    /** 面板最大宽度：小屏兜底；常规宽度由双圆环时钟行固定决定。 */
     private val maxPanelWidth = dp(430f)
+
+    /** 媒体行跑马灯：滚动速度与两段文本之间的间隔。 */
+    private val mediaScrollSpeed = dp(26f)
+    private val mediaScrollGap = dp(48f)
 
     private val headerBatteryGap = dp(10f)
     private val batteryTextGap = dp(5f)
@@ -405,6 +484,7 @@ private class DvdHintView(
             val previous = lastFrameNanos
             lastFrameNanos = frameTimeNanos
             refreshClock()
+            refreshExecution()
             if (previous != 0L) {
                 // 限制单帧步长：卡顿或灭屏恢复时面板不会瞬移。
                 val deltaSeconds = ((frameTimeNanos - previous) / 1_000_000_000f)
@@ -445,6 +525,8 @@ private class DvdHintView(
     /** 更新媒体播放状态；由 [IdleScreenOverlay] 在主线程调用。 */
     fun setMedia(state: IdleMediaState?) {
         if (state == mediaState) return
+        // 曲目变化时从头开始滚动，避免新歌名从半截开始。
+        if (state?.displayText != mediaState?.displayText) mediaScrollOffset = 0f
         mediaState = state
         measurePanel()
         clampPosition()
@@ -493,8 +575,9 @@ private class DvdHintView(
         drawHeader(canvas, cursor, header)
         cursor += header + gap
 
-        drawCentered(canvas, clockText, clockPaint, cursor)
-        cursor += lineHeight(clockPaint) + gap
+        drawClock(canvas, cursor)
+        if (rings.isNotEmpty()) drawRings(canvas, cursor)
+        cursor += clockRowHeight() + gap
 
         if (focusState.isNotEmpty()) {
             cursor = drawFocusBlock(canvas, cursor)
@@ -510,37 +593,143 @@ private class DvdHintView(
         val media = mediaState
         if (media != null) {
             cursor += gap
-            // mediaLineText 已在测量阶段按 contentWidth 截断，直接绘制。
-            drawCenteredRaw(canvas, mediaLineText ?: media.displayText, mediaPaint, cursor)
+            drawMediaLine(canvas, media.displayText, cursor)
             // 再往下是按钮行的位置，由独立的可触摸窗口绘制，这里留空。
         }
     }
 
-    /** 逐帧检查秒数；只在时间文本真正变化时重新测量，避免每帧格式化。 */
+    /** 逐帧检查秒数；只在时间文本真正变化时重绘，避免每帧格式化。 */
     private fun refreshClock() {
         val second = System.currentTimeMillis() / 1000L
         if (second == lastClockSecond) return
         lastClockSecond = second
         val text = clockFormatter.format(Date(second * 1000L))
-        if (text == clockText) {
-            invalidate()
-            return
-        }
+        if (text == clockText) return
+        // 时钟占据固定槽位，秒数变化不影响面板尺寸，无需重新测量 / 重排。
         clockText = text
-        if (width > 0 && height > 0) {
-            measurePanel()
-            clampPosition()
-            publishActionBounds()
-        }
         invalidate()
+    }
+
+    /**
+     * 逐帧同步 AutoRunner 的执行进度：组合运行显示 A / B 两个圆环，
+     * 单脚本显示一个百分比圆环；空闲 / 已结束时收起圆环。
+     *
+     * 百分比在 [drawRing] 时按当前时间重新计算，等待阶段也能平滑推进；
+     * 这里只在圆环数量变化（0 / 1 / 2）时重新测量面板，避免每帧重排。
+     */
+    private fun refreshExecution() {
+        val controller = AppGraph.containerOrNull?.executionController
+        val next = if (controller == null) {
+            emptyList()
+        } else {
+            activeRings(controller.progress.value, controller.comboProgress.value)
+        }
+        val resized = next.size != rings.size
+        rings = next
+        if (!resized || width <= 0 || height <= 0) return
+        measurePanel()
+        clampPosition()
+        publishActionBounds()
+        invalidate()
+    }
+
+    private fun activeRings(progress: ExecutionProgress, combo: ComboProgress?): List<ProgressRing> {
+        val now = System.currentTimeMillis()
+        if (combo != null && combo.isActive) {
+            val color = ringColor(combo.state)
+            return COMBO_ROLES.mapNotNull { role ->
+                combo.slot(role)?.let { slot ->
+                    ProgressRing(
+                        label = role.name,
+                        percent = (slot.cycleFractionAt(now) * 100f).roundToInt().coerceIn(0, 100),
+                        color = color,
+                    )
+                }
+            }
+        }
+        if (!progress.state.isActive) return emptyList()
+        val percent = singlePercent(progress)
+        return listOf(ProgressRing(percent.toString(), percent, ringColor(progress.state)))
+    }
+
+    /** 单脚本圆环的百分比：优先首轮等待 / 循环间隔，其次当前循环动作完成度。 */
+    private fun singlePercent(progress: ExecutionProgress): Int {
+        val fraction = when {
+            progress.startDelayTotalMs > 0L &&
+                progress.startDelayElapsedMs < progress.startDelayTotalMs ->
+                progress.startDelayElapsedMs.toFloat() / progress.startDelayTotalMs
+
+            progress.intervalTotalMs > 0L &&
+                progress.intervalElapsedMs < progress.intervalTotalMs ->
+                progress.intervalElapsedMs.toFloat() / progress.intervalTotalMs
+
+            else -> progress.actionFraction ?: progress.loopFraction ?: 0f
+        }
+        return (fraction * 100f).roundToInt().coerceIn(0, 100)
+    }
+
+    private fun ringColor(state: ExecutionState): Int =
+        if (state == ExecutionState.PAUSED) PAUSED_RING_COLOR else DEFAULT_FOCUS_ACCENT
+
+    /** 时钟行高度：有圆环时至少要容纳一个圆环。 */
+    private fun clockRowHeight(): Float =
+        max(lineHeight(clockPaint), if (rings.isEmpty()) 0f else ringSize)
+
+    /**
+     * 时钟行宽度：固定为「时钟槽位 + 两侧各一个圆环」。
+     *
+     * 面板宽度因此在 0 / 1 / 2 个圆环之间保持不变，黑屏挂机时不会随执行状态
+     * 忽宽忽窄；单脚本只在右侧画圆环，左侧仍保留同样的留白。
+     */
+    private fun clockRowWidth(): Float = clockSlotWidth + (ringSize + ringClockGap) * 2f
+
+    /** 时钟固定在两侧圆环预留位之间居中，与当前实际圆环数量无关。 */
+    private fun drawClock(canvas: Canvas, top: Float) {
+        val reserved = ringSize + ringClockGap
+        val left = posX + framePadding + reserved
+        val available = (contentWidth - reserved * 2f).coerceAtLeast(1f)
+        val text = ellipsize(clockText, clockPaint, available)
+        val baseline = top + (clockRowHeight() - lineHeight(clockPaint)) / 2f -
+            clockPaint.fontMetrics.ascent
+        canvas.drawText(text, left + available / 2f, baseline, clockPaint)
+    }
+
+    /** 圆环与时钟垂直居中于同一行：单个在右侧（电池下方），两个分列左右。 */
+    private fun drawRings(canvas: Canvas, top: Float) {
+        val ringTop = top + (clockRowHeight() - ringSize) / 2f
+        val left = posX + framePadding
+        val right = left + contentWidth - ringSize
+        if (rings.size >= 2) {
+            drawRing(canvas, left, ringTop, rings[0])
+            drawRing(canvas, right, ringTop, rings[1])
+        } else {
+            drawRing(canvas, right, ringTop, rings.first())
+        }
+    }
+
+    private fun drawRing(canvas: Canvas, left: Float, top: Float, ring: ProgressRing) {
+        val inset = ringStroke / 2f
+        ringRect.set(left + inset, top + inset, left + ringSize - inset, top + ringSize - inset)
+        ringTrackPaint.strokeWidth = ringStroke
+        canvas.drawArc(ringRect, -90f, 360f, false, ringTrackPaint)
+        val ratio = ring.percent.coerceIn(0, 100) / 100f
+        if (ratio > 0f) {
+            ringArcPaint.strokeWidth = ringStroke
+            ringArcPaint.color = ring.color
+            canvas.drawArc(ringRect, -90f, 360f * ratio, false, ringArcPaint)
+        }
+        ringLabelPaint.textSize = sp(if (ring.label.length >= 3) 9f else 11f)
+        val metrics = ringLabelPaint.fontMetrics
+        val baseline = top + ringSize / 2f - (metrics.ascent + metrics.descent) / 2f
+        canvas.drawText(ring.label, left + ringSize / 2f, baseline, ringLabelPaint)
     }
 
     /**
      * 重新测量内容与面板。
      *
-     * 内容宽度上限同时受屏幕可用宽度与 [maxPanelWidth] 约束；音乐行只取
-     * 「截断后的宽度」参与测量，因此超长歌名不会把边框撑大，而是在边框内
-     * 以省略号结尾。
+     * 面板宽度固定为「两个圆环 + 时钟」的宽度（小屏时再按屏幕可用宽度夹取）：
+     * 圆环数量、歌名长度都不会再改变边框尺寸，挂机时面板不会忽宽忽窄。超长
+     * 歌名不再以省略号截断，而是记录溢出状态，在 [drawMediaLine] 中滚动显示。
      */
     private fun measurePanel() {
         if (width <= 0 || height <= 0) {
@@ -556,25 +745,10 @@ private class DvdHintView(
         )
         val maxContentWidth = (maxFrameWidth - framePadding * 2f).coerceAtLeast(1f)
         val media = mediaState
-        val mediaWidth = media?.let { mediaPaint.measureText(it.displayText) } ?: 0f
-        val focusWidth = focusState.take(MAX_FOCUS_ENTRIES).maxOfOrNull { item ->
-            maxOf(
-                focusTitlePaint.measureText(focusTitleText(item)),
-                focusDetailPaint.measureText(item.detail),
-            )
-        } ?: 0f
-        val headerWidth = titlePaint.measureText(title) +
-            if (batteryState != null) headerBatteryGap + batteryWidth() else 0f
-        val desiredWidth = maxOf(
-            clockPaint.measureText(clockText),
-            subtitleLines.maxOf { subtitlePaint.measureText(it) },
-            min(mediaWidth, maxContentWidth),
-            min(focusWidth, maxContentWidth),
-            if (media != null) actionWidth else 0f,
-            min(headerWidth, maxContentWidth),
-        )
-        contentWidth = min(desiredWidth, maxContentWidth)
-        mediaLineText = media?.displayText?.let { ellipsize(it, mediaPaint, contentWidth) }
+        contentWidth = min(clockRowWidth(), maxContentWidth)
+        mediaTextWidth = media?.let { mediaPaint.measureText(it.displayText) } ?: 0f
+        mediaScrolling = mediaTextWidth > contentWidth
+        if (!mediaScrolling) mediaScrollOffset = 0f
         contentHeight = measureContentHeight(hasMedia = media != null)
         frameWidth = contentWidth + framePadding * 2f
         frameHeight = contentHeight + framePadding * 2f
@@ -582,7 +756,7 @@ private class DvdHintView(
 
     private fun measureContentHeight(hasMedia: Boolean): Float {
         var height = headerHeight()
-        height += gap + lineHeight(clockPaint)
+        height += gap + clockRowHeight()
         if (focusState.isNotEmpty()) {
             height += gap + focusBlockHeight()
         }
@@ -716,6 +890,32 @@ private class DvdHintView(
         canvas.drawText(text, x, top - paint.fontMetrics.ascent, paint)
     }
 
+    /**
+     * 媒体行：放得下时居中绘制，放不下时在内容区内裁剪并逐帧左移（跑马灯）。
+     *
+     * 两段文本之间留 [mediaScrollGap] 的间隔，滚动到一段末尾时第二段正好
+     * 接上，循环过程不会出现空档或跳变。
+     */
+    private fun drawMediaLine(canvas: Canvas, text: String, top: Float) {
+        if (!mediaScrolling) {
+            drawCenteredRaw(canvas, text, mediaPaint, top)
+            return
+        }
+        val left = posX + framePadding
+        val cycle = mediaTextWidth + mediaScrollGap
+        val offset = mediaScrollOffset % cycle
+        val baseline = top - mediaPaint.fontMetrics.ascent
+        canvas.save()
+        canvas.clipRect(left, top, left + contentWidth, top + lineHeight(mediaPaint))
+        var x = left - offset
+        // 最多两段：偏移接近一段时，第二段从右侧补入，形成无缝循环。
+        repeat(2) {
+            canvas.drawText(text, x, baseline, mediaPaint)
+            x += cycle
+        }
+        canvas.restore()
+    }
+
     private fun lineHeight(paint: Paint): Float =
         paint.fontMetrics.descent - paint.fontMetrics.ascent + dp(1f)
 
@@ -765,6 +965,11 @@ private class DvdHintView(
         } else if (posY >= maxY) {
             posY = maxY
             velocityY = -abs(velocityY)
+        }
+        if (mediaScrolling) {
+            val cycle = mediaTextWidth + mediaScrollGap
+            mediaScrollOffset += mediaScrollSpeed * deltaSeconds
+            if (mediaScrollOffset >= cycle) mediaScrollOffset -= cycle
         }
         publishActionBounds()
     }
@@ -837,6 +1042,9 @@ private class DvdHintView(
         )
     }
 
+    /** 一个待绘制的进度圆环；[label] 是组合槽位 A / B 或单脚本的百分比数字。 */
+    private data class ProgressRing(val label: String, val percent: Int, val color: Int)
+
     private fun publishActionBounds() {
         if (mediaState == null) return
         actionBounds()?.let(onActionBoundsChanged)
@@ -860,5 +1068,11 @@ private class DvdHintView(
 
         /** 焦点通知没有 `highlightColor` 时的进度条颜色（与边框泛光同色）。 */
         val DEFAULT_FOCUS_ACCENT: Int = Color.argb(255, 96, 210, 255)
+
+        /** 执行暂停时的圆环颜色（琥珀），与运行中的青色区分。 */
+        val PAUSED_RING_COLOR: Int = Color.argb(255, 255, 193, 94)
+
+        /** 组合运行两个圆环的固定展示顺序：A 在左、B 在右。 */
+        val COMBO_ROLES = listOf(ComboSlotRole.A, ComboSlotRole.B)
     }
 }

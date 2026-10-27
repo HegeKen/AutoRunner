@@ -20,23 +20,17 @@ import java.io.File
 import kotlin.math.roundToInt
 
 /**
- * 组合运行的「小米超级岛 / 焦点通知」上报。
+ * 「小米超级岛 / 焦点通知」上报。
  *
  * 超级岛不需要新权限或新 API：在普通通知的 extras 里放一个
- * `miui.focus.param` JSON 字符串即可。这里按「文本组件 2 + 识别图形组件 1 +
- * 进度组件 3（multiProgressInfo）」的模板组织数据：
+ * `miui.focus.param` JSON 字符串即可。
  *
- * * `baseInfo`：标题「组合运行」+「循环 N 次 · 已运行 mm:ss」；
- * * `multiProgressInfo`：两段进度条（`points = 1`），显示两个脚本的综合进度，
- *   标题分别给出 A/B 的当前循环进度；
- * * `param_island`：摘要态的 A 区短文案 + B 区「进度文本组件」；
- * * `ticker` / `aodTitle`：OS2 状态栏与息屏兜底。
+ * * 组合运行：`baseInfo` + `multiProgressInfo`（两段进度）+ 大岛 A/B 区各一张
+ *   运行期生成的圆环位图；
+ * * 单脚本运行：`baseInfo` + `progressInfo`（单条进度）+ 大岛 A 区一张圆环位图。
  *
- * 模板限制：`multiProgressInfo` 只有一个 `progress` 值，不能给两段分别赋值；
- * 这里用「两个脚本当前循环进度的平均值」填充进度条，并在标题中展示 A/B
- * 各自的百分比，避免把顺序推进误读成某个脚本独自的进度。
- *
- * 只在 `notification_focus_protocol >= 3`（OS3 / HyperOS 超级岛）时上报；
+ * `ticker` / `aodTitle` 兼容 OS2 状态栏与息屏兜底。只在
+ * `notification_focus_protocol >= 3`（OS3 / HyperOS 超级岛）时上报；
  * `filterWhenNoPermission = true` 保证未开通焦点通知权限时不会多出一条普通通知。
  */
 object ExecutionFocusIsland {
@@ -227,6 +221,124 @@ object ExecutionFocusIsland {
     const val RING_A_PIC_KEY = "miui.focus.pic_combo_ring_a"
     const val RING_B_PIC_KEY = "miui.focus.pic_combo_ring_b"
 
+    /** 单脚本运行时大岛 A 区的进度圈位图。 */
+    const val RING_SINGLE_PIC_KEY = "miui.focus.pic_single_ring"
+
+    /**
+     * 单脚本运行的 `miui.focus.param` 负载。
+     *
+     * 使用「进度组件 2」（`progressInfo` 不传图标）画一条整段进度条，大岛 A 区
+     * 放一张运行时生成的百分比圆环位图；标题直接用脚本名，与前台通知一致。
+     */
+    fun buildSinglePayload(progress: ExecutionProgress): String {
+        val percent = singlePercent(progress)
+        val scriptName = progress.scriptName.ifBlank { "AutoRunner" }
+        val loopText = "循环 ${progress.loopLabel}"
+        val runtimeText = "已运行 ${progress.elapsedLabel}"
+
+        return buildJsonObject {
+            put(
+                "param_v2",
+                buildJsonObject {
+                    put("protocol", 1)
+                    put("business", "autorunner_single")
+                    put("islandFirstFloat", false)
+                    put("enableFloat", false)
+                    put("updatable", true)
+                    put("timeout", TIMEOUT_MINUTES)
+                    put("filterWhenNoPermission", true)
+                    put("ticker", "$scriptName · $loopText · $runtimeText")
+                    put("aodTitle", "$scriptName · $percent%")
+
+                    put(
+                        "baseInfo",
+                        buildJsonObject {
+                            put("type", 2)
+                            put("title", scriptName)
+                            put("subTitle", loopText)
+                            put("content", runtimeText)
+                            put("colorTitle", BRAND_COLOR)
+                            put("colorSubTitle", BRAND_COLOR)
+                            put("showDivider", true)
+                            put("showContentDivider", true)
+                        },
+                    )
+
+                    put(
+                        "progressInfo",
+                        buildJsonObject {
+                            put("progress", percent)
+                            put("colorProgress", BRAND_COLOR)
+                            put("colorProgressEnd", BRAND_COLOR)
+                        },
+                    )
+
+                    put(
+                        "param_island",
+                        buildJsonObject {
+                            put("islandProperty", 1)
+                            put("islandOrder", true)
+                            put("islandTimeout", ISLAND_TIMEOUT_SECONDS)
+                            put("highlightColor", BRAND_COLOR)
+                            put(
+                                "bigIslandArea",
+                                buildJsonObject {
+                                    put(
+                                        "imageTextInfoLeft",
+                                        buildJsonObject {
+                                            put("type", 1)
+                                            put(
+                                                "picInfo",
+                                                buildJsonObject {
+                                                    put("type", 1)
+                                                    put("pic", RING_SINGLE_PIC_KEY)
+                                                },
+                                            )
+                                            put(
+                                                "textInfo",
+                                                buildJsonObject {
+                                                    put("title", scriptName)
+                                                    put("content", loopText)
+                                                    put("showHighlightColor", false)
+                                                },
+                                            )
+                                        },
+                                    )
+                                },
+                            )
+                            put(
+                                "smallIslandArea",
+                                buildJsonObject {
+                                    put("picInfo", buildJsonObject { put("type", 1) })
+                                },
+                            )
+                        },
+                    )
+                },
+            )
+        }.toString()
+    }
+
+    /** 单脚本进度：优先首轮等待 / 循环间隔，其次当前循环动作完成度。 */
+    fun singlePercent(progress: ExecutionProgress): Int {
+        val fraction = when {
+            progress.startDelayTotalMs > 0L &&
+                progress.startDelayElapsedMs < progress.startDelayTotalMs ->
+                progress.startDelayElapsedMs.toFloat() / progress.startDelayTotalMs
+
+            progress.intervalTotalMs > 0L &&
+                progress.intervalElapsedMs < progress.intervalTotalMs ->
+                progress.intervalElapsedMs.toFloat() / progress.intervalTotalMs
+
+            else -> progress.actionFraction ?: progress.loopFraction ?: 0f
+        }
+        return (fraction * 100f).roundToInt().coerceIn(0, 100)
+    }
+
+    /** 单脚本进度圈：中心显示百分比数字。 */
+    fun buildSingleRingBitmap(percent: Int): Bitmap =
+        buildRingBitmap(percent, percent.toString(), BRAND_COLOR)
+
     /**
      * 生成单个任务的进度圈。
      *
@@ -236,7 +348,7 @@ object ExecutionFocusIsland {
      */
     fun buildRingBitmap(
         percent: Int,
-        label: Char,
+        label: String,
         colorHex: String,
         sizePx: Int = 192,
     ): Bitmap {
@@ -266,12 +378,13 @@ object ExecutionFocusIsland {
         val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = sizePx * 0.32f
+            // 三位数百分比（100%）比 A/B 更宽，缩小字号保证不压到圆环。
+            textSize = sizePx * if (label.length >= 3) 0.24f else 0.32f
             color = Color.WHITE
         }
         val metrics = labelPaint.fontMetrics
         val labelY = cy - (metrics.ascent + metrics.descent) / 2f
-        canvas.drawText(label.toString(), cx, labelY, labelPaint)
+        canvas.drawText(label, cx, labelY, labelPaint)
         return bitmap
     }
 

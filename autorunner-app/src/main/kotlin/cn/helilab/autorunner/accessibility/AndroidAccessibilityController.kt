@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 import cn.helilab.autorunner.AutoRunnerApplication
+import cn.helilab.autorunner.overlay.IdleInjectionPassthrough
 import com.autorunner.core.model.ActionStep
 import com.autorunner.core.model.DelayStep
 import com.autorunner.core.model.GamepadStep
@@ -136,6 +137,11 @@ class AndroidAccessibilityController(
             ?: return ActionResult.Unsupported("不支持的动作用于手势回放：${step.typeName}")
 
         return withContext(Dispatchers.Main) {
+            // 注入前让黑屏层的媒体按钮窗口临时不可触摸：否则落在按钮矩形上的
+            // 注入点击会被悬浮窗截获，无法穿透到下层应用。这里在主线程同步完成
+            // 标志更新，确保手势派发时 WMS 已经应用 FLAG_NOT_TOUCHABLE。
+            IdleInjectionPassthrough.holdForInjection(gestureDurationMs(step))
+
             suspendCancellableCoroutine { continuation ->
                 val callback = object : AccessibilityService.GestureResultCallback() {
                     override fun onCompleted(gestureDescription: GestureDescription?) {
@@ -212,6 +218,15 @@ class AndroidAccessibilityController(
 
     /** 将手势坐标保持在屏幕内，以便通过平台的非负边界检查。 */
     private fun Float.clampToScreen(max: Float): Float = coerceIn(0f, max)
+
+    /** 手势本身的总时长（毫秒）；用于注入期间让出黑屏层媒体按钮窗口的触摸。 */
+    private fun gestureDurationMs(step: ActionStep): Long = when (step) {
+        is TapStep -> step.duration
+        is LongPressStep -> step.duration
+        is SwipeStep -> step.duration
+        is MultiTouchStep -> step.duration
+        else -> 0L
+    }
 
     private fun pointPath(x: Float, y: Float): Path = Path().apply { moveTo(x, y) }
 

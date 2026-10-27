@@ -8,6 +8,9 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
@@ -34,7 +37,11 @@ internal data class IdleActionBounds(val left: Float, val top: Float)
  * 黑屏层本身是 `FLAG_NOT_TOUCHABLE` 的（触摸必须穿透给下层游戏），因此按钮
  * 不能画在那一层里。这里单独添加一个**只有按钮大小**的可触摸窗口，并让它跟着
  * 滚动文字块移动：触摸落在按钮窗口之外时，`FLAG_NOT_TOUCH_MODAL` 保证事件
- * 继续投递给下层游戏，脚本注入的点击只有压到按钮矩形时才会被拦截。
+ * 继续投递给下层游戏。
+ *
+ * 但按钮矩形本身仍会截获注入的点击（InputDispatcher 一旦选中本窗口，即使
+ * 视图不消费也不会再下传），因此脚本注入期间由 [IdleInjectionPassthrough]
+ * 通过 [setTouchable] 把窗口临时设为不可触摸，注入结束后恢复真实手指可点。
  *
  * 窗口在「本次挂机期间播放过音乐」时由 [IdleScreenOverlay] 添加；暂停后保留，
  * 会话彻底消失后立即移除。
@@ -105,6 +112,26 @@ internal class IdleMediaControlWindow(
         // updateViewLayout 开销可以接受，必须与面板同帧更新。
         params.x = x
         params.y = y
+        runCatching { windowManager?.updateViewLayout(control, params) }
+    }
+
+    /**
+     * 切换窗口是否接收触摸。
+     *
+     * 脚本注入期间必须传 `false`：注入的点击一旦压到按钮矩形，就会被本窗口
+     * 消费而不再下传，导致本应发生在下层应用上的操作失效。恢复 `true` 让真实
+     * 手指重新可以点按按钮。
+     */
+    fun setTouchable(touchable: Boolean) {
+        val control = view ?: return
+        val params = layoutParams ?: return
+        val flags = if (touchable) {
+            params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        } else {
+            params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+        if (flags == params.flags) return
+        params.flags = flags
         runCatching { windowManager?.updateViewLayout(control, params) }
     }
 
@@ -373,5 +400,92 @@ internal class IdleMediaControlView(
         private const val INDEX_PREVIOUS = 0
         private const val INDEX_TOGGLE = 1
         private const val INDEX_NEXT = 2
+    }
+}
+
+/**
+ * 脚本注入期间的触摸让行开关（进程内单例）。
+ *
+ * 黑屏层的媒体按钮窗口是唯一可触摸的悬浮层，注入的点击只要落在按钮矩形上
+ * 就会被它消费，无法穿透到下层应用。两条注入路径（无障碍 `dispatchGesture`
+ * 与 Root `input`）在注入前调用 [holdForInjection]，把按钮窗口临时设为
+ * 不可触摸，注入结束后自动恢复，真实手指仍可点按按钮。
+ *
+ * 让行截止时间取所有请求的最大值，重叠注入不会提前恢复；[bind] 由
+ * [IdleScreenOverlay] 在显示期间登记，黑屏层收起后不再有窗口需要让行。
+ */
+internal object IdleInjectionPassthrough {
+
+    /**
+     * 一次注入的固定余量：覆盖 `dispatchGesture` 的派发 / 回调延迟、
+     * Root 文件桥最多 0.2s 的轮询间隔以及 `input` 进程的启动开销。
+     */
+    private const val SETTLE_MARGIN_MS = 600L
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** 当前黑屏层登记的回调；黑屏层同一时刻只会有一个。 */
+    private var listener: ((Boolean) -> Unit)? = null
+
+    /** 让行截止时刻（uptimeMillis）；0 表示按钮窗口保持可触摸。 */
+    private var holdUntil = 0L
+
+    private val releaseRunnable = object : Runnable {
+        override fun run() {
+            val remaining = holdUntil - SystemClock.uptimeMillis()
+            if (remaining > 0L) {
+                mainHandler.postDelayed(this, remaining)
+                return
+            }
+            holdUntil = 0L
+            listener?.invoke(false)
+        }
+    }
+
+    /** 登记 / 撤销黑屏层的回调；登记时同步一次当前状态，避免新窗口带着旧标志出现。 */
+    fun bind(callback: ((Boolean) -> Unit)?) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            applyBind(callback)
+        } else {
+            mainHandler.post { applyBind(callback) }
+        }
+    }
+
+    /** 身份比较后再撤销，避免误清掉后来登记的回调。 */
+    fun unbind(callback: (Boolean) -> Unit) {
+        mainHandler.post {
+            if (listener === callback) listener = null
+        }
+    }
+
+    /**
+     * 申请让行，时长 = 动作本身时长 + [SETTLE_MARGIN_MS]。
+     *
+     * 在主线程调用时会同步完成窗口标志更新（`updateViewLayout` 是同步 binder
+     * 调用），保证手势派发前 WMS 已经应用 `FLAG_NOT_TOUCHABLE`。
+     */
+    fun holdForInjection(actionDurationMs: Long) {
+        val duration = actionDurationMs.coerceAtLeast(0L) + SETTLE_MARGIN_MS
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            applyHold(duration)
+        } else {
+            mainHandler.post { applyHold(duration) }
+        }
+    }
+
+    private fun applyBind(callback: ((Boolean) -> Unit)?) {
+        listener = callback
+        callback?.invoke(holdUntil > SystemClock.uptimeMillis())
+    }
+
+    private fun applyHold(durationMs: Long) {
+        val until = SystemClock.uptimeMillis() + durationMs
+        if (until > holdUntil) holdUntil = until
+        mainHandler.removeCallbacks(releaseRunnable)
+        mainHandler.postDelayed(
+            releaseRunnable,
+            (holdUntil - SystemClock.uptimeMillis()).coerceAtLeast(0L),
+        )
+        listener?.invoke(true)
     }
 }
