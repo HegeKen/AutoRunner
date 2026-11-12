@@ -76,7 +76,6 @@ abstract class PackageRootModuleTask : DefaultTask() {
 val rootModuleDir = rootProject.layout.projectDirectory.dir("root-module")
 
 val buildRootModule = tasks.register<PackageRootModuleTask>("buildRootModule") {
-    dependsOn(":autorunner-xposed:assembleDebug")
     group = "build"
     description = "打包 root-module 并输出 build/generated/rootModuleAssets/autorunner_root.zip"
     moduleDir.set(rootModuleDir)
@@ -87,10 +86,6 @@ val buildRootModule = tasks.register<PackageRootModuleTask>("buildRootModule") {
         rootModuleDir.file("uninstall.sh"),
         rootModuleDir.file("build.sh"),
         rootModuleDir.dir("scripts"),
-        // 超级岛解锁模块 APK 参与 root zip；作为输入保证 APK 变化时重新打包。
-        rootProject.layout.projectDirectory.file(
-            "autorunner-xposed/build/outputs/apk/debug/autorunner-xposed-debug.apk",
-        ),
     )
     versionName.set(providers.gradleProperty("autorunner.versionName"))
     versionCode.set(providers.gradleProperty("autorunner.versionCode"))
@@ -200,6 +195,9 @@ dependencies {
     implementation(project(":autorunner-core"))
     implementation(project(":autorunner-ui"))
     implementation(project(":autorunner-gamepad"))
+
+    // LSPosed 在宿主进程提供该 API；主 APK 不打包实现，只在编译期可见。
+    compileOnly(libs.libxposed.api)
 
     implementation(libs.compose.runtime)
     implementation(libs.compose.foundation)

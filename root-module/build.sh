@@ -34,15 +34,8 @@ awk -v v="$VER" -v c="$VERSION_CODE" '
 cp customize.sh service.sh uninstall.sh "$STAGE/"
 cp -R scripts "$STAGE/"
 
-# 超级岛解锁 LSPosed 模块（由 :autorunner-xposed 构建；缺失时仍可打出
-# 基础 root 模块，只是不带该功能）。
-XPOSED_APK="$(cd .. && pwd)/autorunner-xposed/build/outputs/apk/debug/autorunner-xposed-debug.apk"
-if [ -f "$XPOSED_APK" ]; then
-  cp "$XPOSED_APK" "$STAGE/autorunner-xposed.apk"
-  echo "including $XPOSED_APK"
-else
-  echo "! Xposed module APK not found; run :autorunner-xposed:assembleDebug first" >&2
-fi
+# 超级岛解锁模块已并入主 App（同一个 APK 既是 AutoRunner 也是 LSPosed 模块），
+# root zip 不再携带单独的 autorunner-xposed.apk。
 
 # Magisk / KernelSU 通用最小安装器
 mkdir -p "$STAGE/META-INF/com/google/android"
@@ -63,7 +56,7 @@ UB
 echo '#MAGISK' > "$STAGE/META-INF/com/google/android/updater-script"
 chmod 0755 "$STAGE/META-INF/com/google/android/update-binary"
 
-( cd "$STAGE" && zip -qr9 "$OUT" . )
+( cd "$STAGE" && rm -f "$OUT" && zip -qr9 "$OUT" . )
 
 echo "built: $OUT"
 unzip -l "$OUT" | tail -5

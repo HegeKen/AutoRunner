@@ -2,6 +2,22 @@
 
 本文件记录 AutoRunner 的所有重要变更。
 
+## v1.1.0 - 2026-11-12
+
+挂机期间来电、闹钟响铃自动退出黑屏并暂停脚本，挂断 / 停响后自动恢复黑屏挂机；黑屏挂机进度圆环下方新增「距下一轮开始」的剩余时间倒计时。
+
+### Added
+
+- **挂机重要情况自动让出屏幕 + 结束后自动恢复**：黑屏层会盖住整屏，此前来电或闹钟响铃时用户看不到、也点不到，只能长按音量减键退出；挂断后还得手动重新打开黑屏。现在挂机期间检测到**来电 / 通话**与**闹钟**会先暂停脚本、再撤掉黑屏层（顺序不能反，否则撤层瞬间仍在途的手势会落到来电界面或闹钟按钮上），并 Toast 提示「检测到来电 / 闹钟，已退出黑屏挂机并暂停脚本；结束后自动恢复」；挂断电话 / 闹钟停响后延迟 2 秒（让系统挂断动画先走），若脚本仍在运行、用户没手动退出黑屏，则自动恢复黑屏层 + 继续脚本执行，Toast 「已恢复黑屏挂机并继续运行」。两路信号互补：`IdleCallMonitor` 每 500ms 轮询 `AudioManager.getMode`，命中 `MODE_RINGTONE` / `MODE_IN_CALL` / `MODE_IN_COMMUNICATION` 即触发，读取音频模式不需要任何权限；`AutoRunnerNotificationListener` 另外识别 `CATEGORY_CALL` / `CATEGORY_ALARM` 的通知，覆盖响铃期间不改音频模式的第三方通话应用。CallMonitor 在触发 start 后不立即 stop，继续轮询等待音频模式回到挂机前的基线；NotificationListener 在那条来电 / 闹钟通知被系统撤掉时补发 resolved。两条 resolved 信号都汇入同一条恢复路径。进入挂机时的音频模式作为基线，游戏内语音或通话中再开挂机不会被立刻踢出。整个 interruption 监听从 `IdleScreenOverlay` 提升到无障碍服务 / 悬浮窗服务层：overlay 自己 hide() 时不再一并清掉 callMonitor 和 feed.observer，它们会在自动退出后继续存活、等待 resolved；overlay 构造函数也因此去掉了 `onInterruption` 参数。用户**主动干预**时不会自动恢复：长按音量减键 / 悬浮球菜单手动退出黑屏、或脚本已被手动停止，都会清掉自动恢复标记，resolved 信号到达时检查不通过、直接放弃。该行为不受「显示手机通知」开关影响，也不依赖「电话状态」权限；与弹窗守护共用同一次挂机的 `hangDialogTriggered` 标记，不会重复暂停 / 重复 Toast。
+- **双任务按轮顺延，动作不再交错**：组合运行中一轮动作（含轮内延时）现在整体占用动作派发权；B 到点（首轮延迟结束或循环间隔结束）时若 A 正在执行本轮，B 会顺延到 A 本轮动作全部执行完毕再开始，而不是插在 A 的两条动作之间。`ActionDispatchGate` 新增 `runRound`，`AutoRunnerScriptExecutor` 按轮持锁、轮内直接派发；循环间隔与首轮等待仍在轮外、不占锁。补充 `ActionDispatchGateTest.holdsTheGateUntilTheWholeRoundFinishes` 与 `ExecutionControllerComboTest.theSecondSlotWaitsUntilSlotAFinishesItsRound`。
+- **Xposed 超级岛解锁模块并入主 App，不再单独打包**：删除 `:autorunner-xposed` 模块，`AutoRunnerXposed` 迁到 App 的 `cn.helilab.autorunner.xposed` 包；主 APK 增加 `xposedmodule` 清单声明与 `META-INF/xposed/java_init.list` / `module.prop`，以 `compileOnly` 引入 libxposed API，release 构建补充对应的 keep 规则。root-module 的 `build.sh` / `service.sh` / `install_focus_unlock.sh` / `uninstall.sh` 不再安装或卸载单独的解锁 APK，只检测主 App 已安装后写入 `/data/local/tmp/autorunner_root/focus_unlock` 标记。
+- **复制动作支持两种落点**：动作列表与管理面板的「复制」保持原有行为，副本插在当前动作正下方，方便在同一位置继续微调；新增「复制到末尾」，把副本追加到动作列表最后一个，用于把同一动作补到循环末尾。`ScriptEditorViewModel.duplicateStep` 新增 `atEnd` 参数（选中项跟随到副本位置），并补充单元测试；管理按钮改为紧凑样式，窄屏或平板分栏下「上移 / 下移 / 复制 / 复制到末尾 + 删除」也不会溢出被裁切。
+- **黑屏挂机圆环剩余时间**：进度圆环下方新增一行更淡的倒计时，显示距下一轮开始还剩多久——组合运行两个圆环各显示自己的剩余时间，单脚本在首轮等待 / 循环间隔阶段显示，其余阶段（动作执行中）因没有逐动作耗时、估算反而误导而不显示。满 1 分钟按分钟向上取整（`14m`），不足 1 分钟显示秒数（`45s`）；暂停时挂钟不再推进，剩余时间随之冻结。核心层新增 `ComboSlotProgress.remainingCycleMs`（首轮等待返回距第一轮开始的时间，其余阶段为 `cycleFractionAt` 的反面并包含循环间隔），并补充对应单元测试。
+
+### Changed
+
+- **时钟行按「圆环 + 剩余时间」整块排版**：`clockRowHeight` / `drawRings` 改用 `ringBlockHeight`（圆环 + 间距 + 文字高度），时钟与圆环仍保持同心、只向下扩展，秒数与剩余时间变化都不会改变面板宽度。
+
 ## v1.0.9 - 2026-10-28
 
 单脚本运行也能上小米超级岛；黑屏挂机时钟行新增执行进度圆环，媒体歌名超长改为跑马灯；修复黑屏层可触摸窗口拦截脚本注入点击、时钟秒数导致面板抖动等问题。

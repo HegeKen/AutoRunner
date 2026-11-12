@@ -35,7 +35,7 @@ UI 全面采用 **MIUIX**（小米 HyperOS 设计语言）。
 | 主题 | 仅浅色 / 深色 / 跟随系统三档（无 Monet 动态取色、无自定义种子色） | `AutoRunnerTheme` |
 | 权限适配 | 无障碍、悬浮窗、通知 + 忽略电池优化，含 MIUI / ColorOS / OriginOS / EMUI 引导；缺权限时列表页浮标与设置首页摘要卡直接列出缺失项 | `AndroidPermissionController`、`PermissionFab`、`MissingPermissionsCard` |
 | Root 注入（可选） | 设置 → 执行 可切换「无障碍服务 / Root 注入」；Root 下由 `su -c input` 注入，不依赖无障碍；配套 Magisk/KernelSU 模块（开机自动开无障碍 + 默认授权 + 注入守护进程），未装模块时可从应用内导出 zip 到下载目录 | `AndroidRootInputBackend`、`root-module/` |
-| Root 超级岛解锁（可选） | Root Bridge 自带 `autorunner-xposed.apk`：在 LSPosed 中启用并勾选系统界面 / 小米服务框架后，绕过 XMSF 焦点通知鉴权与 SystemUI 签名白名单；无需平台 APP_ID。App 通过 `/data/local/tmp/autorunner_root/focus_unlock` 标记启用焦点通知 | `autorunner-xposed`、`root-module/scripts/install_focus_unlock.sh`、`ExecutionFocusIsland` |
+| Root 超级岛解锁（可选） | AutoRunner 的主 APK 同时是 LSPosed 模块（不再单独打包 `autorunner-xposed.apk`）：在 LSPosed 中启用并勾选系统界面 / 小米服务框架后，绕过 XMSF 焦点通知鉴权与 SystemUI 签名白名单；无需平台 APP_ID。App 通过 `/data/local/tmp/autorunner_root/focus_unlock` 标记启用焦点通知 | `cn.helilab.autorunner.xposed.AutoRunnerXposed`、`root-module/scripts/install_focus_unlock.sh`、`ExecutionFocusIsland` |
 | 到位再执行 | 点「运行 / 开始录制」→ 自动回到桌面并显示悬浮窗（此时尚未开始）→ 用户打开目标页面后**单击悬浮球**才开始（图标变为停止），跑完自动结束且不返回应用；长按悬浮球展开面板 | `ExecutionViewModel.armAndGoHome`、`RecordingViewModel.armAndGoHome`、`FloatingControlPanel` |
 | 多重停止入口 | 采集期间屏幕常驻「停止录制」胶囊 + 悬浮球单击 + 通知栏「停止录制」；运行中可由悬浮球/面板/通知停止 | `TouchCaptureView`、`ExecutionNotifications` |
 | 黑屏挂机 | 整屏纯黑但保持屏幕点亮、注入触摸继续穿透给下层游戏；长按音量减键退出。滚动文字面板带**发光圆角边框**（以边框本体为碰撞边界，贴到屏幕边缘才反弹），内部显示**当前时间**（每秒刷新）、**右上角电量 / 充电标识**与**执行进度圆环**（组合 A/B 双环，单脚本一个百分比环），随面板移动避免烧屏 | `AutoRunnerOverlayService`、`IdleScreenOverlay`、`IdleBatteryMonitor` |
@@ -54,7 +54,7 @@ AutoRunner/
 │   ├── commonMain         脚本模型、JSON 编解码、校验、手势分类、执行状态机、设置、仓储
 │   ├── androidMain        SharedPreferences / 内部存储 / 时间（actual 实现）
 │   ├── desktopMain        JVM 对应实现（预览与测试用）
-│   └── commonTest         94 个单元测试
+│   └── commonTest         96 个单元测试
 ├── autorunner-gamepad/    手柄「本机注入」模块（LocalGamepadGateway，无蓝牙依赖）
 ├── autorunner-ui/         Compose Multiplatform + MIUIX 界面层
 │   ├── theme              MiuixTheme / ThemeController / 固定品牌色 #2655FF / Dimens 令牌
@@ -64,11 +64,12 @@ AutoRunner/
 │   ├── screens            脚本列表 / 编辑器 / 组合运行 / 录制 / 设置 / 应用外壳
 │   ├── viewmodel          平台无关 ViewModel（StateFlow）
 │   └── commonTest         33 个测试（ViewModel + 组件规则）
-├── autorunner-xposed/     LSPosed 模块（XMSF 鉴权 / SystemUI 焦点通知白名单解锁）
-└── autorunner-app/        Android 应用（KMP androidTarget + com.android.application）
-    └── src/androidMain    AndroidManifest、资源、无障碍服务、悬浮窗服务、权限、SAF
+├── autorunner-app/        Android 应用（com.android.application），
+│   │                      同时内置 LSPosed 超级岛解锁模块（manifest meta-data +
+│   │                      META-INF/xposed/*，与主 App 共用同一个 APK）
+│   └── src/main           AndroidManifest、资源、无障碍服务、悬浮窗服务、权限、SAF
 
-root-module/               Magisk / KernelSU 模块（含 autorunner-xposed.apk 与安装脚本）
+root-module/               Magisk / KernelSU 模块（开机自动授权 / 注入守护进程 / 超级岛标记）
 ```
 
 依赖方向：`app → ui → core`，`app → gamepad → core`。`autorunner-ui` 不依赖 gamepad，
@@ -390,9 +391,11 @@ flow**，保证 `info.coordinateSpace` 与动作数据始终一致。
 * **首轮延迟。** B 的 `ExecutionConfig.startDelayMs` 由执行器在进入第一轮之前等待，
   期间进度上报 `startDelayElapsedMs/startDelayTotalMs`，通知栏显示「首轮等待 3/10 分钟」。
   延迟只作用于第一轮；之后 B 仍按自己的 `intervalMs` 循环。
-* **动作串行化。** 两个执行器共享一个 `ActionDispatchGate`（`Mutex`），
-  一次只让一个手势进入 `AccessibilityController`，避免并发 `dispatchGesture`
-  互相取消；等待间隔不持锁，脚本之间不会互相拖慢。
+* **动作串行化（按轮独占）。** 两个执行器共享一个 `ActionDispatchGate`（`Mutex`），
+  一轮的所有动作（含轮内延时）整体占用派发权：另一段脚本即使已经到点（首轮延迟
+  结束或循环间隔结束），也要等这一轮动作全部执行完、释放派发权后才开始。这样
+  两段脚本的手势不会在动作边界互相穿插，也不会并发 `dispatchGesture` 互相取消；
+  循环间隔与首轮等待都在轮外，不持锁，脚本之间不会互相拖慢。
 * **启动流程。** 与单脚本一致：先在「组合」页点「开始组合」，应用回到桌面并显示悬浮球；
   打开目标应用后单击悬浮球，两段脚本才真正开始。悬浮球、通知栏、屏幕常亮与
   键盘/鼠标映射都读取聚合后的状态，无需区分单脚本还是组合。
@@ -469,8 +472,8 @@ flow**，保证 `info.coordinateSpace` 与动作数据始终一致。
 | `GestureAnalyzerTest` | 10 | 点击 / 长按 / 滑动 / 多点触控分类、微触摸丢弃、取消、flush、阈值可配 |
 | `FocusPayloadParserTest` | 7 | 焦点通知（超级岛）载荷解析、MiPush 场景模板、取消 / 字段缺失 |
 | `AutoRunnerScriptExecutorTest` | 13 | 单次 / 重复 / 无限循环、首轮延迟、暂停恢复、重连重试、跳过与终止策略、进度序列、手柄分发 |
-| `ActionDispatchGateTest` | 1 | 组合运行的两个执行器共享派发锁，动作不会并发进入输入后端 |
-| `ExecutionControllerComboTest` | 5 | 双脚本并行、B 首轮偏移、等待首轮进度、暂停/停止、无第二执行器时拒绝启动 |
+| `ActionDispatchGateTest` | 2 | 组合运行的两个执行器共享派发锁；整轮占用期间另一段脚本的动作会顺延 |
+| `ExecutionControllerComboTest` | 6 | 双脚本并行、B 首轮偏移、B 顺延到 A 本轮动作结束、等待首轮进度、暂停/停止、无第二执行器时拒绝启动 |
 | `ComboProgressTest` | 5 | 单槽/组合循环进度、首轮等待、快照间插值、运行时长实时推进 |
 | `ComboBundleCodecTest` | 3 | `.arcombo` 往返、错误格式/版本拒绝、文件名建议 |
 | `ScriptModelDurationTest` | 5 | 单轮 / 总时长估算（含间隔、恢复延迟与首轮延迟）、无限循环无有限总时长 |

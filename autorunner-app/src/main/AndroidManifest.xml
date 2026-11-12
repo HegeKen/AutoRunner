@@ -22,7 +22,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!--
@@ -62,6 +61,22 @@
         <meta-data
             android:name="com.xiaomi.xms.BUILD_TYPE_DEBUG"
             android:value="${xmsBuildTypeDebug}" />
+
+        <!--
+          LSPosed 模块声明：本 APK 同时是「AutoRunner 超级岛解锁」模块，
+          不再单独打包。入口类见 META-INF/xposed/java_init.list，模块属性见
+          META-INF/xposed/module.prop；在 LSPosed 中启用本模块并勾选作用域
+          （系统界面 + 小米服务框架）后生效。
+        -->
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="允许 AutoRunner 通过小米焦点通知 / 超级岛白名单（需 LSPosed 作用域：系统界面 + 小米服务框架）" />
+        <meta-data
+            android:name="xposedminversion"
+            android:value="93" />
 
         <activity
             android:name=".MainActivity"

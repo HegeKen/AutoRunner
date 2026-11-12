@@ -120,7 +120,8 @@ ExecutionViewModel.start(scriptId)
 ExecutionController.startCombo(ComboExecution)
   ├─ executorA.execute(scriptA, configA)   // A 立即开始
   └─ executorB.execute(scriptB, configB)   // B 先等待 configB.startDelayMs
-       └─ 两个执行器共享 ActionDispatchGate（Mutex）
+       └─ 两个执行器共享 ActionDispatchGate（Mutex，按「整轮」独占：
+          B 到点时若 A 本轮动作未执行完，则顺延到本轮结束）
             └─ publishComboSnapshot() → state/progress/comboProgress 聚合
 ```
 

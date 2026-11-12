@@ -21,7 +21,10 @@ import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.Toast
 import cn.helilab.autorunner.AppGraph
 import cn.helilab.autorunner.AutoRunnerApplication
+import cn.helilab.autorunner.notification.IdleInterruption
+import cn.helilab.autorunner.notification.IdleInterruptionFeed
 import cn.helilab.autorunner.overlay.AutoRunnerOverlayService
+import cn.helilab.autorunner.overlay.IdleCallMonitor
 import cn.helilab.autorunner.overlay.IdleScreenOverlay
 import com.autorunner.core.model.AppSettings
 import com.autorunner.core.model.GamepadMappings
@@ -814,7 +817,7 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     /** 进入挂机时已存在的窗口 id 集合；新的窗口 id 才可能是挂机后弹出的确认框。 */
     private var hangBaselineWindowIds: Set<Int> = emptySet()
 
-    /** 本次挂机是否已经因为弹窗触发过退出（防止重复弹 Toast / 重复暂停）。 */
+    /** 本次挂机是否已经因为弹窗触发过自动退出（防止重复弹 Toast / 重复暂停）。 */
     private var hangDialogTriggered = false
 
     /** 一次防抖检查是否已排队（事件风暴期间只保留一次）。 */
@@ -840,12 +843,75 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
         }
     }
 
+    // --- 来电 / 闹钟 interruption 自动退出 + 自动恢复 ---
+
+    /** 挂机期间的通话监听（音频模式轮询）；[showIdleScreen] 时启动。 */
+    private var idleCallMonitor: IdleCallMonitor? = null
+
+    /** 本服务注册到 [IdleInterruptionFeed] 的观察者；按身份撤销。 */
+    private var interruptionObserver: ((IdleInterruption) -> Unit)? = null
+
+    /** interruption 自动退出后是否仍需要恢复（手动退出 / 脚本停止时清掉）。 */
+    private var interruptionAutoExited = false
+
+    /** 延迟调用的恢复任务；用于电话挂断后等 2 秒再恢复黑屏。 */
+    private var interruptionRestoreTask: Runnable? = null
+
+    /** interruption resolved 后延迟 [INTERRUPTION_RESTORE_DELAY_MS] 再恢复黑屏，
+     *  给电话挂断动画 / 闹钟关闭动画留出时间，恢复瞬间才不会把过渡界面盖住。 */
+    private fun scheduleInterruptionRestore() {
+        val existing = interruptionRestoreTask
+        if (existing != null) mainHandler.removeCallbacks(existing)
+        val observer = this
+        val task = Runnable {
+            interruptionRestoreTask = null
+            if (!interruptionAutoExited) return@Runnable // 手动退出已清标记
+            val controller = AppGraph.containerOrNull?.executionController ?: run {
+                Log.i(AutoRunnerApplication.TAG, "interruption restore: no controller, skip")
+                return@Runnable
+            }
+            if (!controller.isActive) {
+                Log.i(AutoRunnerApplication.TAG, "interruption restore: script already stopped, skip")
+                return@Runnable
+            }
+            interruptionAutoExited = false
+            val resumed = controller.isPaused
+            if (showIdleScreen()) {
+                if (resumed) controller.resume()
+                Toast.makeText(
+                    observer,
+                    "已恢复黑屏挂机${if (resumed) "并继续运行" else ""}",
+                    Toast.LENGTH_LONG,
+                ).show()
+            } else {
+                Log.w(AutoRunnerApplication.TAG, "interruption restore: showIdleScreen failed")
+                if (resumed) controller.resume()
+            }
+        }
+        interruptionRestoreTask = task
+        mainHandler.postDelayed(task, INTERRUPTION_RESTORE_DELAY_MS)
+    }
+
+    /** 手动退出黑屏（长按音量减、用户菜单退出等）：清掉自动恢复标记与监听。 */
+    private fun cancelInterruptionAutoRestore() {
+        interruptionAutoExited = false
+        interruptionRestoreTask?.let { mainHandler.removeCallbacks(it) }
+        interruptionRestoreTask = null
+        idleCallMonitor?.stop()
+        idleCallMonitor = null
+        if (interruptionObserver != null && IdleInterruptionFeed.observer === interruptionObserver) {
+            IdleInterruptionFeed.observer = null
+        }
+        interruptionObserver = null
+    }
+
     /** 添加黑屏挂机层；无障碍服务不可用（无窗口权限等）时返回 `false`。 */
     fun showIdleScreen(): Boolean {
         if (idleScreenOverlay != null) return true
         // 先记下当前窗口基线，再加入黑屏层：之后新出现的窗口 id 才可能是弹窗。
         captureHangBaseline()
         hangDialogTriggered = false
+        interruptionAutoExited = false
         mainHandler.removeCallbacks(hangDialogCheck)
         hangDialogCheckScheduled = false
         val overlay = IdleScreenOverlay(
@@ -857,6 +923,14 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
         idleScreenOverlay = overlay
         idleScreenVisible = true
         if (volumeDownPressedAt == 0L) volumeDownLongPressTriggered = false
+        // 挂机期间的来电 / 闹钟监听：上移到本服务，以便 interruption 结束后
+        // 继续活着等待 resolved 信号（黑屏层自身已被临时撤掉）。
+        val obs: (IdleInterruption) -> Unit = ::onInterruptionSignal
+        interruptionObserver = obs
+        IdleInterruptionFeed.observer = obs
+        val callWatch = IdleCallMonitor(this, obs)
+        idleCallMonitor = callWatch
+        callWatch.start()
         return true
     }
 
@@ -865,6 +939,8 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
         idleScreenOverlay?.hide()
         idleScreenOverlay = null
         idleScreenVisible = false
+        // 永久 hide 也要停监听、清自动恢复标记。
+        cancelInterruptionAutoRestore()
         // 不清理 volumeDownPressedAt：长按退出时按键仍被按住，
         // 需要继续吞掉它的重复 DOWN / UP 直到用户松手。
         mainHandler.removeCallbacks(idleScreenExitLongPress)
@@ -873,6 +949,15 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
         hangDialogTriggered = false
         hangBaselinePackage = null
         hangBaselineWindowIds = emptySet()
+    }
+
+    /** interruption 自动退出的临时 hide：只撤 UI，保留监听与自动恢复标记。 */
+    private fun tempHideIdleScreenForInterruption() {
+        idleScreenOverlay?.hide()
+        idleScreenOverlay = null
+        idleScreenVisible = false
+        mainHandler.removeCallbacks(hangDialogCheck)
+        hangDialogCheckScheduled = false
     }
 
     // ------------------------------------------------------------ 弹窗守护
@@ -1035,6 +1120,48 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * 挂机期间 interruption 信号统一入口：start 时暂停脚本并临时撤黑屏，
+     * resolved 时等几秒再自动恢复黑屏与脚本执行。
+     */
+    private fun onInterruptionSignal(signal: IdleInterruption) {
+        if (signal.resolved) {
+            // resolved：callMonitor / notification listener 发出"电话挂断 / 闹钟停响"。
+            if (!interruptionAutoExited) return
+            Log.i(
+                AutoRunnerApplication.TAG,
+                "idle interruption resolved: kind=${signal.kind}, scheduling restore",
+            )
+            scheduleInterruptionRestore()
+            return
+        }
+        // start：来电 / 闹钟出现
+        if (!idleScreenVisible || hangDialogTriggered || interruptionAutoExited) return
+        hangDialogTriggered = true
+        interruptionAutoExited = true
+        mainHandler.removeCallbacks(hangDialogCheck)
+        hangDialogCheckScheduled = false
+        Log.i(
+            AutoRunnerApplication.TAG,
+            "idle interruption start: kind=${signal.kind}",
+        )
+        // 先暂停脚本，再撤黑屏：避免撤层瞬间仍有在途手势落到来电 / 闹钟界面。
+        val controller = AppGraph.containerOrNull?.executionController
+        val pausedScript = controller != null && controller.isActive && !controller.isPaused
+        if (pausedScript) {
+            controller.pause()
+            Log.i(AutoRunnerApplication.TAG, "idle interruption guard paused the script")
+        }
+        tempHideIdleScreenForInterruption()
+        AutoRunnerOverlayService.notifyBlackScreenHidden()
+        val message = if (pausedScript) {
+            "检测到${signal.label}，已退出黑屏挂机并暂停脚本；结束后自动恢复"
+        } else {
+            "检测到${signal.label}，已退出黑屏挂机；结束后自动恢复"
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    }
+
+    /**
      * 系统 UI（通知栏、音量条、权限框）不参与弹窗判定：它们由用户在系统层操作，
      * 正文里也可能出现「确定」等字样。部分 ROM 的 `getWindows()` 不返回活动窗口，
      * 此时按「应用窗口」处理更符合实际（输入法窗口由 className / 类型另行排除）。
@@ -1158,6 +1285,9 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
 
         /** 弹窗守护：事件停止后等待多久再扫描（毫秒），避开窗口动画。 */
         const val HANG_DIALOG_SETTLE_MS = 400L
+
+        /** interruption resolved 后延迟多久再恢复黑屏挂机，让电话 / 闹钟过渡动画先走完。 */
+        const val INTERRUPTION_RESTORE_DELAY_MS = 2_000L
 
         /** 弹窗守护：单次扫描最多访问的节点数 / 深度 / 文本条数与长度。 */
         const val HANG_DIALOG_MAX_NODES = 300

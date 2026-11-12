@@ -238,6 +238,29 @@ private fun SaveAction(dirty: Boolean, onSave: () -> Unit) {
     )
 }
 
+/**
+ * 动作管理行里的紧凑文字按钮。
+ *
+ * 默认 `TextButton` 的最小宽度 58dp + 左右各 16dp 内边距，一排「上移 / 下移 /
+ * 复制 / 复制到末尾」在窄屏（或平板分栏后的半屏）会溢出并裁掉删除按钮；
+ * 这里按内容收紧宽度与内边距，保证四个按钮 + 删除图标始终排得下。
+ */
+@Composable
+private fun CompactTextButton(
+    text: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+) {
+    TextButton(
+        text = text,
+        onClick = onClick,
+        enabled = enabled,
+        minWidth = 0.dp,
+        minHeight = 32.dp,
+        insideMargin = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+    )
+}
+
 // ---------------------------------------------------------------------------
 // 时间线（动作列表）
 // ---------------------------------------------------------------------------
@@ -308,19 +331,29 @@ private fun EditorTimeline(
                                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                                     ) {
-                                        TextButton(
+                                        CompactTextButton(
                                             text = "上移",
                                             onClick = { viewModel.moveStep(index, index - 1, followStep = false) },
                                             enabled = index > 0,
                                         )
-                                        TextButton(
+                                        CompactTextButton(
                                             text = "下移",
                                             onClick = { viewModel.moveStep(index, index + 1, followStep = false) },
                                             enabled = index < flow.lastIndex,
                                         )
-                                        TextButton(
+                                        CompactTextButton(
                                             text = "复制",
                                             onClick = { viewModel.duplicateStep(index, followStep = false) },
+                                        )
+                                        CompactTextButton(
+                                            text = "复制到末尾",
+                                            onClick = {
+                                                viewModel.duplicateStep(
+                                                    index,
+                                                    followStep = false,
+                                                    atEnd = true,
+                                                )
+                                            },
                                         )
                                         Spacer(modifier = Modifier.weight(1f))
                                         RowAction(
@@ -626,6 +659,7 @@ private fun EditorDetailPane(
                 onMoveUp = { viewModel.moveStep(index, index - 1) },
                 onMoveDown = { viewModel.moveStep(index, index + 1) },
                 onDuplicate = { viewModel.duplicateStep(index) },
+                onDuplicateToEnd = { viewModel.duplicateStep(index, atEnd = true) },
             )
         } else {
             Card(insideMargin = Dimens.CardContentPadding) {
@@ -924,6 +958,7 @@ private fun ActionParameterEditor(
     onMoveUp: () -> Unit = {},
     onMoveDown: () -> Unit = {},
     onDuplicate: () -> Unit = {},
+    onDuplicateToEnd: () -> Unit = {},
 ) {
     // 「序号 + 动作类型」是这一步编辑器的稳定身份：切换动作时重置全部子状态
     // （输入框原文、错误态…），但同一动作上的普通重组不会清掉用户正在输入的内容。
@@ -944,6 +979,7 @@ private fun ActionParameterEditor(
             onMoveUp = onMoveUp,
             onMoveDown = onMoveDown,
             onDuplicate = onDuplicate,
+            onDuplicateToEnd = onDuplicateToEnd,
         )
     }
 }
@@ -964,6 +1000,7 @@ private fun ActionParameterEditorBody(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onDuplicate: () -> Unit,
+    onDuplicateToEnd: () -> Unit,
 ) {
     var draft by remember { mutableStateOf(step) }
     // 单独保存名称原文：`withName` 会 trim，直接把它喂回输入框会让行尾空格被吞掉。
@@ -1230,13 +1267,16 @@ private fun ActionParameterEditorBody(
 
             // 单个动作的管理：调整顺序 / 复制 / 删除，与下方「应用」放在一起，
             // 手机上选中动作后进入本面板即可完成全部操作。
+            // 复制分两种：默认插到当前动作下方（复制后立刻在同一位置继续编辑），
+            // 「复制到末尾」把副本放到动作列表最后，用于把同一动作补到末尾。
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                TextButton(text = "上移", enabled = canMoveUp, onClick = onMoveUp)
-                TextButton(text = "下移", enabled = canMoveDown, onClick = onMoveDown)
-                TextButton(text = "复制", onClick = onDuplicate)
+                CompactTextButton(text = "上移", enabled = canMoveUp, onClick = onMoveUp)
+                CompactTextButton(text = "下移", enabled = canMoveDown, onClick = onMoveDown)
+                CompactTextButton(text = "复制", onClick = onDuplicate)
+                CompactTextButton(text = "复制到末尾", onClick = onDuplicateToEnd)
             }
 
             TextButton(

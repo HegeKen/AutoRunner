@@ -41,6 +41,9 @@ class AutoRunnerNotificationListener : NotificationListenerService() {
     /** 本实例注册到 [FocusNotificationFeed] 的回查函数；解绑时按身份撤销。 */
     private var focusRefresh: (() -> Unit)? = null
 
+    /** 已触发过 interruption 的通知 key → 触发的 kind；removed 时补发 resolved。 */
+    private val triggeredInterruptionKeys = HashMap<String, IdleInterruption.Kind>()
+
     /** 应用名 / 图标缓存：同一条通知流里反复查询 `PackageManager` 没有意义。 */
     private val appLabels = HashMap<String, String>()
 
@@ -73,6 +76,7 @@ class AutoRunnerNotificationListener : NotificationListenerService() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacksAndMessages(null)
+        triggeredInterruptionKeys.clear()
         detachFocusRefresh()
         super.onDestroy()
     }
@@ -97,6 +101,17 @@ class AutoRunnerNotificationListener : NotificationListenerService() {
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         FocusNotificationFeed.remove(sbn?.key ?: return)
+        // 这条通知曾触发 interruption（来电 / 闹钟），现在它被系统撤掉了 →
+        // 闹钟停响了（CALL 的 resolved 主要靠音频模式，这里只是 fallback）。
+        val key = sbn.key
+        val kind = triggeredInterruptionKeys.remove(key)
+        if (kind != null && IdleInterruptionFeed.isObserved) {
+            Log.i(
+                AutoRunnerApplication.TAG,
+                "idle interruption resolved via notification removed: kind=$kind key=$key",
+            )
+            IdleInterruptionFeed.publishResolved(kind)
+        }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -104,6 +119,8 @@ class AutoRunnerNotificationListener : NotificationListenerService() {
         val settings = AppGraph.containerOrNull?.settingsRepository?.current ?: return
         // 焦点通知是常驻状态，与普通通知卡片的收集开关彼此独立。
         if (settings.idleFocusDisplay) publishFocus(statusBarNotification)
+        // 来电 / 闹钟：黑屏层整屏遮挡，需要立刻让出屏幕（不受「显示手机通知」开关影响）。
+        publishInterruption(statusBarNotification)
         // 没有可见的黑屏层 → 不在挂机模式，直接丢弃（也避免持有通知内容）。
         if (!IdleNotificationFeed.isObserved) return
         if (!settings.idleNotificationDisplay) {
@@ -141,6 +158,30 @@ class AutoRunnerNotificationListener : NotificationListenerService() {
         }
         FocusNotificationFeed.upsert(focus)
         return focus
+    }
+
+    /**
+     * 来电 / 闹钟通知：通知黑屏层自动退出挂机；通知撤掉时补发 resolved。
+     *
+     * 黑屏层收起后 [IdleInterruptionFeed.isObserved] 仍会短暂保持 `true`
+     * （用于接收 resolved 信号自动恢复）。与「显示手机通知」开关无关——
+     * 这是把屏幕交还给用户的安全行为。
+     */
+    private fun publishInterruption(sbn: StatusBarNotification) {
+        if (!IdleInterruptionFeed.isObserved) return
+        if (sbn.packageName == packageName) return
+        val kind = when (sbn.notification?.category) {
+            Notification.CATEGORY_CALL -> IdleInterruption.Kind.CALL
+            Notification.CATEGORY_ALARM -> IdleInterruption.Kind.ALARM
+            else -> return
+        }
+        // 记录这条通知 key，removed 时补发 resolved。
+        triggeredInterruptionKeys[sbn.key] = kind
+        Log.i(
+            AutoRunnerApplication.TAG,
+            "idle interruption notification: kind=$kind pkg=${sbn.packageName}",
+        )
+        IdleInterruptionFeed.publishStart(kind)
     }
 
     private fun isWanted(sbn: StatusBarNotification): Boolean {

@@ -7,6 +7,7 @@ import com.autorunner.core.model.ExecutionProgress
 import com.autorunner.core.model.ExecutionState
 import com.autorunner.core.model.ScriptModel
 import com.autorunner.core.util.currentTimeMillis
+import kotlin.math.roundToLong
 
 /**
  * 组合运行的一次启动请求：两个槽位各自的脚本与生效配置。
@@ -120,6 +121,29 @@ data class ComboSlotProgress(
             0L
         }
         return cycleFraction(extra)
+    }
+
+    /**
+     * 距当前循环结束（下一轮开始）的估算剩余时长（毫秒）。
+     *
+     * 首轮等待阶段返回距第一轮开始的剩余时间；其余阶段是 [cycleFractionAt]
+     * 的反面——动作阶段按单轮估算时长的剩余部分计算，并包含循环间隔。
+     * 已结束 / 已停止返回 `0`。
+     */
+    fun remainingCycleMs(nowEpochMs: Long = currentTimeMillis()): Long {
+        if (state == ExecutionState.COMPLETED || state == ExecutionState.STOPPED) return 0L
+        val extra = if (state == ExecutionState.RUNNING && updatedAtEpochMs > 0L) {
+            (nowEpochMs - updatedAtEpochMs).coerceAtLeast(0L)
+        } else {
+            0L
+        }
+        val delayTotal = progress.startDelayTotalMs
+        if (delayTotal > 0L && progress.startDelayElapsedMs < delayTotal) {
+            return (delayTotal - progress.startDelayElapsedMs - extra).coerceAtLeast(0L)
+        }
+        if (cycleDurationMs <= 0L) return 0L
+        val remaining = cycleDurationMs * (1f - cycleFraction(extra))
+        return remaining.roundToLong().coerceAtLeast(0L)
     }
 
     /** 覆盖层与组合页使用的单行状态文案。 */

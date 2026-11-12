@@ -398,7 +398,8 @@ AutoRunner 在**组合运行**期间通过独立焦点通知（id `0x4154`）上
   示例一致；前台服务通知仍是 `autorunner_execution`（LOW）。
 * 设备要求：`notification_focus_protocol >= 3`，且满足以下任一条件：
   1. 清单中配置了 `com.xiaomi.xms.APP_ID`（小米开放平台正式接入）；
-  2. 安装了 AutoRunner Root Bridge 的「超级岛解锁」LSPosed 模块（写入
+  2. 安装了 AutoRunner Root Bridge，并在 LSPosed 中启用主 App 内置的
+     「超级岛解锁」模块（Root Bridge 写入
      `/data/local/tmp/autorunner_root/focus_unlock` 标记）。
   另外用户需为 AutoRunner 打开「焦点通知」权限。两条路都没有时
   `supportsIsland()` 返回 false，不会投递焦点通知，避免系统鉴权失败后留下一条
@@ -426,7 +427,8 @@ AutoRunner 在**组合运行**期间通过独立焦点通知（id `0x4154`）上
 官方接入文档也明确：`com.xiaomi.xms.APP_ID`「必须配置」，调用服务时会通过
 App Id 进行鉴权（[pId=2132](https://dev.mi.com/xiaomihyperos/documentation/detail?pId=2132)）。
 
-> **Root 路径（已实测）**：安装 Root Bridge 自带的 `autorunner-xposed.apk` 后，在
+> **Root 路径（已实测）**：超级岛解锁模块已并入主 App（AutoRunner 的 APK 同时
+> 是 LSPosed 模块，不再单独安装 `autorunner-xposed.apk`），在
 > LSPosed 中启用「AutoRunner 超级岛解锁」，作用域勾选 `com.miui.systemui` 与
 > `com.xiaomi.xmsf`，重启即可。模块会强制 XMSF AuthSession 返回成功，并让
 > SystemUI 对 `cn.helilab.autorunner` 的 `canShowFocusState` 返回允许；此时

@@ -134,8 +134,19 @@ class ViewModelTest {
 
         editor.duplicateStep(0)
         assertEquals(4, editor.flow.value.size)
+        // 默认插在原动作正下方。
+        assertEquals(listOf(3f, 3f, 1f, 2f), editor.flow.value.map { (it as TapStep).x })
 
-        editor.removeStep(0)
+        editor.removeStep(1)
+        assertEquals(listOf(3f, 1f, 2f), editor.flow.value.map { (it as TapStep).x })
+
+        // 复制到末尾：副本追加到最后，选中项跟随到末尾。
+        editor.duplicateStep(0, atEnd = true)
+        assertEquals(4, editor.flow.value.size)
+        assertEquals(listOf(3f, 1f, 2f, 3f), editor.flow.value.map { (it as TapStep).x })
+        assertEquals(3, editor.selectedIndex.value)
+
+        editor.removeStep(3)
         assertEquals(3, editor.flow.value.size)
         assertEquals(listOf(3f, 1f, 2f), editor.flow.value.map { (it as TapStep).x })
     }

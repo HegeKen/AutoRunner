@@ -188,76 +188,100 @@ class AutoRunnerScriptExecutor(
             }
 
             loop@ while (!stoppedByUser && counters.completedLoops < totalLoops) {
-                for ((index, step) in steps.withIndex()) {
-                    awaitResumeOrStop()
-                    if (stopRequested.isCompleted) {
+                // 一轮动作整体占用派发权：组合运行时另一段脚本即使已经到点，
+                // 也要等这一轮动作（含轮内延时）全部执行完再开始，避免两段
+                // 脚本的手势在动作边界互相穿插。循环间隔在轮外，不占锁。
+                val roundResult = dispatchGate.runRound {
+                    var result = RoundResult.COMPLETED
+                    for ((index, step) in steps.withIndex()) {
+                        awaitResumeOrStop()
+                        if (stopRequested.isCompleted) {
+                            result = RoundResult.STOPPED
+                            break
+                        }
+
+                        publishAction(
+                            scriptId = scriptId,
+                            scriptName = scriptName,
+                            index = index,
+                            totalActions = steps.size,
+                            totalLoops = totalLoops,
+                            // 进度文案里的手柄按键按脚本自身的手柄类型显示。
+                            label = step.labelFor(gamepadMode),
+                            message = null,
+                            counters = counters,
+                            onProgress = onProgress,
+                        )
+
+                        val outcome = if (step is DelayStep) {
+                            // 纯等待不会进入手势层。
+                            clock.delay(step.duration)
+                            ActionResult.Success
+                        } else {
+                            // 整轮已经持有派发权，直接派发，避免同一把锁重入。
+                            dispatchUngated(step, gamepadMode)
+                        }
+                        when (outcome) {
+                            is ActionResult.Success -> counters.executedActions++
+
+                            is ActionResult.Unsupported -> {
+                                counters.skippedActions++
+                                if (effective.failureStrategy == FailureStrategy.ABORT_SCRIPT) {
+                                    failureMessage = outcome.reason
+                                    result = RoundResult.ABORTED
+                                    break
+                                }
+                            }
+
+                            is ActionResult.Failure -> {
+                                val recovered = outcome.recoverable &&
+                                    effective.reconnectTimeoutMs > 0L &&
+                                    awaitServiceReconnect(effective.reconnectTimeoutMs)
+                                val retried = if (recovered) {
+                                    dispatchUngated(step, gamepadMode)
+                                } else {
+                                    outcome
+                                }
+                                if (retried.isSuccess) {
+                                    counters.executedActions++
+                                } else {
+                                    counters.skippedActions++
+                                    val reason = (retried as? ActionResult.Failure)?.reason
+                                        ?: (retried as? ActionResult.Unsupported)?.reason
+                                        ?: "未知错误"
+                                    if (effective.failureStrategy == FailureStrategy.ABORT_SCRIPT) {
+                                        failureMessage = reason
+                                        result = RoundResult.ABORTED
+                                        break
+                                    }
+                                    publishAction(
+                                        scriptId = scriptId,
+                                        scriptName = scriptName,
+                                        index = index,
+                                        totalActions = steps.size,
+                                        totalLoops = totalLoops,
+                                        label = step.labelFor(gamepadMode),
+                                        message = "已跳过：$reason",
+                                        counters = counters,
+                                        onProgress = onProgress,
+                                    )
+                                }
+                            }
+                        }
+
+                        if (step.delay > 0L) clock.delay(step.delay)
+                    }
+                    result
+                }
+
+                when (roundResult) {
+                    RoundResult.STOPPED -> {
                         stoppedByUser = true
                         break@loop
                     }
 
-                    publishAction(
-                        scriptId = scriptId,
-                        scriptName = scriptName,
-                        index = index,
-                        totalActions = steps.size,
-                        totalLoops = totalLoops,
-                        // 进度文案里的手柄按键按脚本自身的手柄类型显示。
-                        label = step.labelFor(gamepadMode),
-                        message = null,
-                        counters = counters,
-                        onProgress = onProgress,
-                    )
-
-                    val outcome = if (step is DelayStep) {
-                        // 纯等待不会进入手势层。
-                        clock.delay(step.duration)
-                        ActionResult.Success
-                    } else {
-                        dispatch(step, gamepadMode)
-                    }
-                    when (outcome) {
-                        is ActionResult.Success -> counters.executedActions++
-
-                        is ActionResult.Unsupported -> {
-                            counters.skippedActions++
-                            if (effective.failureStrategy == FailureStrategy.ABORT_SCRIPT) {
-                                failureMessage = outcome.reason
-                                break@loop
-                            }
-                        }
-
-                        is ActionResult.Failure -> {
-                            val recovered = outcome.recoverable &&
-                                effective.reconnectTimeoutMs > 0L &&
-                                awaitServiceReconnect(effective.reconnectTimeoutMs)
-                            val retried = if (recovered) dispatch(step, gamepadMode) else outcome
-                            if (retried.isSuccess) {
-                                counters.executedActions++
-                            } else {
-                                counters.skippedActions++
-                                val reason = (retried as? ActionResult.Failure)?.reason
-                                    ?: (retried as? ActionResult.Unsupported)?.reason
-                                    ?: "未知错误"
-                                if (effective.failureStrategy == FailureStrategy.ABORT_SCRIPT) {
-                                    failureMessage = reason
-                                    break@loop
-                                }
-                                publishAction(
-                                    scriptId = scriptId,
-                                    scriptName = scriptName,
-                                    index = index,
-                                    totalActions = steps.size,
-                                    totalLoops = totalLoops,
-                                    label = step.labelFor(gamepadMode),
-                                    message = "已跳过：$reason",
-                                    counters = counters,
-                                    onProgress = onProgress,
-                                )
-                            }
-                        }
-                    }
-
-                    if (step.delay > 0L) clock.delay(step.delay)
+                    RoundResult.ABORTED -> break@loop
+                    RoundResult.COMPLETED -> Unit
                 }
 
                 if (stopRequested.isCompleted) {
@@ -500,11 +524,12 @@ class AutoRunnerScriptExecutor(
         return accessibilityController.isConnected
     }
 
-    private suspend fun dispatch(step: ActionStep, gamepadMode: GamepadMode): ActionResult =
-        // 组合运行时两个执行器共享同一把锁：一次只让一个手势进入系统，
-        // 其余动作排队。等待间隔不持锁，脚本之间不会互相拖慢。
-        dispatchGate.run { dispatchUngated(step, gamepadMode) }
-
+    /**
+     * 真正把动作交给输入后端。
+     *
+     * 调用方必须已经持有 [ActionDispatchGate] 的派发权（见 [execute] 里的
+     * `runRound`）：整轮动作串行进入系统，避免并发 `dispatchGesture` 互相取消。
+     */
     private suspend fun dispatchUngated(step: ActionStep, gamepadMode: GamepadMode): ActionResult = when (step) {
         is GamepadStep -> when (val gateway = gamepadGateway) {
             null -> ActionResult.Unsupported("手柄模拟未启用")
@@ -647,3 +672,6 @@ class AutoRunnerScriptExecutor(
         const val GAP_TICK_MS = 1_000L
     }
 }
+
+/** 一轮动作的收尾结果：正常走完、被停止、或被失败策略中止。 */
+private enum class RoundResult { COMPLETED, STOPPED, ABORTED }

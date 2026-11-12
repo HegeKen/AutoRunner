@@ -5,13 +5,18 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
+import android.widget.Toast
 import cn.helilab.autorunner.AppGraph
 import cn.helilab.autorunner.AutoRunnerApplication
 import cn.helilab.autorunner.accessibility.AccessibilityServiceHolder
 import cn.helilab.autorunner.notification.ExecutionFocusIsland
 import cn.helilab.autorunner.notification.ExecutionNotifications
+import cn.helilab.autorunner.notification.IdleInterruption
+import cn.helilab.autorunner.notification.IdleInterruptionFeed
 import com.autorunner.core.model.ExecutionState
 import com.autorunner.core.platform.DockEdge
 import com.autorunner.core.platform.RecordingStatus
@@ -73,6 +78,18 @@ class AutoRunnerOverlayService : Service() {
     private val blackScreen = mutableStateOf(false)
 
     private var idleScreenOverlay: IdleScreenOverlay? = null
+
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
+
+    // --- interruption 自动退出 + 自动恢复（回退路径：无障碍不可用时） ---
+
+    private var idleCallMonitor: IdleCallMonitor? = null
+
+    private var interruptionObserver: ((IdleInterruption) -> Unit)? = null
+
+    private var interruptionAutoExited = false
+
+    private var interruptionRestoreTask: Runnable? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -235,6 +252,10 @@ class AutoRunnerOverlayService : Service() {
      * 覆盖层让 display 保持 ON 但整屏纯黑，脚本注入的触摸因为
      * `FLAG_NOT_TOUCHABLE` 继续落到下层游戏，从而绕开「display OFF 时
      * InputDispatcher 丢弃注入触摸」的问题。层内文字缓慢反弹，避免烧屏。
+     *
+     * [setBlackScreenEnabled] 是**永久**开关：打开时建立 interruption 监听，
+     * 关闭时一并清理。interruption 触发的**临时** hide / 恢复分别走
+     * [tempHideBlackScreenForInterruption] / [scheduleInterruptionRestore]。
      */
     private fun setBlackScreenEnabled(enabled: Boolean) {
         if (enabled == blackScreen.value) return
@@ -247,7 +268,7 @@ class AutoRunnerOverlayService : Service() {
             val accessibility = AccessibilityServiceHolder.current()
             val viaAccessibility = accessibility?.showIdleScreen() == true
             if (!viaAccessibility) {
-                val overlay = IdleScreenOverlay(this)
+                val overlay = IdleScreenOverlay(context = this)
                 if (!overlay.show()) {
                     Log.w(AutoRunnerApplication.TAG, "black screen overlay could not be attached")
                     return
@@ -255,6 +276,16 @@ class AutoRunnerOverlayService : Service() {
                 idleScreenOverlay = overlay
             }
             blackScreen.value = true
+            interruptionAutoExited = false
+            // 回退路径的 interruption 监听：callMonitor + feed.observer 都由本服务管理。
+            if (!viaAccessibility) {
+                val obs: (IdleInterruption) -> Unit = ::onInterruptionSignal
+                interruptionObserver = obs
+                IdleInterruptionFeed.observer = obs
+                val watch = IdleCallMonitor(this, obs)
+                idleCallMonitor = watch
+                watch.start()
+            }
             // 回退路径用的是同层 APPLICATION_OVERLAY，重新添加才能盖住黑层；
             // 无障碍层永远在本层之上，无需（也无法）置顶。
             if (viaAccessibility) {
@@ -271,7 +302,93 @@ class AutoRunnerOverlayService : Service() {
             idleScreenOverlay?.hide()
             idleScreenOverlay = null
             blackScreen.value = false
+            // 永久关闭：清理 interruption 监听与恢复标记。
+            cancelInterruptionAutoRestore()
         }
+    }
+
+    /** interruption 触发的临时 hide：只撤黑屏 UI，保留监听等待 resolved 自动恢复。 */
+    private fun tempHideBlackScreenForInterruption() {
+        host?.setTouchable(true)
+        AccessibilityServiceHolder.current()?.hideIdleScreen()
+        idleScreenOverlay?.hide()
+        idleScreenOverlay = null
+        blackScreen.value = false
+    }
+
+    /** interruption resolved 后延迟恢复黑屏 + 脚本，等电话 / 闹钟过渡动画走完。 */
+    private fun scheduleInterruptionRestore() {
+        val existing = interruptionRestoreTask
+        if (existing != null) mainHandler.removeCallbacks(existing)
+        val task = Runnable {
+            interruptionRestoreTask = null
+            if (!interruptionAutoExited) return@Runnable
+            if (!executionViewModel.isRunning) {
+                Log.i(AutoRunnerApplication.TAG, "interruption restore: script already stopped, skip")
+                return@Runnable
+            }
+            interruptionAutoExited = false
+            val resumed = executionViewModel.state.value == ExecutionState.PAUSED
+            // 通过实例方法走完整的 setBlackScreenEnabled 逻辑（含无障碍优先、callMonitor 重新启动等）。
+            setBlackScreenEnabled(true)
+            if (resumed) executionViewModel.resume()
+            Toast.makeText(
+                this@AutoRunnerOverlayService,
+                "已恢复黑屏挂机${if (resumed) "并继续运行" else ""}",
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+        interruptionRestoreTask = task
+        mainHandler.postDelayed(task, INTERRUPTION_RESTORE_DELAY_MS)
+    }
+
+    /** 手动永久退出黑屏时（用户长按音量减 / 悬浮球菜单），清掉自动恢复状态。 */
+    private fun cancelInterruptionAutoRestore() {
+        interruptionAutoExited = false
+        interruptionRestoreTask?.let { mainHandler.removeCallbacks(it) }
+        interruptionRestoreTask = null
+        idleCallMonitor?.stop()
+        idleCallMonitor = null
+        if (interruptionObserver != null && IdleInterruptionFeed.observer === interruptionObserver) {
+            IdleInterruptionFeed.observer = null
+        }
+        interruptionObserver = null
+    }
+
+    /**
+     * interruption 信号统一入口：start 时暂停脚本并临时 hide，
+     * resolved 时等几秒自动恢复（仅回退路径；无障碍路径由 AccessibilityService 处理）。
+     */
+    private fun onInterruptionSignal(signal: IdleInterruption) {
+        // 无障碍可用时 interruption 由 AccessibilityService 监听并处理，
+        // 本服务只会在它不可用时（回退路径）收到这些信号。
+        val accessibility = AccessibilityServiceHolder.current()
+        if (accessibility != null) return
+        if (signal.resolved) {
+            if (!interruptionAutoExited) return
+            Log.i(
+                AutoRunnerApplication.TAG,
+                "overlay interruption resolved: kind=${signal.kind}, scheduling restore",
+            )
+            scheduleInterruptionRestore()
+            return
+        }
+        if (!blackScreen.value || interruptionAutoExited) return
+        interruptionAutoExited = true
+        Log.i(
+            AutoRunnerApplication.TAG,
+            "overlay interruption start: kind=${signal.kind}",
+        )
+        val pausedScript = executionViewModel.isRunning &&
+            executionViewModel.state.value != ExecutionState.PAUSED
+        if (pausedScript) executionViewModel.pause()
+        tempHideBlackScreenForInterruption()
+        val message = if (pausedScript) {
+            "检测到${signal.label}，已退出黑屏挂机并暂停脚本；结束后自动恢复"
+        } else {
+            "检测到${signal.label}，已退出黑屏挂机；结束后自动恢复"
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
     /** 保持前台通知与执行器状态同步。 */
@@ -460,6 +577,9 @@ class AutoRunnerOverlayService : Service() {
 
         /** 超级岛「当前运行时间」的刷新间隔；避免逐秒通知 IPC。 */
         private const val FOCUS_TICK_MS = 5_000L
+
+        /** interruption resolved 后延迟多久再恢复黑屏挂机，让电话 / 闹钟过渡动画先走完。 */
+        private const val INTERRUPTION_RESTORE_DELAY_MS = 2_000L
 
         /** 启动（或重新下达指令给）悬浮层服务。 */
         fun start(context: Context, action: String? = null) {

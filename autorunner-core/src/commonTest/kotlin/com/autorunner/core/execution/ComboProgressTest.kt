@@ -67,6 +67,54 @@ class ComboProgressTest {
     }
 
     @Test
+    fun remainingCycleTimeCountsDownToNextRound() {
+        val inAction = slot(
+            progress = ExecutionProgress(
+                state = ExecutionState.RUNNING,
+                currentActionIndex = 1,
+                totalActions = 4,
+            ),
+        )
+        // 单轮 4 秒已完成一半 → 剩 2 秒动作 + 6 秒间隔 = 8 秒。
+        assertEquals(8_000L, inAction.remainingCycleMs(nowEpochMs = 0L))
+
+        val waiting = slot(
+            progress = ExecutionProgress(
+                state = ExecutionState.RUNNING,
+                startDelayTotalMs = 10_000L,
+                startDelayElapsedMs = 5_000L,
+            ),
+        )
+        // 首轮等待阶段只倒计时首轮开始，不叠加单轮与间隔。
+        assertEquals(5_000L, waiting.remainingCycleMs(nowEpochMs = 0L))
+
+        val completed = slot(
+            state = ExecutionState.COMPLETED,
+            progress = ExecutionProgress(state = ExecutionState.COMPLETED),
+        )
+        assertEquals(0L, completed.remainingCycleMs(nowEpochMs = 0L))
+    }
+
+    @Test
+    fun remainingCycleTimeInterpolatesBetweenSnapshots() {
+        val inInterval = slot(
+            progress = ExecutionProgress(
+                state = ExecutionState.RUNNING,
+                intervalTotalMs = 6_000L,
+                intervalElapsedMs = 3_000L,
+            ),
+            updatedAtEpochMs = 1_000L,
+        )
+        // 快照时还剩 3 秒间隔；2 秒后只剩 1 秒。
+        assertEquals(3_000L, inInterval.remainingCycleMs(nowEpochMs = 1_000L))
+        assertEquals(1_000L, inInterval.remainingCycleMs(nowEpochMs = 3_000L))
+
+        // 暂停后挂钟不再推进，剩余时间固定。
+        val paused = inInterval.copy(state = ExecutionState.PAUSED)
+        assertEquals(3_000L, paused.remainingCycleMs(nowEpochMs = 9_000L))
+    }
+
+    @Test
     fun overallFractionIsTheAverageOfBothSlots() {
         val combo = ComboProgress(
             slots = listOf(

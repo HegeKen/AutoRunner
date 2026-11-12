@@ -96,6 +96,47 @@ class ExecutionControllerComboTest {
     )
 
     @Test
+    fun theSecondSlotWaitsUntilSlotAFinishesItsRound() = runTest {
+        val clock = SchedulerClock(testScheduler)
+        val access = RecordingController(clock)
+        val gate = ActionDispatchGate()
+        val executorA = AutoRunnerScriptExecutor(access, clock = clock, dispatchGate = gate)
+        val executorB = AutoRunnerScriptExecutor(access, clock = clock, dispatchGate = gate)
+        val controller = ExecutionController(executorA, controllerScope()) { executorB }
+
+        // A 一轮两个动作，中间隔 1 秒；B 的首轮延迟 500ms，正好落在 A 这一轮里。
+        val scriptA = ScriptModel(
+            info = ScriptInfo(name = "A"),
+            flow = listOf(
+                TapStep(1f, 1f, delay = 1_000L),
+                TapStep(2f, 1f, delay = 0L),
+            ),
+        )
+        val scriptB = ScriptModel(
+            info = ScriptInfo(name = "B"),
+            flow = listOf(TapStep(3f, 1f, delay = 0L)),
+        )
+
+        controller.startCombo(
+            ComboExecution(
+                slotA = slot(ComboSlotRole.A, scriptA, ExecutionConfig(mode = ExecutionMode.ONCE)),
+                slotB = slot(
+                    ComboSlotRole.B,
+                    scriptB,
+                    ExecutionConfig(mode = ExecutionMode.ONCE, startDelayMs = 500L),
+                ),
+            ),
+        )
+
+        advanceUntilIdle()
+
+        val xs = access.dispatches.map { (it.step as TapStep).x }
+        assertEquals(listOf(1f, 2f, 3f), xs, "B 不应插在 A 这一轮的两条动作之间")
+        val bTap = access.dispatches.last()
+        assertEquals(1_000L, bTap.atMs, "B 应顺延到 A 本轮动作执行完毕（1000ms）后再开始")
+    }
+
+    @Test
     fun bothSlotsRunInParallelAndHonourTheFirstRoundOffset() = runTest {
         val clock = SchedulerClock(testScheduler)
         val access = RecordingController(clock)

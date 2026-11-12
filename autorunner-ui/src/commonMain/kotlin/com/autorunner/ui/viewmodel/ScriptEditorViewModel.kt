@@ -223,13 +223,19 @@ class ScriptEditorViewModel(
         revalidate()
     }
 
-    /** 复制一个步骤；[followStep] 的含义见 [removeStep]。 */
-    fun duplicateStep(index: Int, followStep: Boolean = true) {
+    /**
+     * 复制一个步骤。
+     *
+     * [followStep] 的含义见 [removeStep]；[atEnd] 为 `true` 时把副本追加到动作
+     * 列表末尾（把同一动作再跑一次放到最后），否则插在原动作正下方。
+     */
+    fun duplicateStep(index: Int, followStep: Boolean = true, atEnd: Boolean = false) {
         val current = _flow.value.toMutableList()
         if (index !in current.indices) return
-        current.add(index + 1, current[index])
+        val target = if (atEnd) current.size else index + 1
+        current.add(target, current[index])
         _flow.value = current
-        if (followStep) _selectedIndex.value = index + 1
+        if (followStep) _selectedIndex.value = target
         _dirty.value = true
         revalidate()
     }

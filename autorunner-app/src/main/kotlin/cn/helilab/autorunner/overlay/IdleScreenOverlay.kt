@@ -21,6 +21,8 @@ import cn.helilab.autorunner.AppGraph
 import cn.helilab.autorunner.AutoRunnerApplication
 import cn.helilab.autorunner.notification.FocusNotification
 import cn.helilab.autorunner.notification.FocusNotificationFeed
+import cn.helilab.autorunner.notification.IdleInterruption
+import cn.helilab.autorunner.notification.IdleInterruptionFeed
 import cn.helilab.autorunner.notification.IdleMediaMonitor
 import cn.helilab.autorunner.notification.IdleMediaState
 import cn.helilab.autorunner.notification.IdleNotification
@@ -54,6 +56,9 @@ import kotlin.random.Random
  *
  * 整屏纯黑，不再为悬浮球预留透明区域：退出挂机统一走「长按音量减键」，
  * 悬浮球与菜单在挂机期间不可见也不可操作。
+ *
+ * 挂机期间的来电 / 闹钟检测（[IdleCallMonitor] + [IdleInterruptionFeed]）
+ * 已上移到调用方（无障碍服务或悬浮窗服务），本层不再关心。
  */
 class IdleScreenOverlay(
     private val context: Context,
@@ -339,6 +344,13 @@ private class DvdHintView(
         color = Color.argb(245, 250, 250, 250)
     }
 
+    /** 圆环下方的剩余时间文字：比环内文字淡一档，避免抢走 A / B 的注意力。 */
+    private val ringRemainingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        textSize = sp(9f)
+        color = Color.argb(190, 205, 205, 205)
+    }
+
     private val ringRect = RectF()
 
     private val batteryTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -425,6 +437,9 @@ private class DvdHintView(
     private val ringSize = dp(40f)
     private val ringStroke = dp(3.2f)
     private val ringClockGap = dp(12f)
+
+    /** 圆环与其下方剩余时间文字之间的间距。 */
+    private val ringRemainingGap = dp(3f)
 
     /**
      * 碰撞边界：以发光边框本体（最内层亮线）的外沿为准，而不是旧版 24dp 的
@@ -643,13 +658,21 @@ private class DvdHintView(
                         label = role.name,
                         percent = (slot.cycleFractionAt(now) * 100f).roundToInt().coerceIn(0, 100),
                         color = color,
+                        remainingMs = slot.remainingCycleMs(now),
                     )
                 }
             }
         }
         if (!progress.state.isActive) return emptyList()
         val percent = singlePercent(progress)
-        return listOf(ProgressRing(percent.toString(), percent, ringColor(progress.state)))
+        return listOf(
+            ProgressRing(
+                label = percent.toString(),
+                percent = percent,
+                color = ringColor(progress.state),
+                remainingMs = singleRemainingMs(progress),
+            ),
+        )
     }
 
     /** 单脚本圆环的百分比：优先首轮等待 / 循环间隔，其次当前循环动作完成度。 */
@@ -668,12 +691,46 @@ private class DvdHintView(
         return (fraction * 100f).roundToInt().coerceIn(0, 100)
     }
 
+    /**
+     * 单脚本圆环的剩余时间：只在首轮等待 / 循环间隔这两个可确定的倒计时阶段给出。
+     *
+     * 动作阶段没有逐动作耗时，剩余时长只能靠整轮估算，估错反而误导，因此不显示。
+     */
+    private fun singleRemainingMs(progress: ExecutionProgress): Long? = when {
+        progress.startDelayTotalMs > 0L &&
+            progress.startDelayElapsedMs < progress.startDelayTotalMs ->
+            progress.startDelayTotalMs - progress.startDelayElapsedMs
+
+        progress.intervalTotalMs > 0L &&
+            progress.intervalElapsedMs < progress.intervalTotalMs ->
+            progress.intervalTotalMs - progress.intervalElapsedMs
+
+        else -> null
+    }
+
+    /**
+     * 圆环下方的剩余时间文案：满 1 分钟按分钟向上取整，不足 1 分钟显示秒数，
+     * 例如「剩余 14 分」「剩余 45 秒」。
+     */
+    private fun formatRingRemaining(remainingMs: Long): String {
+        val safe = remainingMs.coerceAtLeast(0L)
+        return if (safe >= 60_000L) {
+            "${(safe + 59_999L) / 60_000L}m"
+        } else {
+            "${(safe + 999L) / 1_000L}s"
+        }
+    }
+
     private fun ringColor(state: ExecutionState): Int =
         if (state == ExecutionState.PAUSED) PAUSED_RING_COLOR else DEFAULT_FOCUS_ACCENT
 
-    /** 时钟行高度：有圆环时至少要容纳一个圆环。 */
+    /** 圆环本体 + 下方剩余时间文字的总高度。 */
+    private fun ringBlockHeight(): Float =
+        ringSize + ringRemainingGap + lineHeight(ringRemainingPaint)
+
+    /** 时钟行高度：有圆环时至少容纳「圆环 + 剩余时间」一整块。 */
     private fun clockRowHeight(): Float =
-        max(lineHeight(clockPaint), if (rings.isEmpty()) 0f else ringSize)
+        max(lineHeight(clockPaint), if (rings.isEmpty()) 0f else ringBlockHeight())
 
     /**
      * 时钟行宽度：固定为「时钟槽位 + 两侧各一个圆环」。
@@ -689,14 +746,19 @@ private class DvdHintView(
         val left = posX + framePadding + reserved
         val available = (contentWidth - reserved * 2f).coerceAtLeast(1f)
         val text = ellipsize(clockText, clockPaint, available)
-        val baseline = top + (clockRowHeight() - lineHeight(clockPaint)) / 2f -
-            clockPaint.fontMetrics.ascent
+        // 有圆环时与圆环同心：剩余时间文字只占圆环下方，时钟不跟着下移。
+        val centerY = top + if (rings.isEmpty()) {
+            clockRowHeight() / 2f
+        } else {
+            (clockRowHeight() - ringBlockHeight()) / 2f + ringSize / 2f
+        }
+        val baseline = centerY - lineHeight(clockPaint) / 2f - clockPaint.fontMetrics.ascent
         canvas.drawText(text, left + available / 2f, baseline, clockPaint)
     }
 
     /** 圆环与时钟垂直居中于同一行：单个在右侧（电池下方），两个分列左右。 */
     private fun drawRings(canvas: Canvas, top: Float) {
-        val ringTop = top + (clockRowHeight() - ringSize) / 2f
+        val ringTop = top + (clockRowHeight() - ringBlockHeight()) / 2f
         val left = posX + framePadding
         val right = left + contentWidth - ringSize
         if (rings.size >= 2) {
@@ -722,6 +784,17 @@ private class DvdHintView(
         val metrics = ringLabelPaint.fontMetrics
         val baseline = top + ringSize / 2f - (metrics.ascent + metrics.descent) / 2f
         canvas.drawText(ring.label, left + ringSize / 2f, baseline, ringLabelPaint)
+        // 剩余时间紧贴圆环下方；分钟数不足一分钟时由 [formatRingRemaining] 切成秒。
+        ring.remainingMs?.let { remaining ->
+            val labelBaseline = top + ringSize + ringRemainingGap -
+                ringRemainingPaint.fontMetrics.ascent
+            canvas.drawText(
+                formatRingRemaining(remaining),
+                left + ringSize / 2f,
+                labelBaseline,
+                ringRemainingPaint,
+            )
+        }
     }
 
     /**
@@ -1042,8 +1115,18 @@ private class DvdHintView(
         )
     }
 
-    /** 一个待绘制的进度圆环；[label] 是组合槽位 A / B 或单脚本的百分比数字。 */
-    private data class ProgressRing(val label: String, val percent: Int, val color: Int)
+    /**
+     * 一个待绘制的进度圆环；[label] 是组合槽位 A / B 或单脚本的百分比数字。
+     *
+     * [remainingMs] 为圆环下方的剩余时间（距下一轮开始）；无法估算时为 `null`，
+     * 此时只画圆环不画文字。
+     */
+    private data class ProgressRing(
+        val label: String,
+        val percent: Int,
+        val color: Int,
+        val remainingMs: Long? = null,
+    )
 
     private fun publishActionBounds() {
         if (mediaState == null) return

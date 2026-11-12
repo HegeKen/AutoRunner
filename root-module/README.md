@@ -6,10 +6,11 @@
    绕过 MIUI/HyperOS 的「受限设置」不让第三方 App 打开无障碍开关的问题；
 2. **Root 模式输入注入桥** —— 由 root shell 调用 `input`（具备 `INJECT_EVENTS`），
    在无障碍服务不可用/被限制的设备上也能做点击、长按、滑动、按键、文本输入；
-3. **超级岛解锁（LSPosed 模块）** —— 随模块安装 `autorunner-xposed.apk`，解除
-   小米焦点通知的 XMSF 鉴权与 SystemUI 签名白名单，让 AutoRunner 在没有平台
-   APP_ID 的情况下也能上超级岛。该功能依赖 LSPosed，首次安装后需在 LSPosed
-   管理器中启用模块并勾选作用域（见下文）。
+3. **超级岛解锁（LSPosed 模块）** —— 解锁逻辑内置在主 App 里（AutoRunner 的
+   APK 同时是 LSPosed 模块，不再单独打包），解除小米焦点通知的 XMSF 鉴权与
+   SystemUI 签名白名单，让 AutoRunner 在没有平台 APP_ID 的情况下也能上超级岛。
+   该功能依赖 LSPosed，首次安装后需在 LSPosed 管理器中启用模块并勾选作用域
+   （见下文）。
 4. **自动授予通知使用权** —— 把 `AutoRunnerNotificationListener` 并入
    `enabled_notification_listeners`，并在 Android 15+ 允许
    `RECEIVE_SENSITIVE_NOTIFICATIONS`，让黑屏挂机界面能显示手机通知（含验证码正文），
@@ -46,9 +47,8 @@ adb shell su -c 'mkdir -p /data/adb/modules/autorunner_root && \
 | `scripts/enable_accessibility.sh` | 幂等地把 `cn.helilab.autorunner/...AutoRunnerAccessibilityService` 追加进 `enabled_accessibility_services`（保留其它已启用服务），并置 `accessibility_enabled=1` |
 | `scripts/grant_permissions.sh` | 通知 / 悬浮窗 / 电池白名单 / 后台运行权限，以及**通知使用权**（并入 `enabled_notification_listeners`）与 Android 15+ 的敏感通知 appop；收到 `perms` 命令时按需重放 |
 | `scripts/click_daemon.sh` | 监听命令文件，执行 `input tap/long/swipe/key/text`；收到 `a11y` / `perms` 命令时即时补回无障碍条目或权限（按需自愈，无轮询） |
-| `scripts/install_focus_unlock.sh` | 安装 `autorunner-xposed.apk`，写入 `/data/local/tmp/autorunner_root/focus_unlock` 标记 |
-| `autorunner-xposed.apk` | LSPosed 模块：XMSF AuthSession 鉴权放行 + SystemUI 焦点通知白名单放行 |
-| `uninstall.sh` | 停守护进程、卸载超级岛解锁模块、删标记目录、从无障碍与通知使用权列表中移除本 App |
+| `scripts/install_focus_unlock.sh` | 检测主 App 已安装后写入 `/data/local/tmp/autorunner_root/focus_unlock` 标记（解锁逻辑内置在主 App 里） |
+| `uninstall.sh` | 停守护进程、删标记目录、从无障碍与通知使用权列表中移除本 App |
 
 标记目录 `/data/local/tmp/autorunner_root/`（root 可写、普通 App 只读）：
 
@@ -64,10 +64,11 @@ adb shell su -c 'mkdir -p /data/adb/modules/autorunner_root && \
 
 ## 超级岛解锁（LSPosed）
 
-模块自带 `autorunner-xposed.apk`，开机由 `install_focus_unlock.sh` 安装。首次使用：
+解锁模块已并入主 App：安装 AutoRunner 后，它的 APK 同时被 LSPosed 识别为
+「AutoRunner 超级岛解锁」模块，不需要再装第二个 APK。首次使用：
 
-1. 安装/更新本 root 模块并重启（模块 APK 会被 `pm install`，标记文件写入
-   `/data/local/tmp/autorunner_root/focus_unlock`）；
+1. 安装/更新 AutoRunner（主 App）并安装/更新本 root 模块，重启（开机时
+   `install_focus_unlock.sh` 会写入 `/data/local/tmp/autorunner_root/focus_unlock`）；
 2. 打开 LSPosed 管理器，在「模块」里启用 **AutoRunner 超级岛解锁**；
 3. 作用域勾选：
    - **系统界面**（`com.miui.systemui`）
