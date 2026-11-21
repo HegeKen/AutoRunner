@@ -18,6 +18,9 @@ import com.autorunner.ui.platform.GamepadStatusProvider
 import com.autorunner.ui.platform.OemGuidanceStep
 import com.autorunner.ui.platform.PermissionController
 import com.autorunner.ui.platform.PermissionStatus
+import com.autorunner.ui.platform.ScriptTransferController
+import com.autorunner.ui.platform.WebStatusInfo
+import com.autorunner.ui.platform.WebStatusProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +37,10 @@ class SettingsViewModel(
     private val gamepad: GamepadStatusProvider? = null,
     /** 本机是否为平板（smallestScreenWidthDp >= 600）；键盘映射仅平板可见。 */
     val isTabletDevice: Boolean = false,
+    /** 只读网页状态页的运行时信息；平台不支持时为 `null`。 */
+    webStatusProvider: WebStatusProvider? = null,
+    /** 剪贴板与 toast 能力；桌面预览时为 `null`。 */
+    private val transfer: ScriptTransferController? = null,
 ) {
 
     val settings: StateFlow<AppSettings> = container.settingsRepository.settings
@@ -58,6 +65,13 @@ class SettingsViewModel(
 
     /** 可观察的悬浮层状态，让设置行保持响应式。 */
     val overlayState: StateFlow<com.autorunner.core.platform.OverlayState> = container.overlayManager.state
+
+    /** 当前平台是否提供只读网页状态页。 */
+    val webStatusSupported: Boolean = webStatusProvider != null
+
+    /** 网页状态页的监听端口与局域网地址。 */
+    val webStatus: StateFlow<WebStatusInfo> =
+        webStatusProvider?.info ?: MutableStateFlow(WebStatusInfo()).asStateFlow()
 
     val overlayVisible: Boolean get() = overlayState.value.visible
 
@@ -98,6 +112,23 @@ class SettingsViewModel(
 
     fun setExecutionReminder(enabled: Boolean) =
         container.settingsRepository.setExecutionReminder(enabled)
+
+    /** 开启 / 关闭只读网页状态页。 */
+    fun setWebStatusEnabled(enabled: Boolean) =
+        container.settingsRepository.setWebStatusEnabled(enabled)
+
+    /** 复制网页状态页的访问地址，并给出平台 toast 反馈。 */
+    fun copyWebStatusAddress(address: String) {
+        val port = webStatus.value.port
+        if (port <= 0) return
+        val url = "http://$address:$port"
+        transfer?.copyToClipboard("AutoRunner 网页状态页", url)
+        transfer?.notify("访问地址已复制")
+    }
+
+    /** 记住设备监控页最后连接的目标，下次打开时预填输入框。 */
+    fun rememberRemoteMonitorTarget(host: String, port: Int) =
+        container.settingsRepository.setRemoteMonitorTarget(host, port)
 
     fun setAutoCollapsePanel(enabled: Boolean) = container.settingsRepository.setAutoCollapsePanel(enabled)
 

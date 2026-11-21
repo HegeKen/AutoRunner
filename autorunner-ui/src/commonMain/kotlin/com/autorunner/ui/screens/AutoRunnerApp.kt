@@ -63,6 +63,7 @@ import top.yukonga.miuix.kmp.icon.extended.AppRecording
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Import
+import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Merge
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Settings
@@ -76,6 +77,7 @@ import com.autorunner.ui.adaptive.rememberAutoRunnerWindowSize
 import com.autorunner.ui.platform.GamepadStatusProvider
 import com.autorunner.ui.platform.PermissionController
 import com.autorunner.ui.platform.ScriptTransferController
+import com.autorunner.ui.platform.WebStatusProvider
 import com.autorunner.ui.state.Destination
 import com.autorunner.ui.theme.AutoRunnerTheme
 import com.autorunner.ui.theme.Dimens
@@ -109,6 +111,8 @@ fun AutoRunnerApp(
     permissionController: PermissionController? = null,
     transferController: ScriptTransferController? = null,
     gamepadStatusProvider: GamepadStatusProvider? = null,
+    /** 只读网页状态页的运行时信息；平台不支持时为 `null`。 */
+    webStatusProvider: WebStatusProvider? = null,
     windowSizeClass: WindowSizeClass = currentWindowAdaptiveInfo().windowSizeClass,
     /** 设备本身是否为平板（最小宽度 >= 600dp）；用于展示平板专属的键盘映射。 */
     isTabletDevice: Boolean = false,
@@ -130,8 +134,15 @@ fun AutoRunnerApp(
         val scriptListViewModel = remember(container) { ScriptListViewModel(container, transferController) }
         val editorViewModel = remember(container) { ScriptEditorViewModel(container) }
         val recordingViewModel = remember(container) { RecordingViewModel(container) }
-        val settingsViewModel = remember(container, isTabletDevice) {
-            SettingsViewModel(container, permissionController, gamepadStatusProvider, isTabletDevice)
+        val settingsViewModel = remember(container, isTabletDevice, webStatusProvider, transferController) {
+            SettingsViewModel(
+                container = container,
+                permissions = permissionController,
+                gamepad = gamepadStatusProvider,
+                isTabletDevice = isTabletDevice,
+                webStatusProvider = webStatusProvider,
+                transfer = transferController,
+            )
         }
         val executionViewModel = remember(container) { ExecutionViewModel(container) }
         val comboViewModel = remember(container) { ComboViewModel(container) }
@@ -159,7 +170,7 @@ fun AutoRunnerApp(
                 is Destination.Editor -> editorViewModel.load(target.scriptId)
                 Destination.Scripts -> scriptListViewModel.refresh()
                 Destination.Combo -> comboViewModel.refreshScripts()
-                Destination.Record, Destination.Settings -> Unit
+                Destination.Record, Destination.Settings, Destination.Monitor -> Unit
             }
         }
 
@@ -510,6 +521,23 @@ fun AutoRunnerApp(
                             Destination.Settings -> SettingsScreen(
                                 viewModel = settingsViewModel,
                                 windowSize = windowSize,
+                                onOpenRemoteMonitor = { navigate(Destination.Monitor) },
+                            )
+
+                            Destination.Monitor -> RemoteMonitorScreen(
+                                windowSize = windowSize,
+                                onBack = {
+                                    open(
+                                        if (backStack.isNotEmpty()) {
+                                            backStack.removeAt(backStack.lastIndex)
+                                        } else {
+                                            Destination.Settings
+                                        },
+                                    )
+                                },
+                                initialHost = settings.remoteMonitorHost,
+                                initialPort = settings.remoteMonitorPort,
+                                onRememberTarget = settingsViewModel::rememberRemoteMonitorTarget,
                             )
                         }
 
@@ -621,6 +649,7 @@ private fun Destination.icon() = when (this) {
     Destination.Combo -> MiuixIcons.Merge
     Destination.Record -> MiuixIcons.AppRecording
     Destination.Settings -> MiuixIcons.Settings
+    Destination.Monitor -> MiuixIcons.Info
     is Destination.Editor -> MiuixIcons.Play
 }
 

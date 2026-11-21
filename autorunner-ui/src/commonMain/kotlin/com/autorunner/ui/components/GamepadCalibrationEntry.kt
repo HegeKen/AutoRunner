@@ -74,8 +74,9 @@ fun GamepadCalibrationEntry(
     ConfirmDialog(
         show = showConfirm,
         title = "标定手柄按键位置",
-        message = "App 会退到后台并显示手柄悬浮球。请在真实游戏页面点击悬浮球，把 Dpad、" +
-            "ABXY 等按键拖到实际按钮上后保存。标定结果只作用于本设备。",
+        message = "开始后显示手柄悬浮球（App 会退到桌面；窗口模式下留在原地）。请在真实游戏页面" +
+            "把 Dpad、ABXY 等按键拖到实际按钮上后保存；标定中可用悬浮球菜单「转横屏」，" +
+            "长按音量减键可随时退出。标定结果只作用于本设备。",
         confirmLabel = "开始标定",
         onConfirm = {
             showConfirm = false

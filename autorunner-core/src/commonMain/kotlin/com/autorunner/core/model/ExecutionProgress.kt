@@ -20,6 +20,13 @@ data class ExecutionProgress(
     val currentActionLabel: String = "",
     /** 本次运行已消耗的挂钟时间。 */
     val elapsedMs: Long = 0L,
+    /**
+     * 当前这一轮已运行的时长（毫秒）。
+     *
+     * 每轮开始时归零，轮间等待 / 首轮等待期间停在上一轮的时长上；用来在
+     * 「总时长」之外单独展示某一段脚本本轮跑了多久。
+     */
+    val loopElapsedMs: Long = 0L,
     /** 失败并被跳过的动作数。 */
     val skippedActions: Int = 0,
     /** 可选的状态行（失败原因、重连提示……）。 */

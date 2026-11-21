@@ -66,6 +66,28 @@ class GamepadCalibrationWindowHost(
         composeView?.setContent { content() }
     }
 
+    /**
+     * 临时切换整层是否消费触摸。
+     *
+     * 「暂时穿透」模式把窗口设为 `FLAG_NOT_TOUCHABLE`：全部触摸落到下层真实页面，
+     * 用户可先启动游戏 / 进入目标场景，再通过常驻的恢复胶囊回到标定操作
+     * （见 [CalibrationPassthroughWindow]）。失败返回 `false`。
+     */
+    fun setTouchable(touchable: Boolean): Boolean {
+        val view = composeView ?: return false
+        val manager = windowManager ?: return false
+        return runCatching {
+            val params = view.layoutParams as WindowManager.LayoutParams
+            params.flags = if (touchable) {
+                params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            } else {
+                params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            }
+            manager.updateViewLayout(view, params)
+            true
+        }.getOrDefault(false)
+    }
+
     /** 移除窗口并释放 Compose 属主。 */
     fun remove() {
         val view = composeView ?: return

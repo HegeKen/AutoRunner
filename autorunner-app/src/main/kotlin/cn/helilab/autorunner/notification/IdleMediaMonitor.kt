@@ -29,6 +29,14 @@ data class IdleMediaState(
     val canSkipPrevious: Boolean,
     val canSkipNext: Boolean,
     val canTogglePlayPause: Boolean,
+    /** 曲目总时长（毫秒）；0 表示播放器没有提供（直播 / 未知时长）。 */
+    val durationMs: Long = 0L,
+    /** 最近一次已知的播放位置（毫秒）。 */
+    val positionMs: Long = 0L,
+    /** [positionMs] 对应的 `SystemClock.elapsedRealtime()` 时间点，用于插值。 */
+    val positionUpdatedAtElapsedMs: Long = 0L,
+    /** 播放速度；暂停时为 0。 */
+    val playbackSpeed: Float = 1f,
 ) {
 
     /** 滚动文字中的媒体行；标题缺失时退回应用名。 */
@@ -37,6 +45,33 @@ data class IdleMediaState(
             val name = title.ifBlank { appLabel }.ifBlank { "正在播放" }
             return if (artist.isBlank()) "♫ $name" else "♫ $name · $artist"
         }
+
+    /** 是否具备可展示的播放进度（有确定时长）。 */
+    val hasProgress: Boolean get() = durationMs > 0L
+
+    /**
+     * 按当前时刻估算的播放进度（0..1）。
+     *
+     * 播放器只在状态变化时更新 `PlaybackState.position`，播放过程中需要按
+     * `lastPositionUpdateTime` 加上经过的时间插值，否则圆环会一直停在
+     * 上一次回调的位置。
+     */
+    fun progressFractionAt(nowElapsedMs: Long): Float {
+        if (durationMs <= 0L) return 0f
+        val elapsed = if (isPlaying && positionUpdatedAtElapsedMs > 0L) {
+            (nowElapsedMs - positionUpdatedAtElapsedMs).coerceAtLeast(0L)
+        } else {
+            0L
+        }
+        val speed = if (isPlaying) {
+            // 个别播放器在播放中把速度上报成 0，按 1x 处理，避免进度环停住。
+            if (playbackSpeed > 0f) playbackSpeed else 1f
+        } else {
+            0f
+        }
+        val position = positionMs + (elapsed * speed).toLong()
+        return (position.toFloat() / durationMs).coerceIn(0f, 1f)
+    }
 }
 
 /**
@@ -293,6 +328,9 @@ class IdleMediaMonitor(
         )
         val appLabel = appLabel(packageName)
         val actions = playbackState?.actions ?: 0L
+        val durationMs = runCatching {
+            metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+        }.getOrDefault(0L)
         // 有些播放器把 actions 留空（0）却仍支持 transportControls。
         // 此时按「可用」处理，让按钮先展示出来，点下去由播放器自行决定是否响应。
         val unknownActions = actions == 0L
@@ -311,6 +349,10 @@ class IdleMediaMonitor(
                     PlaybackState.ACTION_PLAY or
                     PlaybackState.ACTION_PAUSE
                 ) != 0L,
+            durationMs = durationMs.coerceAtLeast(0L),
+            positionMs = playbackState?.position?.coerceAtLeast(0L) ?: 0L,
+            positionUpdatedAtElapsedMs = playbackState?.lastPositionUpdateTime ?: 0L,
+            playbackSpeed = playbackState?.playbackSpeed ?: 1f,
         )
     }
 

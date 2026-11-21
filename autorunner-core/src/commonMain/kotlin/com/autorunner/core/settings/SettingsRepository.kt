@@ -66,6 +66,14 @@ class SettingsRepository(
 
     fun setExecutionReminder(enabled: Boolean) = update { it.copy(executionReminder = enabled) }
 
+    /** 只读网页状态页的总开关。 */
+    fun setWebStatusEnabled(enabled: Boolean) = update { it.copy(webStatusEnabled = enabled) }
+
+    /** 记住设备监控页最后连接的目标（IP / 主机名 + 端口），供下次打开时预填。 */
+    fun setRemoteMonitorTarget(host: String, port: Int) = update {
+        it.copy(remoteMonitorHost = host.trim(), remoteMonitorPort = port)
+    }
+
     fun setHapticFeedback(enabled: Boolean) = update { it.copy(hapticFeedback = enabled) }
 
     fun setAutoCollapsePanel(enabled: Boolean) = update { it.copy(autoCollapsePanel = enabled) }

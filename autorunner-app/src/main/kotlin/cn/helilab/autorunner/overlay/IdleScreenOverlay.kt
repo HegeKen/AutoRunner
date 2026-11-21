@@ -81,6 +81,9 @@ class IdleScreenOverlay(
     /** 跟随文字面板的媒体按钮窗口；只在有音乐播放时添加。 */
     private var mediaControlWindow: IdleMediaControlWindow? = null
 
+    /** 任务进度圆环下方的暂停 / 退出按钮窗口。 */
+    private var taskControlWindow: IdleTaskControlWindow? = null
+
     /** 通过「通知使用权」读取媒体会话的监听器。 */
     private var mediaMonitor: IdleMediaMonitor? = null
 
@@ -91,6 +94,7 @@ class IdleScreenOverlay(
     private val injectionListener: (Boolean) -> Unit = { passthrough ->
         injectionPassthrough = passthrough
         mediaControlWindow?.setTouchable(!passthrough)
+        taskControlWindow?.setTouchable(!passthrough)
     }
 
     /** 电量 / 充电状态监听器。 */
@@ -113,9 +117,12 @@ class IdleScreenOverlay(
         val manager = windowManager ?: return false
         return runCatching {
             val root = FrameLayout(context)
-            val hint = DvdHintView(context) { bounds ->
-                mediaControlWindow?.moveTo(bounds)
-            }
+            val hint = DvdHintView(
+                context = context,
+                onActionBoundsChanged = { bounds -> mediaControlWindow?.moveTo(bounds) },
+                onTaskStateChanged = { active, paused -> applyTaskState(active, paused) },
+                onTaskBoundsChanged = { bounds -> taskControlWindow?.moveTo(bounds) },
+            )
             root.addView(
                 hint,
                 FrameLayout.LayoutParams(
@@ -140,6 +147,23 @@ class IdleScreenOverlay(
                 windowManager = manager,
                 windowType = windowType,
                 onAction = ::handleMediaAction,
+            )
+            // 任务进度圆环下方的两个控制按钮：暂停 / 继续，以及主动退出熄屏。
+            taskControlWindow = IdleTaskControlWindow(
+                context = context,
+                windowManager = manager,
+                windowType = windowType,
+                onTogglePause = {
+                    AppGraph.containerOrNull?.executionController?.togglePause()
+                },
+                onExit = {
+                    AutoRunnerOverlayService.requestExitBlackScreen(context)
+                },
+            )
+            val controller = AppGraph.containerOrNull?.executionController
+            applyTaskState(
+                active = controller?.isActive == true,
+                paused = controller?.isPaused == true,
             )
             // 注入期间按钮窗口必须让出触摸，否则落在按钮矩形上的点击会被截获。
             IdleInjectionPassthrough.bind(injectionListener)
@@ -186,6 +210,8 @@ class IdleScreenOverlay(
         injectionPassthrough = false
         mediaControlWindow?.hide()
         mediaControlWindow = null
+        taskControlWindow?.hide()
+        taskControlWindow = null
         if (feedObserver != null && IdleNotificationFeed.observer === feedObserver) {
             IdleNotificationFeed.observer = null
         }
@@ -213,6 +239,15 @@ class IdleScreenOverlay(
             // 窗口可能是注入期间才出现的：创建后立即同步让行状态。
             controls.setTouchable(!injectionPassthrough)
         }
+    }
+
+    /** 任务状态变化：同步暂停键图标；没有进行中的任务时置灰。 */
+    private fun applyTaskState(active: Boolean, paused: Boolean) {
+        val controls = taskControlWindow ?: return
+        // 先缓存位置再添加窗口，避免首帧闪到 (0, 0)。
+        hintView?.taskBounds()?.let(controls::moveTo)
+        controls.show(paused = paused, enabled = active)
+        controls.setTouchable(!injectionPassthrough)
     }
 
     private fun handleMediaAction(action: IdleMediaAction) {
@@ -271,6 +306,8 @@ class IdleScreenOverlay(
 private class DvdHintView(
     context: Context,
     private val onActionBoundsChanged: (IdleActionBounds) -> Unit,
+    private val onTaskStateChanged: (active: Boolean, paused: Boolean) -> Unit,
+    private val onTaskBoundsChanged: (IdleTaskBounds) -> Unit,
 ) : View(context) {
 
     private val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -423,6 +460,10 @@ private class DvdHintView(
     /** 时钟行上的执行进度圆环：单脚本只有右侧一个，组合运行左右各一个。 */
     private var rings: List<ProgressRing> = emptyList()
 
+    /** 当前是否有进行中的任务、以及是否暂停；用于同步圆环下方的两个按钮。 */
+    private var taskActive = false
+    private var taskPaused = false
+
     private var batteryState: IdleBatteryState? = null
 
     private val gap = dp(10f)
@@ -450,6 +491,8 @@ private class DvdHintView(
     private val speedPxPerSecond = dp(18f)
     private val actionWidth = dp(IdleMediaControlView.WIDTH_DP)
     private val actionHeight = dp(IdleMediaControlView.HEIGHT_DP)
+    /** 任务控制按钮的直径；与 [IdleTaskControlWindow] 内的窗口尺寸一致。 */
+    private val taskButtonSize = dp(IdleTaskControlWindow.SIZE_DP)
 
     private val framePadding = dp(16f)
     private val frameRadius = dp(18f)
@@ -533,7 +576,7 @@ private class DvdHintView(
         } else {
             clampPosition()
         }
-        publishActionBounds()
+        publishControlBounds()
         invalidate()
     }
 
@@ -545,7 +588,7 @@ private class DvdHintView(
         mediaState = state
         measurePanel()
         clampPosition()
-        publishActionBounds()
+        publishControlBounds()
         invalidate()
     }
 
@@ -555,7 +598,7 @@ private class DvdHintView(
         batteryState = state
         measurePanel()
         clampPosition()
-        publishActionBounds()
+        publishControlBounds()
         invalidate()
     }
 
@@ -565,7 +608,7 @@ private class DvdHintView(
         focusState = state
         measurePanel()
         clampPosition()
-        publishActionBounds()
+        publishControlBounds()
         invalidate()
     }
 
@@ -575,6 +618,18 @@ private class DvdHintView(
         return IdleActionBounds(
             left = posX + framePadding + (contentWidth - actionWidth) / 2f,
             top = posY + framePadding + contentHeight - actionHeight,
+        )
+    }
+
+    /** 圆环下方两个任务按钮的位置：左暂停 / 继续，右退出熄屏。 */
+    fun taskBounds(): IdleTaskBounds? {
+        if (frameWidth <= 0f || posX < 0f || posY < 0f) return null
+        val top = posY + framePadding + headerHeight() + gap + clockRowHeight() + gap
+        val left = posX + framePadding
+        val right = left + contentWidth - taskButtonSize
+        return IdleTaskBounds(
+            toggle = IdleActionBounds(left = left, top = top),
+            exit = IdleActionBounds(left = right, top = top),
         )
     }
 
@@ -593,6 +648,9 @@ private class DvdHintView(
         drawClock(canvas, cursor)
         if (rings.isNotEmpty()) drawRings(canvas, cursor)
         cursor += clockRowHeight() + gap
+
+        // 圆环下方留给「暂停 / 退出」两个按钮，由独立可触摸窗口绘制。
+        cursor += taskRowHeight() + gap
 
         if (focusState.isNotEmpty()) {
             cursor = drawFocusBlock(canvas, cursor)
@@ -634,18 +692,32 @@ private class DvdHintView(
      */
     private fun refreshExecution() {
         val controller = AppGraph.containerOrNull?.executionController
-        val next = if (controller == null) {
+        val progress = controller?.progress?.value
+        val combo = controller?.comboProgress?.value
+        val next = if (progress == null) {
             emptyList()
         } else {
-            activeRings(controller.progress.value, controller.comboProgress.value)
+            activeRings(progress, combo)
         }
         val resized = next.size != rings.size
         rings = next
-        if (!resized || width <= 0 || height <= 0) return
-        measurePanel()
-        clampPosition()
-        publishActionBounds()
-        invalidate()
+        val active = next.isNotEmpty()
+        val paused = when {
+            !active -> false
+            combo != null && combo.isActive -> combo.state == ExecutionState.PAUSED
+            progress != null -> progress.state == ExecutionState.PAUSED
+            else -> false
+        }
+        val stateChanged = active != taskActive || paused != taskPaused
+        taskActive = active
+        taskPaused = paused
+        if (resized && width > 0 && height > 0) {
+            measurePanel()
+            clampPosition()
+            publishControlBounds()
+            invalidate()
+        }
+        if (stateChanged) onTaskStateChanged(active, paused)
     }
 
     private fun activeRings(progress: ExecutionProgress, combo: ComboProgress?): List<ProgressRing> {
@@ -731,6 +803,9 @@ private class DvdHintView(
     /** 时钟行高度：有圆环时至少容纳「圆环 + 剩余时间」一整块。 */
     private fun clockRowHeight(): Float =
         max(lineHeight(clockPaint), if (rings.isEmpty()) 0f else ringBlockHeight())
+
+    /** 圆环下方任务按钮行的高度。 */
+    private fun taskRowHeight(): Float = taskButtonSize
 
     /**
      * 时钟行宽度：固定为「时钟槽位 + 两侧各一个圆环」。
@@ -830,6 +905,7 @@ private class DvdHintView(
     private fun measureContentHeight(hasMedia: Boolean): Float {
         var height = headerHeight()
         height += gap + clockRowHeight()
+        height += gap + taskRowHeight()
         if (focusState.isNotEmpty()) {
             height += gap + focusBlockHeight()
         }
@@ -1044,7 +1120,7 @@ private class DvdHintView(
             mediaScrollOffset += mediaScrollSpeed * deltaSeconds
             if (mediaScrollOffset >= cycle) mediaScrollOffset -= cycle
         }
-        publishActionBounds()
+        publishControlBounds()
     }
 
     /** 焦点通知在面板里的总高度；与 [drawFocusBlock] 的推进严格一致。 */
@@ -1128,9 +1204,9 @@ private class DvdHintView(
         val remainingMs: Long? = null,
     )
 
-    private fun publishActionBounds() {
-        if (mediaState == null) return
-        actionBounds()?.let(onActionBoundsChanged)
+    private fun publishControlBounds() {
+        if (mediaState != null) actionBounds()?.let(onActionBoundsChanged)
+        taskBounds()?.let(onTaskBoundsChanged)
     }
 
     private fun horizontalMax(): Float =

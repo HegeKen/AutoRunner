@@ -39,8 +39,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import com.autorunner.ui.components.CenteredText
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Layers
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.delay
 
@@ -52,8 +54,10 @@ private const val HintToastDurationMs = 5_000L
  *
  * 标定层常驻全屏：把全部手柄按键（17 个 + 摇杆中心）铺在屏幕上，用户逐个拖到游戏里真实
  * 按钮的位置。底部是一枚与其他悬浮窗共用的悬浮球——点按显示/隐藏按键，长按展开
- * [MiniActionMenu]（重置 / 取消 / 保存并退出）。拖动本身不改动设置，「保存并退出」才把
- * 坐标写入全局手柄映射。
+ * [MiniActionMenu]（重置 / 转屏 / 穿透 / 取消 / 保存并退出）。拖动本身不改动设置，
+ * 「保存并退出」才把坐标写入全局手柄映射；「转屏」由宿主用悬浮窗强制横屏（桌面通常
+ * 锁竖屏，而手柄游戏是横屏）；「穿透」由宿主暂时撤掉整层的触摸消费，便于先启动游戏、
+ * 进入目标场景再恢复拖拽；标定期间长按音量减键可随时退出整个流程。
  *
  * 悬浮层为了让游戏画面透出而不加任何背景蒙层，因此每个按键用高对比的圆形胶囊显示。
  * 与执行面板一样，这里也刻意不使用 MIUIX 弹窗宿主：`WindowManager` 悬浮窗不在 `Scaffold`
@@ -65,6 +69,12 @@ fun GamepadCalibrationPanel(
     onSave: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 是否已通过「转屏」把整屏固定为横屏（影响菜单项文案）。 */
+    orientationForced: Boolean = false,
+    /** 点按「转屏」菜单项：由宿主（服务）通过悬浮窗切换屏幕方向。 */
+    onToggleOrientation: () -> Unit = {},
+    /** 点按「穿透」菜单项：宿主暂时让整层不消费触摸，便于先进入真实游戏页面。 */
+    onEnablePassthrough: () -> Unit = {},
 ) {
     val performSave: () -> Unit = {
         viewModel.save()
@@ -96,12 +106,22 @@ fun GamepadCalibrationPanel(
         modifier = modifier
             .fillMaxSize()
             .onSizeChanged { size ->
+                val previous = canvasSize
                 canvasSize = size
-                if (!ballReady && size.width > 0 && size.height > 0) {
-                    // 悬浮球默认停在屏幕底部居中。
-                    ballX = (size.width - ballWindowPx) / 2f
-                    ballY = (size.height - ballWindowPx - edgeInsetPx).coerceAtLeast(0f)
-                    ballReady = true
+                if (size.width > 0 && size.height > 0) {
+                    if (!ballReady) {
+                        // 悬浮球默认停在屏幕底部居中。
+                        ballX = (size.width - ballWindowPx) / 2f
+                        ballY = (size.height - ballWindowPx - edgeInsetPx).coerceAtLeast(0f)
+                        ballReady = true
+                    } else if (previous != size) {
+                        // 「转屏」或分屏尺寸变化后，画布宽高会互换；把悬浮球拉回
+                        // 新画布的可见区域，避免连同长按菜单一起落到屏幕外。
+                        val maxX = (size.width - ballWindowPx).coerceAtLeast(0f)
+                        val maxY = (size.height - ballWindowPx).coerceAtLeast(0f)
+                        ballX = ballX.coerceIn(0f, maxX)
+                        ballY = ballY.coerceIn(0f, maxY)
+                    }
                 }
             },
     ) {
@@ -167,6 +187,24 @@ fun GamepadCalibrationPanel(
                                 menuOpen = false
                             },
                             glyph = MiuixIcons.Refresh,
+                            iconOnly = true,
+                        ),
+                        MiniAction(
+                            label = if (orientationForced) "恢复方向" else "转横屏",
+                            onClick = {
+                                menuOpen = false
+                                onToggleOrientation()
+                            },
+                            glyph = MiuixIcons.Update,
+                            iconOnly = true,
+                        ),
+                        MiniAction(
+                            label = "穿透",
+                            onClick = {
+                                menuOpen = false
+                                onEnablePassthrough()
+                            },
+                            glyph = MiuixIcons.Layers,
                             iconOnly = true,
                         ),
                         MiniAction(
@@ -261,7 +299,7 @@ private fun CalibrationHintToast(
         shadowElevation = 8.dp,
     ) {
         Text(
-            text = "拖拽按键对齐游戏按钮；按压时长在「设置 → 手柄模拟」统一调整；悬浮球长按可重置、取消或保存并退出",
+            text = "拖拽按键对齐游戏按钮；悬浮球长按可重置、转屏、穿透、取消或保存并退出；长按音量减键随时退出标定",
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier

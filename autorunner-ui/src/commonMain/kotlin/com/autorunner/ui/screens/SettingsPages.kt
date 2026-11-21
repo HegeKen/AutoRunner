@@ -15,6 +15,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.AppRecording
 import top.yukonga.miuix.kmp.icon.extended.Folder
+import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Link
 import top.yukonga.miuix.kmp.icon.extended.Lock
 import top.yukonga.miuix.kmp.icon.extended.Show
@@ -40,6 +41,7 @@ internal enum class SettingsPage(val title: String, val summary: String) {
     OVERLAY("悬浮窗", "悬浮球、显示开关与球位置"),
     RECORDING("录制微调", "点击抖动、长按阈值与坐标存储方式"),
     GAMEPAD("手柄模拟", "把 gamepad 按键映射为本机触摸"),
+    WEB("网页状态页", "在局域网内的电脑或平板上查看运行状态"),
     STORAGE("存储与关于", "脚本目录、重置与应用信息"),
 }
 
@@ -57,6 +59,7 @@ internal fun SettingsPage.icon(): ImageVector = when (this) {
     SettingsPage.OVERLAY -> MiuixIcons.Show
     SettingsPage.RECORDING -> MiuixIcons.AppRecording
     SettingsPage.GAMEPAD -> MiuixIcons.Link
+    SettingsPage.WEB -> MiuixIcons.Info
     SettingsPage.STORAGE -> MiuixIcons.Folder
 }
 

@@ -1,5 +1,6 @@
 package cn.helilab.autorunner
 
+import android.app.Activity
 import android.app.Application
 import android.util.Log
 import cn.helilab.autorunner.accessibility.AndroidAccessibilityController
@@ -9,6 +10,7 @@ import cn.helilab.autorunner.input.AndroidRootInputBackend
 import cn.helilab.autorunner.overlay.AndroidGamepadCalibrationController
 import cn.helilab.autorunner.overlay.AndroidOverlayManager
 import cn.helilab.autorunner.overlay.PendingOverlayAction
+import cn.helilab.autorunner.web.StatusWebServer
 import com.autorunner.core.di.AppContainer
 import com.autorunner.core.di.AutoRunnerCore
 import com.autorunner.core.model.AppSettings
@@ -62,6 +64,11 @@ object AppGraph {
     @Volatile
     private var gamepadStatus: AndroidGamepadStatusProvider? = null
 
+    /** 只读网页状态页；设置开启时监听局域网端口。 */
+    @Volatile
+    var webStatus: StatusWebServer? = null
+        private set
+
     val containerOrNull: AppContainer? get() = container
 
     val gamepad: AndroidGamepadStatusProvider? get() = gamepadStatus
@@ -69,6 +76,13 @@ object AppGraph {
     /** Activity 发布的文件传输控制器，供调试通道使用。 */
     @Volatile
     var transfer: com.autorunner.ui.platform.ScriptTransferController? = null
+
+    /**
+     * MainActivity 引用（onCreate 发布、onDestroy 撤销）。标定等流程据此判断
+     * App 是否处于窗口模式（自由窗口 / 分屏），从而决定要不要退回桌面。
+     */
+    @Volatile
+    var mainActivity: Activity? = null
 
     /** 返回容器；若应用尚未构建则按需构建。 */
     fun requireContainer(): AppContainer {
@@ -161,6 +175,11 @@ object AppGraph {
                 rootInputBackend = rootInput,
             )
             container = built
+
+            // 只读网页状态页：开关默认关闭，开启后监听局域网端口。
+            val web = StatusWebServer(application, built)
+            web.attach()
+            webStatus = web
 
             // 预热脚本缓存：悬浮服务、通知动作或调试命令
             // 可能在任何界面组合完成之前就用到执行器，

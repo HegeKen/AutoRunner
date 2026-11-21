@@ -23,6 +23,9 @@ sealed interface Destination {
     /** 设置、权限与手柄配置。 */
     data object Settings : Destination
 
+    /** 设备监控：输入局域网内另一台设备的地址，查看它的运行状态。 */
+    data object Monitor : Destination
+
     companion object {
         /** 导航栏 / 导航轨上可达的页面。 */
         val topLevel: List<Destination> = listOf(Scripts, Combo, Record, Settings)
@@ -33,6 +36,7 @@ sealed interface Destination {
             is Editor -> "编辑"
             Record -> "录制"
             Settings -> "设置"
+            Monitor -> "监控"
         }
     }
 }

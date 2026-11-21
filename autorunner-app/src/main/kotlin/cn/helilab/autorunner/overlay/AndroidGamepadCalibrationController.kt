@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import com.autorunner.core.platform.GamepadCalibrationController
+import cn.helilab.autorunner.AppGraph
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,6 +43,9 @@ class AndroidGamepadCalibrationController(
         if (!isPermissionGranted()) return false
         GamepadCalibrationService.start(context)
         GamepadCalibrationStateHolder.setActive(true)
+        // App 以窗口模式（自由窗口 / 分屏）运行时留在原地：用户可以同屏打开
+        // 真实游戏页面并标定，无需退回桌面。
+        if (AppGraph.mainActivity?.isInMultiWindowMode() == true) return true
         // 退到后台，让用户打开真正的游戏页面。
         goHome()
         return true

@@ -24,6 +24,8 @@ import cn.helilab.autorunner.AutoRunnerApplication
 import cn.helilab.autorunner.notification.IdleInterruption
 import cn.helilab.autorunner.notification.IdleInterruptionFeed
 import cn.helilab.autorunner.overlay.AutoRunnerOverlayService
+import cn.helilab.autorunner.overlay.GamepadCalibrationService
+import cn.helilab.autorunner.overlay.GamepadCalibrationStateHolder
 import cn.helilab.autorunner.overlay.IdleCallMonitor
 import cn.helilab.autorunner.overlay.IdleScreenOverlay
 import com.autorunner.core.model.AppSettings
@@ -252,13 +254,13 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
      */
     override fun onKeyEvent(event: KeyEvent?): Boolean {
         if (event == null) return false
-        // 黑屏挂机期间音量减键是「退出挂机」键：按下过程全部吞掉，避免调音量；
-        // 退出后按键仍被本服务持有到抬起（volumeDownPressedAt 非 0），
-        // 松手前的重复 DOWN / UP 也一并吞掉。
+        // 音量减键是「长按退出」键：黑屏挂机期间退出挂机，手柄标定期间退出标定。
+        // 按下过程全部吞掉，避免调音量；触发退出后按键仍被本服务持有到抬起
+        // （volumeDownPressedAt 非 0），松手前的重复 DOWN / UP 也一并吞掉。
         if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN &&
-            (idleScreenVisible || volumeDownPressedAt != 0L)
+            (idleScreenVisible || GamepadCalibrationStateHolder.active.value || volumeDownPressedAt != 0L)
         ) {
-            return handleIdleScreenExitKey(event)
+            return handleVolumeDownExitKey(event)
         }
         // 监听窗口外（无脚本待运行 / 运行）：完全不拦截，按键穿透给前台应用；
         // 窗口关闭时收集器已做过收尾，这里不存在残留的按住状态。
@@ -835,11 +837,11 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     /** 本次音量减按键已触发过退出，松开前的其余事件全部吞掉。 */
     private var volumeDownLongPressTriggered = false
 
-    /** 按住音量减键满 [IDLE_SCREEN_EXIT_LONG_PRESS_MS] 后退出黑屏挂机。 */
-    private val idleScreenExitLongPress = Runnable {
-        if (idleScreenVisible && volumeDownPressedAt != 0L) {
+    /** 按住音量减键满 [VOLUME_DOWN_EXIT_LONG_PRESS_MS] 后触发退出（黑屏挂机 / 手柄标定）。 */
+    private val volumeDownExitLongPress = Runnable {
+        if (volumeDownPressedAt != 0L && hasVolumeDownExitTarget()) {
             volumeDownLongPressTriggered = true
-            exitIdleScreen()
+            exitVolumeDownTarget()
         }
     }
 
@@ -943,7 +945,7 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
         cancelInterruptionAutoRestore()
         // 不清理 volumeDownPressedAt：长按退出时按键仍被按住，
         // 需要继续吞掉它的重复 DOWN / UP 直到用户松手。
-        mainHandler.removeCallbacks(idleScreenExitLongPress)
+        mainHandler.removeCallbacks(volumeDownExitLongPress)
         mainHandler.removeCallbacks(hangDialogCheck)
         hangDialogCheckScheduled = false
         hangDialogTriggered = false
@@ -1178,37 +1180,56 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * 黑屏挂机期间的音量减键处理：按住满 [IDLE_SCREEN_EXIT_LONG_PRESS_MS] 退出。
+     * 「长按退出」音量减键处理：按住满 [VOLUME_DOWN_EXIT_LONG_PRESS_MS] 后退出
+     * 当前的退出目标（黑屏挂机优先，其次手柄标定层）。
      *
      * 按下到抬起之间一律返回 `true` 吞掉事件，不会触发系统调音量。
      */
-    private fun handleIdleScreenExitKey(event: KeyEvent): Boolean {
+    private fun handleVolumeDownExitKey(event: KeyEvent): Boolean {
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
                 if (event.repeatCount == 0) {
                     volumeDownPressedAt = SystemClock.elapsedRealtime()
                     volumeDownLongPressTriggered = false
-                    mainHandler.removeCallbacks(idleScreenExitLongPress)
-                    mainHandler.postDelayed(idleScreenExitLongPress, IDLE_SCREEN_EXIT_LONG_PRESS_MS)
+                    mainHandler.removeCallbacks(volumeDownExitLongPress)
+                    mainHandler.postDelayed(volumeDownExitLongPress, VOLUME_DOWN_EXIT_LONG_PRESS_MS)
                 }
             }
 
             KeyEvent.ACTION_UP -> {
-                mainHandler.removeCallbacks(idleScreenExitLongPress)
+                mainHandler.removeCallbacks(volumeDownExitLongPress)
                 // 兜底：部分设备长按期间不派发重复事件，松手时按实际按住时长再判一次。
                 if (!volumeDownLongPressTriggered &&
-                    idleScreenVisible &&
                     volumeDownPressedAt != 0L &&
-                    SystemClock.elapsedRealtime() - volumeDownPressedAt >= IDLE_SCREEN_EXIT_LONG_PRESS_MS
+                    hasVolumeDownExitTarget() &&
+                    SystemClock.elapsedRealtime() - volumeDownPressedAt >= VOLUME_DOWN_EXIT_LONG_PRESS_MS
                 ) {
                     volumeDownLongPressTriggered = true
-                    exitIdleScreen()
+                    exitVolumeDownTarget()
                 }
                 // 按键已松开，释放所有权，后续音量键恢复系统默认行为。
                 volumeDownPressedAt = 0L
             }
         }
         return true
+    }
+
+    /** 音量减键当前是否承担「长按退出」职责：黑屏挂机中，或手柄标定层存活。 */
+    private fun hasVolumeDownExitTarget(): Boolean =
+        idleScreenVisible || GamepadCalibrationStateHolder.active.value
+
+    private fun exitVolumeDownTarget() {
+        when {
+            idleScreenVisible -> exitIdleScreen()
+            GamepadCalibrationStateHolder.active.value -> exitGamepadCalibration()
+        }
+    }
+
+    private fun exitGamepadCalibration() {
+        Log.i(AutoRunnerApplication.TAG, "volume-down long press: exiting gamepad calibration")
+        // 停止服务即可：onDestroy 会撤掉标定层并清空 active 状态。
+        GamepadCalibrationService.stop(this)
+        Toast.makeText(this, "已退出手柄按键标定", Toast.LENGTH_LONG).show()
     }
 
     private fun exitIdleScreen() {
@@ -1280,8 +1301,8 @@ class AutoRunnerAccessibilityService : AccessibilityService() {
         /** 鼠标 / 触控板停移多久后推杆自动回中抬起（毫秒）。 */
         const val MOUSE_STICK_IDLE_MS = 100L
 
-        /** 黑屏挂机下按住音量减键多久触发退出（毫秒）。 */
-        const val IDLE_SCREEN_EXIT_LONG_PRESS_MS = 600L
+        /** 长按音量减键触发退出（黑屏挂机 / 手柄标定）的按住时长（毫秒）。 */
+        const val VOLUME_DOWN_EXIT_LONG_PRESS_MS = 600L
 
         /** 弹窗守护：事件停止后等待多久再扫描（毫秒），避开窗口动画。 */
         const val HANG_DIALOG_SETTLE_MS = 400L

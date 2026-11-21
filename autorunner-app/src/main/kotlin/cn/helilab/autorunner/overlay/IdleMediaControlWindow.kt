@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
+import android.graphics.RectF
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -173,6 +174,7 @@ internal class IdleMediaControlView(
     var state: IdleMediaState? = null
         set(value) {
             field = value
+            syncProgressTicker()
             invalidate()
         }
 
@@ -200,6 +202,38 @@ internal class IdleMediaControlView(
         strokeWidth = dp(1f)
     }
 
+    /** 播放进度圆环的底槽：暂停按钮内侧一圈极淡的白线。 */
+    private val progressTrackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(40, 255, 255, 255)
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeWidth = dp(2f)
+    }
+
+    /** 播放进度圆环：运行中为青色，暂停后变暗，提示进度已停表。 */
+    private val progressArcPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(235, 96, 210, 255)
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeWidth = dp(2f)
+    }
+
+    private val progressRect = RectF()
+
+    /**
+     * 播放中每秒刷新一次进度圆环。
+     *
+     * `PlaybackState.position` 只在状态变化时更新，圆环本身需要按时间插值；
+     * 每秒重绘一次对小尺寸视图足够平滑，也不会像逐帧重绘那样耗电。
+     */
+    private val progressTicker = object : Runnable {
+        override fun run() {
+            if (!isAttachedToWindow) return
+            invalidate()
+            if (shouldTickProgress()) postDelayed(this, PROGRESS_TICK_MS)
+        }
+    }
+
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.argb(238, 245, 245, 245)
         style = Paint.Style.FILL
@@ -219,6 +253,29 @@ internal class IdleMediaControlView(
         setMeasuredDimension(contentWidth.roundToInt(), buttonSize.roundToInt())
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        syncProgressTicker()
+    }
+
+    override fun onDetachedFromWindow() {
+        removeCallbacks(progressTicker)
+        super.onDetachedFromWindow()
+    }
+
+    /** 只有「有确定时长且正在播放」时才需要持续重绘进度圆环。 */
+    private fun shouldTickProgress(): Boolean {
+        val playback = state ?: return false
+        return playback.isPlaying && playback.hasProgress
+    }
+
+    private fun syncProgressTicker() {
+        removeCallbacks(progressTicker)
+        if (isAttachedToWindow && shouldTickProgress()) {
+            postDelayed(progressTicker, PROGRESS_TICK_MS)
+        }
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val playback = state
@@ -233,6 +290,7 @@ internal class IdleMediaControlView(
             when (index) {
                 INDEX_PREVIOUS -> drawSkipIcon(canvas, centerX, centerY, previous = true, paint = icon)
                 INDEX_TOGGLE -> {
+                    playback?.let { drawProgressRing(canvas, centerX, centerY, it) }
                     if (playback?.isPlaying == true) {
                         drawPauseIcon(canvas, centerX, centerY, icon)
                     } else {
@@ -243,6 +301,32 @@ internal class IdleMediaControlView(
                 INDEX_NEXT -> drawSkipIcon(canvas, centerX, centerY, previous = false, paint = icon)
             }
         }
+    }
+
+    /**
+     * 在播放 / 暂停按钮外围绘制播放进度圆环。
+     *
+     * 圆环放在按钮边框内侧，从 12 点方向顺时针增长；没有确定时长（直播 /
+     * 元数据缺失）时只保留普通边框。
+     */
+    private fun drawProgressRing(
+        canvas: Canvas,
+        centerX: Float,
+        centerY: Float,
+        playback: IdleMediaState,
+    ) {
+        if (!playback.hasProgress) return
+        val radius = buttonSize / 2f - dp(2.8f)
+        progressRect.set(centerX - radius, centerY - radius, centerX + radius, centerY + radius)
+        canvas.drawArc(progressRect, -90f, 360f, false, progressTrackPaint)
+        val ratio = playback.progressFractionAt(SystemClock.elapsedRealtime())
+        if (ratio <= 0f) return
+        progressArcPaint.color = if (playback.isPlaying) {
+            Color.argb(235, 96, 210, 255)
+        } else {
+            Color.argb(120, 150, 205, 255)
+        }
+        canvas.drawArc(progressRect, -90f, 360f * ratio, false, progressArcPaint)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -400,16 +484,19 @@ internal class IdleMediaControlView(
         private const val INDEX_PREVIOUS = 0
         private const val INDEX_TOGGLE = 1
         private const val INDEX_NEXT = 2
+
+        /** 播放进度圆环的重绘间隔；进度环尺寸很小，一秒一跳足够。 */
+        private const val PROGRESS_TICK_MS = 1_000L
     }
 }
 
 /**
  * 脚本注入期间的触摸让行开关（进程内单例）。
  *
- * 黑屏层的媒体按钮窗口是唯一可触摸的悬浮层，注入的点击只要落在按钮矩形上
- * 就会被它消费，无法穿透到下层应用。两条注入路径（无障碍 `dispatchGesture`
- * 与 Root `input`）在注入前调用 [holdForInjection]，把按钮窗口临时设为
- * 不可触摸，注入结束后自动恢复，真实手指仍可点按按钮。
+ * 黑屏层的媒体按钮与任务控制按钮窗口是可触摸的悬浮层，注入的点击只要落在
+ * 按钮矩形上就会被它们消费，无法穿透到下层应用。两条注入路径（无障碍
+ * `dispatchGesture` 与 Root `input`）在注入前调用 [holdForInjection]，把按钮窗口
+ * 临时设为不可触摸，注入结束后自动恢复，真实手指仍可点按按钮。
  *
  * 让行截止时间取所有请求的最大值，重叠注入不会提前恢复；[bind] 由
  * [IdleScreenOverlay] 在显示期间登记，黑屏层收起后不再有窗口需要让行。

@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        AppGraph.mainActivity = this
         AppGraph.initialize(application)
         val container = AppGraph.requireContainer()
 
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
                 permissionController = permissions,
                 transferController = transfers,
                 gamepadStatusProvider = AppGraph.gamepad,
+                webStatusProvider = AppGraph.webStatus,
                 isTabletDevice = isTabletDevice,
                 initialDestination = requestedDestination.value,
             )
@@ -84,6 +86,11 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         requestedDestination.value = destinationFrom(intent)
         handleScriptIntent(intent)
+    }
+
+    override fun onDestroy() {
+        if (AppGraph.mainActivity === this) AppGraph.mainActivity = null
+        super.onDestroy()
     }
 
     /**

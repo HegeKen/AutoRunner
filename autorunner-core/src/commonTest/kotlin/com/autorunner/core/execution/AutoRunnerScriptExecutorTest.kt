@@ -5,6 +5,7 @@ import com.autorunner.core.model.ActionStep
 import com.autorunner.core.model.ExecutionConfig
 import com.autorunner.core.model.ExecutionMode
 import com.autorunner.core.model.ExecutionOutcome
+import com.autorunner.core.model.ExecutionProgress
 import com.autorunner.core.model.ExecutionState
 import com.autorunner.core.model.FailureStrategy
 import com.autorunner.core.model.GamepadAction
@@ -85,6 +86,33 @@ class AutoRunnerScriptExecutorTest {
         assertEquals(8, controller.dispatched.size)
         // 3 次 2 秒间隔，加上每个动作的延迟（2 次点击 x 300ms x 4 轮）
         assertEquals(6_000L + 2_400L, report.elapsedMs)
+    }
+
+    @Test
+    fun loopElapsedRestartsEveryRoundAndFreezesWhileWaiting() = runTest {
+        val controller = FakeController()
+        val clock = VirtualExecutionClock()
+        val executor = AutoRunnerScriptExecutor(controller, clock = clock)
+        val seen = mutableListOf<ExecutionProgress>()
+
+        executor.execute(
+            script,
+            ExecutionConfig(mode = ExecutionMode.REPEAT, repeatCount = 2, intervalMs = 2_000),
+        ) { seen += it }
+
+        // 第一轮从 0 起算，轮末等于这一轮的时长（2 个点击 × 300ms）。
+        val roundOne = seen.filter { it.completedLoops == 0 && it.currentActionIndex >= 0 }
+        assertTrue(roundOne.isNotEmpty())
+        assertEquals(0L, roundOne.first().loopElapsedMs)
+        val roundOneEnd = seen.first {
+            it.completedLoops == 1 && it.currentActionIndex == -1 && it.intervalTotalMs == 0L
+        }
+        assertEquals(600L, roundOneEnd.loopElapsedMs)
+        // 轮间等待期间不再增长，停在上一轮的时长上。
+        assertTrue(seen.filter { it.intervalTotalMs > 0L }.all { it.loopElapsedMs == 600L })
+        // 第二轮重新从 0 开始。
+        val roundTwoStart = seen.first { it.completedLoops == 1 && it.currentActionIndex == 0 }
+        assertEquals(0L, roundTwoStart.loopElapsedMs)
     }
 
     @Test

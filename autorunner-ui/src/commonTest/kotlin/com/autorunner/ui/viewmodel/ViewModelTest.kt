@@ -448,6 +448,34 @@ class ViewModelTest {
         assertTrue(mappings.mappingFor(GamepadButton.A)?.configured == true)
     }
 
+    @Test
+    fun calibrationRelayoutsWhenCanvasOrientationFlips() = runTest {
+        val container = container(FakeAccessibilityController())
+        val calibration = GamepadCalibrationViewModel(container)
+
+        // 竖屏桌面首次布局。
+        calibration.ensureLayout(1080f, 2400f)
+        val portrait = calibration.targets.value
+
+        // 画布横竖翻转（标定中「转屏」、进入横屏游戏）后按新方向重铺布局。
+        calibration.ensureLayout(2400f, 1080f)
+        val landscape = calibration.targets.value
+        assertTrue(portrait.isNotEmpty() && landscape.isNotEmpty())
+        // 按键默认按屏幕高度的比例落位，横竖翻转后坐标必然整体变化。
+        assertTrue(portrait != landscape)
+
+        // 与一块全新横屏画布铺出的布局一致（含已配置坐标的解析路径）。
+        val fresh = GamepadCalibrationViewModel(container)
+        fresh.ensureLayout(2400f, 1080f)
+        assertEquals(fresh.targets.value, landscape)
+
+        // 方向没变时保持幂等，不覆盖用户拖动结果。
+        val moved = landscape.first { it.button == GamepadButton.A }
+        calibration.moveTarget(moved.id, 10f, 10f)
+        calibration.ensureLayout(2400f, 1080f)
+        assertTrue(calibration.targets.value.first { it.button == GamepadButton.A }.x > moved.x)
+    }
+
     // --------------------------------------------------------------- 设置
 
     @Test

@@ -92,6 +92,7 @@ import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Show
 import top.yukonga.miuix.kmp.icon.extended.Theme
 import com.autorunner.core.model.InputMode
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.WindowDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -127,6 +128,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     windowSize: AutoRunnerWindowSize,
     onOpenScriptsDirectoryInfo: (() -> Unit)? = null,
+    onOpenRemoteMonitor: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val settings by viewModel.settings.collectAsState()
@@ -222,6 +224,7 @@ fun SettingsScreen(
                             viewModel = viewModel,
                             onToggleOverlay = viewModel::toggleOverlay,
                             onOpenScriptsDirectoryInfo = onOpenScriptsDirectoryInfo,
+                            onOpenRemoteMonitor = onOpenRemoteMonitor,
                         )
                     }
                 }
@@ -275,6 +278,7 @@ fun SettingsScreen(
                                 viewModel = viewModel,
                                 onToggleOverlay = viewModel::toggleOverlay,
                                 onOpenScriptsDirectoryInfo = onOpenScriptsDirectoryInfo,
+                                onOpenRemoteMonitor = onOpenRemoteMonitor,
                             )
                         }
                     }
@@ -302,6 +306,7 @@ private fun SettingsPageContent(
     viewModel: SettingsViewModel,
     onToggleOverlay: () -> Unit,
     onOpenScriptsDirectoryInfo: (() -> Unit)?,
+    onOpenRemoteMonitor: (() -> Unit)?,
 ) {
     when (page) {
         SettingsPage.PERMISSIONS -> PermissionSection(
@@ -338,6 +343,12 @@ private fun SettingsPageContent(
         SettingsPage.RECORDING -> RecordingTuningSection(settings = settings, viewModel = viewModel)
 
         SettingsPage.GAMEPAD -> GamepadSection(settings = settings, viewModel = viewModel)
+
+        SettingsPage.WEB -> WebStatusSection(
+            settings = settings,
+            viewModel = viewModel,
+            onOpenRemoteMonitor = onOpenRemoteMonitor,
+        )
 
         SettingsPage.STORAGE -> {
             StorageSection(
@@ -1453,6 +1464,129 @@ private fun StickCenterDialog(
                 },
             )
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 网页状态页
+// ---------------------------------------------------------------------------
+
+/**
+ * 只读网页状态页的开关与访问地址。
+ *
+ * 服务本身由 Android 层的 `StatusWebServer` 托管：设置页只写开关，地址与端口
+ * 来自 [SettingsViewModel.webStatus] 的实时快照。页面同进程生命周期，因此这里
+ * 同时提示「关掉 App 后地址会失效」以及「仅监听局域网」。
+ */
+@Composable
+private fun WebStatusSection(
+    settings: AppSettings,
+    viewModel: SettingsViewModel,
+    onOpenRemoteMonitor: (() -> Unit)? = null,
+) {
+    val status by viewModel.webStatus.collectAsState()
+    val enabled = settings.webStatusEnabled
+
+    // 反向的用法：拿另一台设备的地址，在本机直接解析它的状态接口。
+    if (onOpenRemoteMonitor != null) {
+        SectionCard(
+            title = "设备监控",
+            subtitle = "查看同一局域网内另一台设备的运行状态",
+        ) {
+            ArrowPreference(
+                title = "查看其他设备",
+                summary = "输入对方的 IP 与端口，实时读取它的运行进度",
+                startAction = {
+                    Icon(
+                        imageVector = MiuixIcons.Info,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.primary,
+                    )
+                },
+                onClick = onOpenRemoteMonitor,
+                insideMargin = Dimens.PreferenceRowPadding,
+            )
+        }
+    }
+
+    SectionCard(
+        title = "网页状态页",
+        subtitle = "同一局域网内的设备用浏览器查看运行状态",
+    ) {
+        if (!viewModel.webStatusSupported) {
+            PreferenceRow(
+                title = "当前平台不支持",
+                summary = "网页状态页由 Android 前台进程托管，桌面预览不可用",
+                insideMargin = Dimens.CompactRowPadding,
+            )
+            return@SectionCard
+        }
+
+        SwitchPreference(
+            checked = enabled,
+            onCheckedChange = viewModel::setWebStatusEnabled,
+            title = "启用网页状态页",
+            summary = "监听本机局域网端口，只读展示运行进度、脚本库与环境信息",
+        )
+
+        val error = status.error
+        when {
+            error != null -> PreferenceRow(
+                title = "启动失败",
+                summary = error,
+                statusText = "错误",
+                statusColor = MiuixTheme.colorScheme.errorContainer,
+                statusContentColor = MiuixTheme.colorScheme.onErrorContainer,
+            )
+
+            enabled && status.running && status.addresses.isNotEmpty() -> {
+                status.addresses.forEachIndexed { index, address ->
+                    PreferenceRow(
+                        title = if (index == 0) "访问地址" else "其他地址",
+                        summary = "http://$address:${status.port}",
+                        statusText = "复制",
+                        statusColor = MiuixTheme.colorScheme.secondaryContainer,
+                        statusContentColor = MiuixTheme.colorScheme.onSecondaryContainer,
+                        onClick = { viewModel.copyWebStatusAddress(address) },
+                    )
+                }
+                PreferenceRow(
+                    title = "刷新方式",
+                    summary = "点击地址即可复制；脚本状态变化时即时更新，空闲时约每 20 秒校准一次，服务只读、不提供控制接口",
+                    insideMargin = Dimens.CompactRowPadding,
+                )
+            }
+
+            enabled -> PreferenceRow(
+                title = "等待网络",
+                summary = "未检测到局域网 IPv4 地址，连接 Wi-Fi 后访问地址会自动出现",
+                statusText = "未就绪",
+                statusColor = MiuixTheme.colorScheme.secondaryContainer,
+                statusContentColor = MiuixTheme.colorScheme.onSecondaryContainer,
+            )
+
+            else -> PreferenceRow(
+                title = "当前已关闭",
+                summary = "开启后会以本机局域网 IP 提供只读状态页",
+                insideMargin = Dimens.CompactRowPadding,
+            )
+        }
+    }
+
+    SectionCard(
+        title = "使用提示",
+        subtitle = "网页状态页不经过任何云端服务",
+    ) {
+        PreferenceRow(
+            title = "访问范围",
+            summary = "只监听局域网端口，数据不会离开当前网络；请自行确认所处 Wi-Fi 可信",
+            insideMargin = Dimens.CompactRowPadding,
+        )
+        PreferenceRow(
+            title = "生命周期",
+            summary = "服务随 App 进程启动与结束，完全退出应用后地址会失效",
+            insideMargin = Dimens.CompactRowPadding,
+        )
     }
 }
 

@@ -1,0 +1,1013 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AutoRunner · 运行状态</title>
+<style>
+  /* ------------------------------------------------------------------
+     MIUIX / HyperOS 视觉令牌（与 App 的 AutoRunnerTheme 保持一致）
+     浅色：白底 + #F7F7F7 卡片；深色：#242424 底 + 黑色卡片。
+     品牌主色固定为 #2655FF。
+     ------------------------------------------------------------------ */
+  :root {
+    --primary: #2655FF;
+    --primary-variant: #1B3FCC;
+    --background: #FFFFFF;
+    --surface: #F7F7F7;
+    --tile: #FFFFFF;
+    --on-background: #000000;
+    --on-background-variant: #8C93B0;
+    --on-surface: #000000;
+    --on-surface-secondary: rgba(0, 0, 0, .80);
+    --summary: rgba(0, 0, 0, .60);
+    --secondary-container: #F0F0F0;
+    --on-secondary-container: #A9A9A9;
+    --tertiary-container: #EAF2FF;
+    --on-tertiary-container: #2655FF;
+    --error: #E94634;
+    --error-container: #FDF6F4;
+    --on-error-container: #410002;
+    --divider: #E0E0E0;
+    --running: #16A34A;
+    --paused: #F59E0B;
+    --radius-card: 16px;
+    --radius-inner: 12px;
+    --radius-pill: 999px;
+    --page-padding: 16px;
+    --max-width: 960px;
+    --font: "MiSans", "MiSans VF", "SF Pro Text", -apple-system, BlinkMacSystemFont,
+      "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --background: #242424;
+      --surface: #000000;
+      --tile: #2D2D2D;
+      --on-background: rgba(255, 255, 255, .90);
+      --on-background-variant: #787E96;
+      --on-surface: #F2F2F2;
+      --on-surface-secondary: rgba(255, 255, 255, .80);
+      --summary: rgba(255, 255, 255, .50);
+      --secondary-container: #434343;
+      --on-secondary-container: #7C7C7C;
+      --tertiary-container: #16244F;
+      --on-tertiary-container: #B9C6FF;
+      --error: #F12522;
+      --error-container: #2E0603;
+      --on-error-container: #FFDAD6;
+      --divider: #393939;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --background: #242424;
+    --surface: #000000;
+    --tile: #2D2D2D;
+    --on-background: rgba(255, 255, 255, .90);
+    --on-background-variant: #787E96;
+    --on-surface: #F2F2F2;
+    --on-surface-secondary: rgba(255, 255, 255, .80);
+    --summary: rgba(255, 255, 255, .50);
+    --secondary-container: #434343;
+    --on-secondary-container: #7C7C7C;
+    --tertiary-container: #16244F;
+    --on-tertiary-container: #B9C6FF;
+    --error: #F12522;
+    --error-container: #2E0603;
+    --on-error-container: #FFDAD6;
+    --divider: #393939;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--background);
+    color: var(--on-background);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color .2s ease, color .2s ease;
+  }
+
+  .app {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 20px var(--page-padding) 36px;
+  }
+
+  /* ------------------------------------------------------------- 顶栏 */
+  .appbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .appbar h1 {
+    margin: 0;
+    font-size: 28px;
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -.4px;
+  }
+  .appbar p {
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    color: var(--on-background-variant);
+  }
+  .appbar-side {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-top: 6px;
+  }
+  .clock {
+    font-size: 12.5px;
+    color: var(--summary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .live {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--running);
+    white-space: nowrap;
+  }
+  .live i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .live.bad { color: var(--error); }
+  .live.bad i { animation: none; }
+
+  .offline {
+    display: none;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    border-radius: var(--radius-inner);
+    font-size: 13px;
+    color: var(--on-error-container);
+    background: var(--error-container);
+  }
+  .offline.show { display: block; }
+
+  /* ------------------------------------------------------------- 分区 */
+  main { display: block; }
+  .section { margin-top: 20px; }
+  main > .section:first-child { margin-top: 0; }
+  .section-head {
+    padding: 0 4px;
+    margin-bottom: 8px;
+  }
+  .section-head h3 {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.35;
+    font-weight: 600;
+    color: var(--on-background);
+  }
+  .section-head p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--on-background-variant);
+  }
+  .count {
+    margin-left: 6px;
+    font-weight: 400;
+    color: var(--summary);
+  }
+
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius-card);
+    padding: 20px;
+  }
+  .card.list { padding: 0 16px; }
+
+  /* ------------------------------------------------------------- 状态主卡 */
+  .hero-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+  }
+  .hero h2 {
+    margin: 10px 0 4px;
+    font-size: 24px;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -.3px;
+    word-break: break-word;
+  }
+  .caption {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--summary);
+  }
+  .hero-time {
+    flex: 0 0 auto;
+    text-align: right;
+  }
+  .hero-time span {
+    display: block;
+    font-size: 11.5px;
+    color: var(--summary);
+  }
+  .hero-time strong {
+    display: block;
+    margin-top: 2px;
+    font-size: 30px;
+    line-height: 1.1;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.6px;
+  }
+
+  .progress {
+    height: 6px;
+    margin: 18px 0 16px;
+    border-radius: var(--radius-pill);
+    background: var(--secondary-container);
+    overflow: hidden;
+  }
+  .progress.thin { height: 4px; margin: 12px 0 10px; }
+  .bar {
+    height: 100%;
+    width: 0%;
+    border-radius: var(--radius-pill);
+    background: var(--primary);
+    transition: width .45s ease;
+  }
+  .bar.indeterminate {
+    width: 36% !important;
+    animation: slide 1.5s ease-in-out infinite;
+  }
+  @keyframes slide {
+    0% { transform: translateX(-110%); }
+    100% { transform: translateX(320%); }
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .stat {
+    background: var(--tile);
+    border-radius: var(--radius-inner);
+    padding: 10px 14px;
+  }
+  .stat span {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 11.5px;
+    color: var(--summary);
+  }
+  .stat strong {
+    display: block;
+    font-size: 16px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--on-surface);
+  }
+  .message {
+    display: none;
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-radius: var(--radius-inner);
+    font-size: 12.5px;
+    color: var(--on-error-container);
+    background: var(--error-container);
+  }
+
+  /* ------------------------------------------------------------- 状态胶囊 */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 11px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    line-height: 1.35;
+    font-weight: 600;
+    color: #FFFFFF;
+    background: var(--primary);
+    white-space: nowrap;
+  }
+  .pill.ok { background: var(--running); }
+  .pill.warn { background: var(--paused); }
+  .pill.bad { background: var(--error); }
+  .pill.info { background: var(--running); }
+  .pill.idle { background: var(--primary); }
+  .pill.small { padding: 2px 8px; font-size: 11px; }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 11.5px;
+    line-height: 1.35;
+    white-space: nowrap;
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+  }
+  .tag.on {
+    background: var(--tertiary-container);
+    color: var(--on-tertiary-container);
+  }
+  .tag.plain {
+    padding: 4px 0;
+    background: transparent;
+    color: var(--on-surface-secondary);
+  }
+
+  /* ------------------------------------------------------------- 列表行 */
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--divider);
+  }
+  .row:last-child { border-bottom: none; }
+  .row-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .row-title {
+    font-size: 14.5px;
+    font-weight: 500;
+    color: var(--on-surface);
+    word-break: break-word;
+  }
+  .row-meta {
+    font-size: 12px;
+    color: var(--summary);
+    word-break: break-word;
+    /* 秒级刷新的时长用等宽数字，数字与后面的单位 / 分隔符不会左右跳。 */
+    font-variant-numeric: tabular-nums;
+  }
+  .row-when {
+    flex: 0 0 auto;
+    font-size: 12px;
+    color: var(--summary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .empty {
+    margin: 0;
+    padding: 14px 0;
+    font-size: 12.5px;
+    color: var(--summary);
+  }
+
+  /* ------------------------------------------------------------- 组合运行 */
+  .combo-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .combo-slot {
+    background: var(--tile);
+    border-radius: var(--radius-inner);
+    padding: 14px 16px;
+  }
+  .combo-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .combo-head .role {
+    font-size: 11.5px;
+    color: var(--summary);
+  }
+  .combo-slot h4 {
+    margin: 8px 0 0;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--on-surface);
+    word-break: break-word;
+  }
+  .combo-slot .row-meta { margin: 0; }
+
+  /* ------------------------------------------------------------- 报告 */
+  .report-name {
+    margin: 0 0 6px;
+    font-size: 12px;
+    color: var(--summary);
+  }
+  .report-summary {
+    margin: 0;
+    font-size: 14px;
+    color: var(--on-surface);
+  }
+
+  .columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+
+  footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+    font-size: 11.5px;
+    color: var(--summary);
+    font-variant-numeric: tabular-nums;
+  }
+  footer code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--on-surface-secondary);
+  }
+
+  @media (max-width: 820px) {
+    .columns { grid-template-columns: minmax(0, 1fr); }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 520px) {
+    .appbar h1 { font-size: 24px; }
+    .hero h2 { font-size: 20px; }
+    .hero-time strong { font-size: 24px; }
+    .combo-grid { grid-template-columns: minmax(0, 1fr); }
+    .card { padding: 16px; }
+    .card.list { padding: 0 16px; }
+    .clock { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="appbar">
+    <div>
+      <h1>运行状态</h1>
+      <p id="device">正在连接…</p>
+    </div>
+    <div class="appbar-side">
+      <span class="clock" id="clock">----</span>
+      <span class="live" id="live"><i></i><span id="liveText">实时</span></span>
+    </div>
+  </header>
+
+  <div class="offline" id="offline">与手机的连接已断开，正在自动重试…</div>
+
+  <main>
+    <section class="section">
+      <div class="card hero">
+        <div class="hero-top">
+          <div style="min-width:0">
+            <span class="pill idle" id="stateBadge">空闲</span>
+            <h2 id="scriptName">未选择脚本</h2>
+            <p class="caption" id="stateHint">暂无运行中的任务</p>
+          </div>
+          <div class="hero-time">
+            <span>已运行</span>
+            <strong id="elapsed">00:00</strong>
+          </div>
+        </div>
+        <div class="progress"><div class="bar" id="loopBar"></div></div>
+        <div class="stats">
+          <div class="stat"><span>循环</span><strong id="loops">—</strong></div>
+          <div class="stat"><span>当前动作</span><strong id="action">—</strong></div>
+          <div class="stat"><span>跳过动作</span><strong id="skipped">0</strong></div>
+          <div class="stat"><span>间隔 / 等待</span><strong id="waiting">—</strong></div>
+        </div>
+        <p class="message" id="message"></p>
+      </div>
+    </section>
+
+    <section class="section" id="comboSection" hidden>
+      <div class="section-head">
+        <h3>组合运行</h3>
+        <p>两段脚本各自持有独立的循环进度</p>
+      </div>
+      <div class="card">
+        <div class="combo-grid" id="comboSlots"></div>
+      </div>
+    </section>
+
+    <section class="section" id="reportSection" hidden>
+      <div class="section-head">
+        <h3>上次运行结果</h3>
+      </div>
+      <div class="card">
+        <p class="report-name" id="reportName"></p>
+        <p class="report-summary" id="reportSummary"></p>
+      </div>
+    </section>
+
+    <div class="columns">
+      <section class="section">
+        <div class="section-head">
+          <h3>脚本库 <span class="count" id="scriptCount"></span></h3>
+          <p>已保存的 .arscript 脚本</p>
+        </div>
+        <div class="card list" id="scripts"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h3>运行环境</h3>
+          <p>输入注入、系统授权与设备状态</p>
+        </div>
+        <div class="card list" id="environment"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <span id="footerAddress">未检测到局域网地址</span>
+    <span id="footerMeta"></span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var STATE_CLASS = {
+    RUNNING: 'ok',
+    PAUSED: 'warn',
+    COMPLETED: 'info',
+    STOPPED: 'bad',
+    IDLE: 'idle'
+  };
+
+  var failures = 0;
+  var clockOffset = 0;
+  var clockSynced = false;
+  // 当前这次长轮询的代号与中止器：回到前台 / 网络恢复时用它丢掉挂起的旧请求，
+  // 立刻换一条新连接（否则要等服务端/浏览器把这条请求耗到超时）。
+  var pollToken = 0;
+  var pollAbort = null;
+  // 单次长轮询的读超时，第一次按旧服务端的 55 秒兜底，拿到 longPollMs 后自动收紧。
+  var pollTimeoutMs = 70000;
+  // 本地计时锚点：每收到一次 /api/status 就用它重新校准，页面自己的 1s 定时器
+  // 负责在两次轮询之间把时长补上去。
+  var lastData = null;
+  var lastReceivedAt = 0;
+  var comboMetas = [];
+
+  function byId(id) { return document.getElementById(id); }
+
+  function pad(n) { return n < 10 ? '0' + n : String(n); }
+
+  function formatDate(ms) {
+    var d = new Date(ms);
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+      ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+
+  function formatMs(ms) {
+    if (ms === null || ms === undefined || ms < 0) return '—';
+    var total = Math.floor(ms / 1000);
+    var h = Math.floor(total / 3600);
+    var m = Math.floor((total % 3600) / 60);
+    var s = total % 60;
+    return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : pad(m) + ':' + pad(s);
+  }
+
+  function tickClock() {
+    if (!clockSynced) return;
+    byId('clock').textContent = formatDate(Date.now() + clockOffset);
+  }
+
+  function setText(id, text) {
+    var el = byId(id);
+    if (el) el.textContent = text;
+  }
+
+  /** 网页外观跟随 App 的外观设置；SYSTEM 交给系统的深浅色偏好。 */
+  function applyTheme(mode) {
+    var root = document.documentElement;
+    if (mode === 'LIGHT') {
+      root.setAttribute('data-theme', 'light');
+      root.style.colorScheme = 'light';
+    } else if (mode === 'DARK') {
+      root.setAttribute('data-theme', 'dark');
+      root.style.colorScheme = 'dark';
+    } else {
+      root.removeAttribute('data-theme');
+      root.style.colorScheme = 'light dark';
+    }
+  }
+
+  function setBadge(el, state, label, small) {
+    el.className = 'pill ' + (STATE_CLASS[state] || 'idle') + (small ? ' small' : '');
+    el.textContent = label;
+  }
+
+  /** 以最近一次响应为锚点，本地补上服务端快照之后走掉的时长。 */
+  function liveElapsed(anchorMs, state, receivedAt) {
+    var base = anchorMs || 0;
+    if (state !== 'RUNNING' || !receivedAt) return base;
+    return base + Math.max(0, performance.now() - receivedAt);
+  }
+
+  function liveUptime(data, receivedAt) {
+    var base = data.serverUptimeMs || 0;
+    return receivedAt ? base + Math.max(0, performance.now() - receivedAt) : base;
+  }
+
+  function waitingLabel(e, receivedAt) {
+    if (e.intervalTotalMs > 0) {
+      var interval = Math.min(e.intervalTotalMs, liveElapsed(e.intervalElapsedMs, e.state, receivedAt));
+      return '间隔 ' + formatMs(interval) + ' / ' + formatMs(e.intervalTotalMs);
+    }
+    if (e.startDelayTotalMs > 0) {
+      var start = Math.min(e.startDelayTotalMs, liveElapsed(e.startDelayElapsedMs, e.state, receivedAt));
+      return '首轮 ' + formatMs(start) + ' / ' + formatMs(e.startDelayTotalMs);
+    }
+    return '—';
+  }
+
+  /** 槽位当前阶段：等待首轮 / 循环间隔 / 动作 x/y；终态直接用对方的描述。 */
+  function slotPhase(slot, receivedAt) {
+    if (slot.state !== 'RUNNING') return slot.description || slot.stateLabel;
+    var interval = slot.intervalTotalMs > 0
+      ? Math.min(slot.intervalTotalMs, liveElapsed(slot.intervalElapsedMs, slot.state, receivedAt))
+      : 0;
+    var start = slot.startDelayTotalMs > 0
+      ? Math.min(slot.startDelayTotalMs, liveElapsed(slot.startDelayElapsedMs, slot.state, receivedAt))
+      : 0;
+    if (slot.startDelayTotalMs > 0 && start < slot.startDelayTotalMs) return '等待首轮';
+    if (slot.intervalTotalMs > 0 && interval < slot.intervalTotalMs) return '循环间隔';
+    if (slot.currentActionIndex >= 0) {
+      return '动作 ' + (slot.currentActionIndex + 1) + '/' + slot.totalActions;
+    }
+    return slot.description || '运行中';
+  }
+
+  /**
+   * 这一段脚本「当前这一轮」的时长：动作阶段是本轮已运行，等待阶段是已等待 / 总等待。
+   * 整段的总运行时长已经在顶部大字展示，这里不再重复它。
+   */
+  function slotTime(slot, receivedAt) {
+    if (slot.state !== 'RUNNING') return '';
+    var start = slot.startDelayTotalMs > 0
+      ? Math.min(slot.startDelayTotalMs, liveElapsed(slot.startDelayElapsedMs, slot.state, receivedAt))
+      : 0;
+    if (slot.startDelayTotalMs > 0 && start < slot.startDelayTotalMs) {
+      return '已等待 ' + formatMs(start) + ' / ' + formatMs(slot.startDelayTotalMs);
+    }
+    var interval = slot.intervalTotalMs > 0
+      ? Math.min(slot.intervalTotalMs, liveElapsed(slot.intervalElapsedMs, slot.state, receivedAt))
+      : 0;
+    if (slot.intervalTotalMs > 0 && interval < slot.intervalTotalMs) {
+      return '已等待 ' + formatMs(interval) + ' / ' + formatMs(slot.intervalTotalMs);
+    }
+    if (slot.loopElapsedMs === undefined || slot.loopElapsedMs === null) return '';
+    // 只有轮内才跟着本地时钟走；轮间等待的过渡帧停在上一轮的时长上。
+    var round = slot.currentActionIndex >= 0
+      ? liveElapsed(slot.loopElapsedMs, slot.state, receivedAt)
+      : slot.loopElapsedMs;
+    return '本轮 ' + formatMs(round);
+  }
+
+  function comboMetaText(slot, receivedAt) {
+    var loops = slot.totalLoops === null
+      ? '循环 ' + slot.completedLoops + ' / ∞'
+      : '循环 ' + slot.completedLoops + ' / ' + slot.totalLoops;
+    var parts = [loops, slotPhase(slot, receivedAt)];
+    var time = slotTime(slot, receivedAt);
+    if (time) parts.push(time);
+    return parts.join(' · ');
+  }
+
+  function hintFor(e) {
+    if (e.armed) return '已就绪，等待在悬浮球上点击开始';
+    switch (e.state) {
+      case 'RUNNING': return '正在执行脚本';
+      case 'PAUSED': return '已暂停，等待继续';
+      case 'COMPLETED': return '任务已完成';
+      case 'STOPPED': return '任务已停止';
+      default: return '暂无运行中的任务';
+    }
+  }
+
+  function renderCombo(combo, receivedAt) {
+    var section = byId('comboSection');
+    if (!combo || !combo.slots || combo.slots.length === 0) {
+      section.hidden = true;
+      comboMetas = [];
+      return;
+    }
+    section.hidden = false;
+    var wrap = byId('comboSlots');
+    var metas = [];
+    var nodes = combo.slots.map(function (slot) {
+      var box = document.createElement('div');
+      box.className = 'combo-slot';
+
+      var head = document.createElement('div');
+      head.className = 'combo-head';
+      var role = document.createElement('span');
+      role.className = 'role';
+      role.textContent = slot.roleLabel || slot.role;
+      var badge = document.createElement('span');
+      setBadge(badge, slot.state, slot.stateLabel, true);
+      head.append(role, badge);
+
+      var name = document.createElement('h4');
+      name.textContent = slot.scriptName || '未选择脚本';
+
+      var progress = document.createElement('div');
+      progress.className = 'progress thin';
+      var bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.style.width = Math.round((slot.cycleFraction || 0) * 100) + '%';
+      progress.append(bar);
+
+      var meta = document.createElement('p');
+      meta.className = 'row-meta';
+      meta.textContent = comboMetaText(slot, receivedAt);
+      metas.push({ el: meta, slot: slot });
+
+      box.append(head, name, progress, meta);
+      return box;
+    });
+    comboMetas = metas;
+    wrap.replaceChildren.apply(wrap, nodes);
+  }
+
+  /** 轮询之间只更新与时间有关的文本，避免每秒重建整页。 */
+  function updateComboTimes(combo, receivedAt) {
+    if (!combo) return;
+    comboMetas.forEach(function (item) {
+      item.el.textContent = comboMetaText(item.slot, receivedAt);
+    });
+  }
+
+  function renderTimeFields(data, receivedAt) {
+    // 连接断开时停在最后一次已知值，避免在无法确认对端状态时继续空转。
+    var anchorAt = failures > 0 ? 0 : receivedAt;
+    var exec = data.execution;
+    setText('elapsed', formatMs(liveElapsed(exec.elapsedMs, exec.state, anchorAt)));
+    setText('waiting', waitingLabel(exec, anchorAt));
+    updateComboTimes(data.combo, anchorAt);
+    setText('footerMeta', '服务已运行 ' + formatMs(liveUptime(data, anchorAt)) + ' · 状态变化即时更新 · 空闲时自动校准');
+  }
+
+  function renderReport(report) {
+    var section = byId('reportSection');
+    if (!report) {
+      section.hidden = true;
+      return;
+    }
+    section.hidden = false;
+    setText('reportName', report.scriptName);
+    setText('reportSummary', report.summary);
+  }
+
+  function renderScripts(scripts) {
+    var list = byId('scripts');
+    setText('scriptCount', scripts.length ? '(' + scripts.length + ')' : '');
+    if (!scripts.length) {
+      var empty = document.createElement('p');
+      empty.className = 'empty';
+      empty.textContent = '还没有保存的脚本';
+      list.replaceChildren(empty);
+      return;
+    }
+    list.replaceChildren.apply(list, scripts.map(function (script) {
+      var row = document.createElement('div');
+      row.className = 'row';
+
+      var main = document.createElement('div');
+      main.className = 'row-main';
+      var name = document.createElement('span');
+      name.className = 'row-title';
+      name.textContent = script.name;
+      var meta = document.createElement('span');
+      meta.className = 'row-meta';
+      var loops = script.totalLoops === null ? '无限循环' : '重复 ' + script.totalLoops + ' 次';
+      meta.textContent = script.steps + ' 个动作 · ' + loops +
+        (script.intervalMs > 0 ? ' · 间隔 ' + script.intervalMs + 'ms' : '');
+      main.append(name, meta);
+
+      var when = document.createElement('span');
+      when.className = 'row-when';
+      when.textContent = script.updatedAt || '';
+
+      row.append(main, when);
+      return row;
+    }));
+  }
+
+  function renderEnvironment(env) {
+    // 第三项：true = 正常，false = 未就绪，null = 中性信息。
+    var items = [
+      ['模拟输入', env.inputModeLabel, null],
+      ['无障碍服务', env.accessibilityConnected ? '已连接' : '未连接', env.accessibilityConnected],
+      ['悬浮窗', env.overlayVisible ? '显示中' : (env.overlayPermission ? '已授权' : '未授权'), env.overlayPermission],
+      ['Root 注入', env.rootModuleInstalled ? '模块已安装' : (env.rootAvailable ? '已授权' : '不可用'), env.rootAvailable],
+      ['手柄模拟', env.gamepadEnabled ? '已开启' : '关闭', env.gamepadEnabled],
+      ['通知使用权', env.notificationListener ? '已授权' : '未授权', env.notificationListener],
+      ['屏幕', env.screenWidth + ' × ' + env.screenHeight + ' @' + Number(env.screenDensity).toFixed(2), null],
+      ['电池', env.batteryPercent === null ? '未知'
+        : env.batteryPercent + '%' + (env.batteryCharging ? ' · 充电中' : ''), env.batteryCharging === true]
+    ];
+
+    var list = byId('environment');
+    list.replaceChildren.apply(list, items.map(function (item) {
+      var row = document.createElement('div');
+      row.className = 'row';
+
+      var title = document.createElement('span');
+      title.className = 'row-title';
+      title.textContent = item[0];
+
+      var value = document.createElement('span');
+      value.className = 'tag ' + (item[2] === null ? 'plain' : (item[2] ? 'on' : 'off'));
+      value.textContent = item[1];
+
+      row.append(title, value);
+      return row;
+    }));
+  }
+
+  function render(data, receivedAt) {
+    applyTheme(data.app && data.app.themeMode);
+
+    clockOffset = data.serverTimeMs - Date.now();
+    clockSynced = true;
+    tickClock();
+
+    setText('device', data.app.device + ' · Android ' + data.app.android + ' · v' + data.app.versionName);
+
+    var exec = data.execution;
+    setBadge(byId('stateBadge'), exec.state, exec.stateLabel, false);
+    setText('scriptName', exec.scriptName || '未选择脚本');
+    setText('stateHint', hintFor(exec));
+
+    var bar = byId('loopBar');
+    if (exec.loopFraction !== null && exec.loopFraction !== undefined) {
+      bar.classList.remove('indeterminate');
+      bar.style.width = Math.max(0, Math.min(100, exec.loopFraction * 100)) + '%';
+    } else if (exec.state === 'RUNNING') {
+      bar.classList.add('indeterminate');
+    } else {
+      bar.classList.remove('indeterminate');
+      bar.style.width = '0%';
+    }
+
+    setText('loops', exec.infinite
+      ? exec.completedLoops + ' / ∞'
+      : (exec.totalLoops ? exec.completedLoops + ' / ' + exec.totalLoops : String(exec.completedLoops)));
+    setText('action', exec.currentActionIndex >= 0
+      ? (exec.currentActionIndex + 1) + ' / ' + exec.totalActions
+      : '—');
+    setText('skipped', String(exec.skippedActions || 0));
+
+    var message = byId('message');
+    message.textContent = exec.message || '';
+    message.style.display = exec.message ? 'block' : 'none';
+
+    renderCombo(data.combo, receivedAt);
+    renderReport(data.lastReport);
+    renderScripts(data.scripts || []);
+    renderEnvironment(data.environment || {});
+
+    var addresses = data.network && data.network.addresses ? data.network.addresses : [];
+    var port = data.network ? data.network.port : '';
+    byId('footerAddress').textContent = addresses.length
+      ? 'http://' + addresses[0] + ':' + port
+      : '未检测到局域网地址';
+
+    renderTimeFields(data, receivedAt);
+
+    document.title = (exec.state === 'RUNNING' ? '▶ ' : '') +
+      'AutoRunner · ' + (exec.scriptName || '运行状态');
+  }
+
+  function setOnline(online) {
+    byId('live').classList.toggle('bad', !online);
+    setText('liveText', online ? '实时' : '重连中');
+    byId('offline').classList.toggle('show', !online && failures > 1);
+  }
+
+  /**
+   * 单次长轮询的读超时：服务端在快照里上报自己的挂起上限，比它多留 15 秒余量。
+   * 旧服务端没有 longPollMs 时按 55 秒兜底。
+   */
+  function pollTimeoutFor(data) {
+    var cap = data && Number(data.longPollMs) > 0 ? Number(data.longPollMs) : 55000;
+    return Math.max(15000, Math.min(90000, cap + 15000));
+  }
+
+  /**
+   * 长轮询：带着上次的 stateVersion 挂起等待。
+   * 脚本开始 / 暂停 / 停止等变化会立即返回；空闲时最多等服务端的上限
+   * （旧版约 55 秒，新版约 20 秒），返回后重新锚定本地时钟。
+   *
+   * 每次请求都有自己的 token 与 AbortController：回到前台 / 网络恢复时可以直接
+   * 丢掉挂起的旧请求并立刻重连，也能在浏览器迟迟不响应时主动超时重试。
+   */
+  function watch(since) {
+    var token = ++pollToken;
+    if (pollAbort) {
+      try { pollAbort.abort(); } catch (e) { /* 旧请求已经结束 */ }
+    }
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    pollAbort = controller;
+    var timer = controller ? setTimeout(function () {
+      // 对端迟迟不响应（手机休眠、Wi-Fi 切换）时主动断开，交给 catch 重试，
+      // 不要让页面永远停在「实时」上。
+      try { controller.abort(); } catch (e) { /* 已经结束 */ }
+    }, pollTimeoutMs) : null;
+
+    fetch('/api/status?wait=1&since=' + encodeURIComponent(since), {
+      cache: 'no-store',
+      signal: controller ? controller.signal : undefined
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        if (token !== pollToken) return;
+        if (timer) clearTimeout(timer);
+        failures = 0;
+        setOnline(true);
+        lastData = data;
+        lastReceivedAt = performance.now();
+        pollTimeoutMs = pollTimeoutFor(data);
+        render(data, lastReceivedAt);
+        var version = data.stateVersion;
+        if (version === undefined || version === null || Number(version) <= 0) {
+          // 兼容不支持长轮询的旧服务端：退回每分钟刷新。
+          setTimeout(function () {
+            if (token === pollToken) watch(0);
+          }, 60000);
+        } else {
+          watch(version);
+        }
+      })
+      .catch(function () {
+        if (token !== pollToken) return;
+        if (timer) clearTimeout(timer);
+        failures++;
+        setOnline(false);
+        setTimeout(function () {
+          if (token === pollToken) watch(since);
+        }, failures > 1 ? 5000 : 1000);
+      });
+  }
+
+  /**
+   * 回到前台 / 网络恢复：丢掉挂起的旧长轮询，立刻用 since=0 取一份新快照
+   * （服务端会立即返回），不用等它自然超时，也不用等 5 秒退避。
+   */
+  function refreshNow() {
+    if (document.visibilityState === 'hidden') return;
+    // 首帧还没到，说明 watch(0) 正在跑。
+    if (!clockSynced) return;
+    watch(0);
+  }
+
+  /**
+   * 页面切到后台：不再维持长轮询。手机浏览器会把挂起的请求连同页面一起冻结，
+   * 回到前台时最容易看到「与手机的连接已断开」；这里主动断开，回来再重建。
+   */
+  function pausePolling() {
+    pollToken++;                                   // 让在途回调失效，别再排下一次
+    if (pollAbort) {
+      try { pollAbort.abort(); } catch (e) { /* 已经结束 */ }
+      pollAbort = null;
+    }
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') refreshNow();
+    else pausePolling();
+  });
+  window.addEventListener('focus', refreshNow);
+  window.addEventListener('online', refreshNow);
+  window.addEventListener('pageshow', refreshNow);
+
+  setInterval(tickClock, 1000);
+  // 本地每秒推进时长；每次长轮询响应到达时重新锚定并纠正偏移。
+  setInterval(function () {
+    if (lastData) renderTimeFields(lastData, lastReceivedAt);
+  }, 1000);
+  watch(0);
+})();
+</script>
+</body>
+</html>

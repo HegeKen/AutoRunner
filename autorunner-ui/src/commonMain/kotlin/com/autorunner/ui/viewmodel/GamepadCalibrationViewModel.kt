@@ -50,12 +50,29 @@ class GamepadCalibrationViewModel(
     private var canvasWidthPx: Float = 0f
     private var canvasHeightPx: Float = 0f
 
-    /** 画布尺寸已知后调用；幂等——已铺开布局时不会覆盖用户的拖动结果。 */
+    /** 上次铺布局时画布是否横屏；`null` 表示尚未布局。 */
+    private var lastLayoutWasLandscape: Boolean? = null
+
+    /**
+     * 画布尺寸已知后调用；幂等——已铺开布局时不会覆盖用户的拖动结果。
+     *
+     * 例外：画布横竖方向翻转时（标定中的「转屏」、从竖屏桌面进入横屏游戏）按
+     * 旧方向铺的坐标在新方向上整体错位，会按新画布重铺一次默认布局（含已配置
+     * 的标定坐标——它们本来就落在横屏空间里）。
+     */
     fun ensureLayout(widthPx: Float, heightPx: Float) {
         if (widthPx <= 0f || heightPx <= 0f) return
         canvasWidthPx = widthPx
         canvasHeightPx = heightPx
-        if (_targets.value.isNotEmpty()) return
+        val isLandscape = widthPx > heightPx
+        if (_targets.value.isNotEmpty()) {
+            if (lastLayoutWasLandscape != null && lastLayoutWasLandscape != isLandscape) {
+                _targets.value = buildDefaultLayout(widthPx, heightPx)
+            }
+            lastLayoutWasLandscape = isLandscape
+            return
+        }
+        lastLayoutWasLandscape = isLandscape
         _targets.value = buildDefaultLayout(widthPx, heightPx)
     }
 

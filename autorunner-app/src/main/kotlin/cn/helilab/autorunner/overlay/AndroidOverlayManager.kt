@@ -2,6 +2,7 @@ package cn.helilab.autorunner.overlay
 
 import android.content.Context
 import android.provider.Settings
+import cn.helilab.autorunner.AppGraph
 import com.autorunner.core.model.ComboConfig
 import com.autorunner.core.platform.OverlayManager
 import com.autorunner.core.platform.OverlayState
@@ -79,6 +80,10 @@ class AndroidOverlayManager(
     }.getOrDefault(false)
 
     override fun goHome() {
+        // 窗口模式（自由窗口 / 分屏）下不跳回桌面：只把 App 任务收起到后台，
+        // 让悬浮球留在当前窗口之上，用户可以直接操作原本同屏的应用。
+        val activity = AppGraph.mainActivity
+        if (activity?.isInMultiWindowMode() == true && activity.moveTaskToBack(true)) return
         runCatching {
             context.startActivity(
                 android.content.Intent(android.content.Intent.ACTION_MAIN)

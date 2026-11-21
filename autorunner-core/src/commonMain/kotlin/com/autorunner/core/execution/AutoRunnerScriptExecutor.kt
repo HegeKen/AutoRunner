@@ -95,6 +95,15 @@ class AutoRunnerScriptExecutor(
 
         /** 暂停时记录此刻挂钟；恢复时据此把暂停段从 [startMs] 中扣除。 */
         var pauseAt: Long? = null
+
+        /**
+         * 当前轮次起点的已耗时（口径同 [elapsedSince]）；`-1` 表示此刻不在轮内。
+         * 用「已耗时」而不是挂钟做基准，暂停时长就不会被算进本轮。
+         */
+        var roundStartElapsedMs: Long = -1L
+
+        /** 最近结束的一轮的时长；轮间等待期间展示它，而不是让它继续增长。 */
+        var lastRoundElapsedMs: Long = 0L
     }
 
     /** 最近一次 run 的计数；供 pause/resume/emitStoppedReport 等外部入口读取。 */
@@ -193,6 +202,8 @@ class AutoRunnerScriptExecutor(
                 // 脚本的手势在动作边界互相穿插。循环间隔在轮外，不占锁。
                 val roundResult = dispatchGate.runRound {
                     var result = RoundResult.COMPLETED
+                    // 真正拿到派发权、开始这一轮时才开始计「本轮时长」。
+                    counters.roundStartElapsedMs = elapsedSince(counters)
                     for ((index, step) in steps.withIndex()) {
                         awaitResumeOrStop()
                         if (stopRequested.isCompleted) {
@@ -290,6 +301,9 @@ class AutoRunnerScriptExecutor(
                 }
 
                 counters.completedLoops++
+                // 冻住这一轮的时长：轮间等待期间进度快照继续上报，本轮时长不该跟着涨。
+                counters.lastRoundElapsedMs = loopElapsedSince(counters)
+                counters.roundStartElapsedMs = -1L
                 publishAction(
                     scriptId = scriptId,
                     scriptName = scriptName,
@@ -340,6 +354,10 @@ class AutoRunnerScriptExecutor(
             }
         }
 
+        // 收尾时把「本轮时长」定格在停止 / 结束的这一刻，之后的最终快照不再增长。
+        counters.lastRoundElapsedMs = loopElapsedSince(counters)
+        counters.roundStartElapsedMs = -1L
+
         val outcome = when {
             failureMessage != null -> ExecutionOutcome.FAILED
             stoppedByUser || stopRequested.isCompleted -> ExecutionOutcome.STOPPED
@@ -364,6 +382,7 @@ class AutoRunnerScriptExecutor(
             currentActionIndex = -1,
             totalActions = steps.size,
             elapsedMs = elapsedSince(counters),
+            loopElapsedMs = loopElapsedSince(counters),
             skippedActions = counters.skippedActions,
             message = failureMessage,
         )
@@ -581,6 +600,7 @@ class AutoRunnerScriptExecutor(
             totalActions = totalActions,
             currentActionLabel = label,
             elapsedMs = elapsedSince(counters),
+            loopElapsedMs = loopElapsedSince(counters),
             skippedActions = counters.skippedActions,
             message = message,
         )
@@ -611,6 +631,7 @@ class AutoRunnerScriptExecutor(
             currentActionIndex = -1,
             totalActions = totalActions,
             elapsedMs = elapsedSince(counters),
+            loopElapsedMs = loopElapsedSince(counters),
             skippedActions = counters.skippedActions,
             intervalTotalMs = intervalTotalMs,
             intervalElapsedMs = intervalElapsedMs,
@@ -643,6 +664,7 @@ class AutoRunnerScriptExecutor(
             currentActionIndex = -1,
             totalActions = totalActions,
             elapsedMs = elapsedSince(counters),
+            loopElapsedMs = loopElapsedSince(counters),
             skippedActions = counters.skippedActions,
             startDelayTotalMs = totalMs,
             startDelayElapsedMs = elapsedMs,
@@ -653,6 +675,22 @@ class AutoRunnerScriptExecutor(
 
     /** 当前活跃 run 的已耗时；供 pause/resume 等外部入口使用。 */
     private fun elapsedMs(): Long = elapsedSince(activeCounters)
+
+    /**
+     * 当前这一轮已运行的时长。
+     *
+     * 轮内按「当前已耗时 - 本轮起点」实时计算；轮间等待 / 首轮等待时返回上一轮的
+     * 时长（[RunCounters.lastRoundElapsedMs]），而不是让数字继续往上走。
+     */
+    private fun loopElapsedSince(counters: RunCounters?): Long {
+        if (counters == null) return 0L
+        val start = counters.roundStartElapsedMs
+        return if (start < 0L) {
+            counters.lastRoundElapsedMs
+        } else {
+            (elapsedSince(counters) - start).coerceAtLeast(0L)
+        }
+    }
 
     /**
      * 已耗时：用 [RunCounters.pauseAt]（若处于暂停态）或当前挂钟作为终点，

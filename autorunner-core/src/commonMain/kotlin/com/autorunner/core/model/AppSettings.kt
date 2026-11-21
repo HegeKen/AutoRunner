@@ -97,6 +97,21 @@ data class AppSettings(
      * 节流后的循环进度以及最终报告）。
      */
     @SerialName("executionReminder") val executionReminder: Boolean = true,
+    /**
+     * 开启内置的只读网页状态页。
+     *
+     * 开启后会在本机监听一个局域网端口，同一网络内的其他设备可以用浏览器
+     * 查看运行状态、脚本库与运行环境；服务不提供任何控制接口。
+     */
+    @SerialName("webStatusEnabled") val webStatusEnabled: Boolean = false,
+    /**
+     * 上一次在 App 内查看的另一台设备的地址（IP / 主机名）与端口。
+     *
+     * 设备监控页用它预填输入框，避免每次重新输入；监控本身是纯客户端行为，
+     * 不依赖本机的网页状态页开关。
+     */
+    @SerialName("remoteMonitorHost") val remoteMonitorHost: String = "",
+    @SerialName("remoteMonitorPort") val remoteMonitorPort: Int = 8720,
     /** 在动作边界震动（录制期间的调试辅助）。 */
     @SerialName("hapticFeedback") val hapticFeedback: Boolean = true,
     /** 运行开始后立即把悬浮面板收起为小球。 */
@@ -194,6 +209,8 @@ data class AppSettings(
                 defaultDelayMs = recording.defaultDelayMs.coerceIn(0L, 60_000L),
             ),
             scriptRetentionDays = scriptRetentionDays.coerceAtLeast(0),
+            remoteMonitorHost = remoteMonitorHost.trim(),
+            remoteMonitorPort = remoteMonitorPort.coerceIn(1, 65_535),
             gamepadMappingsByMode = folded.mapValues { (_, mappings) ->
                 mappings.copy(
                     stickRadius = mappings.stickRadius.coerceIn(20f, 2000f),
